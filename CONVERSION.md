@@ -196,10 +196,52 @@ song_N_sn.vgc (LZ4-compressed for BBC 6502 playback)
 ninja_music.ssd (bootable BBC Micro DFS disc image)
 ```
 
+## Reproducing the Build
+
+Run `./build.sh` to reproduce the full pipeline. It will:
+1. Clone and patch the tools (if not already present)
+2. Convert PSG → YM6 → SN76489 VGM → VGC → BBC disc image
+
+### Tool Patches
+
+Only `vgm-packer` needed patching (Python 2 → 3 compatibility):
+- `modules/huffman.py` — disabled a Python 2 version gate
+- `modules/lz4enc.py` — fixed `bytearray.append(struct.pack(...))` →
+  `bytearray.append(int)` (Python 3 returns `bytes` not `int`)
+- `modules/vgmparser.py` — fixed `bytes`/`str` handling in GD3 tag output
+
+The patch is saved as `vgm-packer-py3.patch` and applied automatically
+by `build.sh`.
+
+`ym2149f` and `vgm-player-bbc` are **unmodified** — the `-b` (software
+bass) flag and the bass-enhanced 6502 player were already there; we just
+needed to wire them together correctly.
+
+## Bass-Enhanced Playback
+
+The SN76489 at 4MHz can only produce tones down to ~122Hz. The AY-3-8910
+goes down to ~27Hz, and this game uses bass heavily (~79% of frames have
+at least one tone below 122Hz).
+
+The solution uses IRQ-driven volume toggling:
+1. `ym2sn.py -b` encodes sub-122Hz tones with **bit 6 set** in the
+   SN76489 DATA byte (a normally-unused bit), after right-shifting the
+   tone period by 2 to fit in 10 bits
+2. `vgcplayer_bass.asm` detects bit 6 and:
+   - Sets the SN76489 channel to period 1 (inaudible ~125kHz DC)
+   - Programs a **6522 VIA timer** to fire at the target bass frequency
+   - The timer ISR toggles the channel volume on/off, synthesizing a
+     square wave at the correct pitch
+3. Three independent timers handle all 3 channels simultaneously:
+   - Channel 0: User VIA Timer 1 (continuous)
+   - Channel 1: User VIA Timer 2 (one-shot, reloaded in ISR)
+   - Channel 2: System VIA Timer 2 (one-shot, reloaded in ISR)
+
+**Note**: Requires BBC Master (65C02) due to use of `stz`, `phx`/`phy`,
+`bra` instructions in the bass player.
+
 ## Notes
 
-- The vgm-packer tools needed patching for Python 3 compatibility
-  (bytes vs str issues in huffman.py, lz4enc.py, vgmparser.py)
 - The music engine is NOT a known/documented format — it's a bespoke
   Codemasters engine. The Z80 emulation approach avoids needing to fully
   reverse-engineer the data format.
@@ -208,3 +250,6 @@ ninja_music.ssd (bootable BBC Micro DFS disc image)
   the LZ4 packer and would need a different approach (raw VGM or Exomizer).
 - The tools (ym2149f, vgm-packer, vgm-player-bbc) are cloned into `tools/`
   and should ideally be converted to git submodules.
+- There are minor audio artefacts in the last ~10 seconds, likely caused by
+  very deep bass tones (43-53Hz) with rapid frequency changes taxing the
+  IRQ-driven synthesis.

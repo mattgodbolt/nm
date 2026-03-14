@@ -1,0 +1,86 @@
+diff --git a/modules/huffman.py b/modules/huffman.py
+index 18fc9db..dc836fa 100644
+--- a/modules/huffman.py
++++ b/modules/huffman.py
+@@ -28,7 +28,7 @@ from collections import defaultdict
+ #
+ # TODO: add a peek table
+ 
+-if sys.version_info[0] > 2:
++if False:
+     print("Python 2 only")
+     sys.exit()
+ 
+diff --git a/modules/lz4enc.py b/modules/lz4enc.py
+index 0ad184f..9fcad06 100644
+--- a/modules/lz4enc.py
++++ b/modules/lz4enc.py
+@@ -495,8 +495,10 @@ class LZ4():
+ 
+     # write a byte array to the output buffer, data can be a byte or a byte array
+     def sendBytes(data):
+-      if len(data) == 1:
++      if isinstance(data, int):
+         outputData.append(data)
++      elif len(data) == 1:
++        outputData.append(data[0])
+       else:
+         outputData.extend(data)
+ 
+@@ -849,15 +851,15 @@ class LZ4():
+     # flags
+     # (7-6) FieldName	Version (5)	B.Indep (4)	B.Checksum (3)	C.Size (2)	C.Checksum (1) Reserved (0)	DictID
+     flags = 1 << 6 # Version, dependent blocks, no block checksum, no size, no content checksum, no dict ID 
+-    outputBuffer.append( struct.pack('B', flags) )
++    outputBuffer.append( flags )
+ 
+     # max blocksize
+     maxBlockSizeId = self.MaxBlockSizeId << 4
+-    outputBuffer.append( struct.pack('B', maxBlockSizeId) )
+-    
++    outputBuffer.append( maxBlockSizeId )
++
+     # header checksum (precomputed)
+     checksum = 0xDF
+-    outputBuffer.append( struct.pack('B', checksum) )
++    outputBuffer.append( checksum )
+ 
+     # reset stats for each frame
+     # (can be manually called per-block also if desired)
+diff --git a/modules/vgmparser.py b/modules/vgmparser.py
+index b1d7b6b..3e83d3d 100644
+--- a/modules/vgmparser.py
++++ b/modules/vgmparser.py
+@@ -720,8 +720,11 @@ class VgmStream:
+ 		output_block.extend(header_block)
+ 
+ 		# send title
+-		title = self.gd3_data['title_eng'].decode("utf_16")
+-		title = title.encode('ascii', 'ignore')
++		title_raw = self.gd3_data['title_eng']
++		if isinstance(title_raw, bytes):
++			title = title_raw.decode("utf_16").encode('ascii', 'ignore')
++		else:
++			title = title_raw.encode('ascii', 'ignore')
+ 
+ 		if len(title) > 254:
+ 			title = title[:254]
+@@ -730,12 +733,15 @@ class VgmStream:
+ 		output_block.extend(struct.pack('B', 0))				# zero terminator
+ 
+ 		# send author
+-		author = self.gd3_data['artist_eng'].decode("utf_16")
+-		author = author.encode('ascii', 'ignore')
++		author_raw = self.gd3_data['artist_eng']
++		if isinstance(author_raw, bytes):
++			author = author_raw.decode("utf_16").encode('ascii', 'ignore')
++		else:
++			author = author_raw.encode('ascii', 'ignore')
+ 
+ 		# use filename if no author listed
+ 		if len(author) == 0:
+-			author = basename(self.vgm_filename)
++			author = basename(self.vgm_filename).encode('ascii', 'ignore')
+ 
+ 		if len(author) > 254:
+ 			author = author[:254]
