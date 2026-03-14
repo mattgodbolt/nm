@@ -9,11 +9,21 @@ wheels/
 # Virtual environments
 .venv
 
-# Songs and z80
-/song*
-*.z80
+# Intermediate/generated files
+*.raw
 *.bin
+*.wav
+*.txt
+music.psg
+*.ym
+*.vgm
 
+# Source snapshots (large)
+*.z80
 
+# Cloned game collections
 /CPC
 /Spectrum
+
+# Cloned tools (use git submodules in future)
+/tools/
