@@ -30,8 +30,11 @@ if [ ! -d tools/vgm-packer ]; then
 fi
 
 if [ ! -d tools/vgm-player-bbc ]; then
-    echo "=== Cloning vgm-player-bbc ==="
+    echo "=== Cloning and patching vgm-player-bbc ==="
     git clone https://github.com/simondotm/vgm-player-bbc.git tools/vgm-player-bbc
+    cd tools/vgm-player-bbc
+    git apply ../../vgm-player-bbc-lz4fix.patch
+    cd ../..
 fi
 
 # --- Step 1: Capture AY registers from .z80 snapshot (optional) ---

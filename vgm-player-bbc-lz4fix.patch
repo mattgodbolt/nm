@@ -1,0 +1,36 @@
+diff --git a/lib/vgcplayer_bass.asm b/lib/vgcplayer_bass.asm
+index cca3892..740e297 100644
+--- a/lib/vgcplayer_bass.asm
++++ b/lib/vgcplayer_bass.asm
+@@ -1113,13 +1113,15 @@ lz_window_dst = lz_store_buffer + 1 ; window write ptr LO (2 bytes) - index, 3 r
+     jsr lz_store_buffer         ; [6] +6 RTS
+     sta stashA+1   ; **SELF MODIFICATION**
+ 
+-    ; for all literals
+-    dec zp_literal_cnt+0        ; [5 zp][6 abs]
+-    bne end_literal             ; [2, +1, +2]
+-    lda zp_literal_cnt+1        ; [3 zp][4 abs]
+-    beq begin_matches           ; [2, +1, +2]
+-    dec zp_literal_cnt+1        ; [5 zp][6 abs]
+-    bne end_literal
++    ; for all literals (16-bit decrement)
++    lda zp_literal_cnt+0        ; [3 zp]
++    bne no_hi_dec               ; [2, +1]
++    dec zp_literal_cnt+1        ; only dec hi when lo is about to wrap from 0
++.no_hi_dec
++    dec zp_literal_cnt+0        ; [5 zp]
++    bne end_literal             ; [2, +1]
++    lda zp_literal_cnt+1        ; [3 zp]
++    bne end_literal             ; both zero = literals done
+ 
+ .begin_matches
+ 
+@@ -1240,8 +1242,6 @@ ENDIF
+ 
+ 
+ 
+-
+-
+ ; fetch a byte from the currently selected compressed register data stream
+ ; either huffman encoded or plain data
+ ; returns byte in A, clobbers Y

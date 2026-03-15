@@ -213,9 +213,7 @@ Only `vgm-packer` needed patching (Python 2 → 3 compatibility):
 The patch is saved as `vgm-packer-py3.patch` and applied automatically
 by `build.sh`.
 
-`ym2149f` and `vgm-player-bbc` are **unmodified** — the `-b` (software
-bass) flag and the bass-enhanced 6502 player were already there; we just
-needed to wire them together correctly.
+`ym2149f` is unmodified. `vgm-player-bbc` has one bug fix (see below).
 
 ## Bass-Enhanced Playback
 
@@ -240,6 +238,49 @@ The solution uses IRQ-driven volume toggling:
 **Note**: Requires BBC Master (65C02) due to use of `stz`, `phx`/`phy`,
 `bra` instructions in the bass player.
 
+## LZ4 Decoder Bug Fix (vgm-player-bbc)
+
+**BUG**: The bass-enhanced LZ4 decoder in `vgcplayer_bass.asm` has a
+16-bit decrement bug in the literal counter that corrupts decoded data
+when a literal run crosses a 256-byte boundary.
+
+The bug is at the "for all literals" decrement in `lz_decode_byte`:
+
+```asm
+; BUGGY (bass player):
+    dec zp_literal_cnt+0        ; wraps 0x00 -> 0xFF, Z=0
+    bne end_literal             ; TAKEN — high byte never decremented!
+
+; CORRECT (non-bass player uses proper 16-bit subtract):
+    lda zp_literal_cnt+0
+    sec
+    sbc #1
+    sta zp_literal_cnt+0
+    lda zp_literal_cnt+1
+    sbc #0
+    sta zp_literal_cnt+1
+```
+
+When `literal_cnt` is `0x0100` (256 remaining), decrementing the low
+byte wraps from `0x00` to `0xFF`. Since `0xFF != 0`, the `bne` branch
+is taken without decrementing the high byte. The counter becomes
+`0x01FF` (511) instead of `0x00FF` (255), causing 256 extra bytes to
+be consumed as literals — desynchronising the entire LZ4 stream.
+
+The non-bass player (`vgcplayer.asm`) doesn't have this bug because it
+uses a proper `sec; sbc #1` with carry propagation.
+
+**Impact**: Produces corrupted register data at specific points that
+depend on the compressed data pattern. The non-bass player tolerates
+this because the SN76489 ignores invalid bits. The bass player is
+sensitive to exact byte values (bit 6 = bass mode flag), so corruption
+produces audible wrong-frequency tones.
+
+**Fix applied**: Pre-check the low byte before decrementing, and
+decrement the high byte when the low byte is about to wrap from 0.
+
+**TODO**: Report upstream at https://github.com/simondotm/vgm-player-bbc
+
 ## Notes
 
 - The music engine is NOT a known/documented format — it's a bespoke
@@ -250,6 +291,3 @@ The solution uses IRQ-driven volume toggling:
   the LZ4 packer and would need a different approach (raw VGM or Exomizer).
 - The tools (ym2149f, vgm-packer, vgm-player-bbc) are cloned into `tools/`
   and should ideally be converted to git submodules.
-- There are minor audio artefacts in the last ~10 seconds, likely caused by
-  very deep bass tones (43-53Hz) with rapid frequency changes taxing the
-  IRQ-driven synthesis.
