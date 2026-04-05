@@ -3,7 +3,7 @@
 ## Overview
 
 Extracting AY-3-8910 music from the ZX Spectrum 128K game "Ninja Massacre"
-(1989, Codemasters, written by Adam Waring) and converting it for playback
+(1989, Codemasters, game by Adam Waring, music by David Whittaker) and converting it for playback
 on the BBC Micro's SN76489 sound chip.
 
 ## Source Material

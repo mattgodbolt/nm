@@ -81,7 +81,7 @@ ALIGN 256
 
 .title_text
     EQUS "Ninja Massacre - BBC Micro", 13, 10
-    EQUS "Music by Adam Waring (Codemasters 1989)", 13, 10
+    EQUS "Music by David Whittaker (Codemasters 1989)", 13, 10
     EQUS "Converted from ZX Spectrum 128K AY", 13, 10
     EQUS "Bass enhanced via IRQ-driven volume toggling", 13, 10, 10
     EQUS "Playing...", 13, 10
