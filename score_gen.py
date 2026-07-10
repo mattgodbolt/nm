@@ -398,6 +398,15 @@ def build_score(drv, hihat_rows, song, notation=True):
         n.stemDirection = "down"
         drums.insert(row * 0.25, n)
 
+    # pad every part to the full song length, else parts whose material
+    # ends early get fewer measures and a premature final barline
+    total_ql = drv.row * 0.25
+    for p in list(parts.values()) + [drums]:
+        if p.highestTime < total_ql:
+            r = note.Rest()
+            r.quarterLength = 0.25
+            p.insert(total_ql - 0.25, r)
+
     for role in ROLES:
         sc.insert(0, parts[role])
     sc.insert(0, drums)
