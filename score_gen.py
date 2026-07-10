@@ -56,9 +56,17 @@ SONG0_ROLES = {
 }
 
 # Key signature overrides (sharps count, negative = flats).
-# Song 0 is Bb mixolydian: per Rich Talbot-Watkins, notate it with the
-# Bb major signature (two flats) and mark the modal Abs as accidentals,
-# rather than the three-flat modal signature.
+#
+# Song 0 is Bb mixolydian, notated with the Bb MAJOR signature (two flats)
+# and the modal Abs as accidentals -- per Rich Talbot-Watkins. The
+# alternative "modal signature" (three flats, i.e. the mode's own pitch
+# set) is a real convention, but its home is Irish/Scottish session books
+# and early-music editions, where readers share the context to interpret
+# it (and jazz occasionally: the So What lead sheet gives D dorian an
+# empty signature). Outside those circles three flats resolving endlessly
+# to Bb just reads as miswritten Eb major. The signature's job is to
+# orient the reader to the tonic, and everything here says Bb: the bass
+# pedal, the final, and the melody entering on F, the fifth.
 SONG_KEY = {0: -2}
 
 PART_STYLE = {  # name, abbreviation, clef, instrument
