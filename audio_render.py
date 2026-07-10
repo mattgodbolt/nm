@@ -89,7 +89,7 @@ def drum_burst(kind, nsamp):
 
 
 def score_render(drv, hihat_rows, row_seconds):
-    from score_gen import DRUM_MAP, DEFAULT_DRUM
+    from score_gen import DRUM_MAP, DEFAULT_DRUM, TONE_PERC
     arps = {i: drv.arp_steps(i) for i in range(16)}
     total_rows = drv.row + 2
     n = int(total_rows * row_seconds * RATE)
@@ -102,6 +102,9 @@ def score_render(drv, hihat_rows, row_seconds):
         if ev.get("drum"):
             gm = DRUM_MAP.get((ev["note"], ev["inst"]), DEFAULT_DRUM)[0]
             sig = drum_burst(gm, nsamp)
+        elif (ev["note"], ev["inst"]) in TONE_PERC:
+            # tone-channel percussion (the C#6 clicks): a tick, not a pitch
+            sig = drum_burst(TONE_PERC[(ev["note"], ev["inst"])][0], nsamp)
         else:
             base = MIDI_BASE + ev["note"] + ev["transpose"]
             steps = arps.get(ev["arp"], [0]) if ev["arp"] is not None else [0]
