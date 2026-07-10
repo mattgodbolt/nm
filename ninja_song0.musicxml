@@ -22,80 +22,80 @@
     </scaling>
   </defaults>
   <part-list>
-    <score-part id="Pbd5678772e36ff68c4fe931de0b5aefb">
+    <score-part id="Pcd13ab0acd4d917146043fd5d92637bd">
       <part-name>Lead</part-name>
       <part-abbreviation>Ld.</part-abbreviation>
-      <score-instrument id="I147fc80d09cc216ef21cd6d595b6692d">
+      <score-instrument id="Ib4bd3e6fbb2a9d0ae3735a5cee5d5837">
         <instrument-name>Electric Guitar</instrument-name>
         <instrument-abbreviation>Elec Gtr</instrument-abbreviation>
       </score-instrument>
-      <midi-instrument id="I147fc80d09cc216ef21cd6d595b6692d">
+      <midi-instrument id="Ib4bd3e6fbb2a9d0ae3735a5cee5d5837">
         <midi-channel>1</midi-channel>
         <midi-program>27</midi-program>
       </midi-instrument>
     </score-part>
-    <score-part id="P84031cb10b0ef78791f5402cb1370a1d">
+    <score-part id="P0ccac1c131c99ad832eb2a6460f17982">
       <part-name>Chords</part-name>
       <part-abbreviation>Ch.</part-abbreviation>
-      <score-instrument id="Ie392febe8caefe6b5223691eb58d9bbb">
+      <score-instrument id="Ic0b3757c2ef8955c354db72f07bab436">
         <instrument-name>Piano</instrument-name>
         <instrument-abbreviation>Pno</instrument-abbreviation>
       </score-instrument>
-      <midi-instrument id="Ie392febe8caefe6b5223691eb58d9bbb">
+      <midi-instrument id="Ic0b3757c2ef8955c354db72f07bab436">
         <midi-channel>2</midi-channel>
         <midi-program>1</midi-program>
       </midi-instrument>
     </score-part>
-    <score-part id="P3beb4585518bb87bf4163fbc7f811010">
+    <score-part id="P2a6af4c0cf490cdc56d0dd8291bbd363">
       <part-name>Riff</part-name>
       <part-abbreviation>Rf.</part-abbreviation>
-      <score-instrument id="I0b18cf932220c32aadc52f9cada02a49">
+      <score-instrument id="I5f55ec5f0c50239cdcc0a9001c48792a">
         <instrument-name>Electric Guitar</instrument-name>
         <instrument-abbreviation>Elec Gtr</instrument-abbreviation>
       </score-instrument>
-      <midi-instrument id="I0b18cf932220c32aadc52f9cada02a49">
+      <midi-instrument id="I5f55ec5f0c50239cdcc0a9001c48792a">
         <midi-channel>3</midi-channel>
         <midi-program>27</midi-program>
       </midi-instrument>
     </score-part>
-    <score-part id="Pe75bd0a4241a3836228b0e8e9a4f7ab8">
+    <score-part id="P0cd9fe7e10c1e772f2699acd2c6db8f0">
       <part-name>Pedal</part-name>
       <part-abbreviation>Pd.</part-abbreviation>
-      <score-instrument id="Idad639a5569b67e8961fa6596d348d38">
+      <score-instrument id="I2499e6ac700e4321ca47a357cbc52a5f">
         <instrument-name>Electric Guitar</instrument-name>
         <instrument-abbreviation>Elec Gtr</instrument-abbreviation>
       </score-instrument>
-      <midi-instrument id="Idad639a5569b67e8961fa6596d348d38">
+      <midi-instrument id="I2499e6ac700e4321ca47a357cbc52a5f">
         <midi-channel>4</midi-channel>
         <midi-program>27</midi-program>
       </midi-instrument>
     </score-part>
-    <score-part id="P842e74de0ef17cb801adb3bf33d5ff40">
+    <score-part id="P8cc31f4846e0f28eff02781443653db6">
       <part-name>Bass</part-name>
       <part-abbreviation>Bs.</part-abbreviation>
-      <score-instrument id="I0b221c43f960510983df3671b2889879">
+      <score-instrument id="I5b4ece83471b4393dc78d010cc7cabc3">
         <instrument-name>Electric Bass</instrument-name>
         <instrument-abbreviation>Elec b</instrument-abbreviation>
       </score-instrument>
-      <midi-instrument id="I0b221c43f960510983df3671b2889879">
+      <midi-instrument id="I5b4ece83471b4393dc78d010cc7cabc3">
         <midi-channel>5</midi-channel>
         <midi-program>34</midi-program>
       </midi-instrument>
     </score-part>
-    <score-part id="Pa50fa2bc9dd25f56a4ff128e4c91603b">
+    <score-part id="P706130be3db02ac31b45a143f1b7bf9a">
       <part-name>Drums</part-name>
       <part-abbreviation>Dr.</part-abbreviation>
-      <score-instrument id="Iecb402c6f16aa4eed6098d56eac726b3">
+      <score-instrument id="Id6623400759ec0554b2f07319db1a8c8">
         <instrument-name>Percussion</instrument-name>
         <instrument-abbreviation>Perc</instrument-abbreviation>
       </score-instrument>
-      <midi-instrument id="Iecb402c6f16aa4eed6098d56eac726b3">
+      <midi-instrument id="Id6623400759ec0554b2f07319db1a8c8">
         <midi-channel>10</midi-channel>
       </midi-instrument>
     </score-part>
   </part-list>
   <!--=========================== Part 1 ===========================-->
-  <part id="Pbd5678772e36ff68c4fe931de0b5aefb">
+  <part id="Pcd13ab0acd4d917146043fd5d92637bd">
     <!--========================= Measure 1 ==========================-->
     <measure implicit="no" number="1">
       <attributes>
@@ -571,6 +571,12 @@
     </measure>
     <!--========================= Measure 21 =========================-->
     <measure implicit="no" number="21">
+      <attributes>
+        <clef>
+          <sign>F</sign>
+          <line>4</line>
+        </clef>
+      </attributes>
       <note>
         <pitch>
           <step>B</step>
@@ -761,6 +767,12 @@
     </measure>
     <!--========================= Measure 22 =========================-->
     <measure implicit="no" number="22">
+      <attributes>
+        <clef>
+          <sign>G</sign>
+          <line>2</line>
+        </clef>
+      </attributes>
       <note>
         <pitch>
           <step>B</step>
@@ -986,7 +998,7 @@
     </measure>
   </part>
   <!--=========================== Part 2 ===========================-->
-  <part id="P84031cb10b0ef78791f5402cb1370a1d">
+  <part id="P0ccac1c131c99ad832eb2a6460f17982">
     <!--========================= Measure 1 ==========================-->
     <measure implicit="no" number="1">
       <attributes>
@@ -1823,6 +1835,12 @@
     </measure>
     <!--========================= Measure 29 =========================-->
     <measure implicit="no" number="29">
+      <attributes>
+        <clef>
+          <sign>F</sign>
+          <line>4</line>
+        </clef>
+      </attributes>
       <note>
         <pitch>
           <step>B</step>
@@ -1888,7 +1906,7 @@
     </measure>
   </part>
   <!--=========================== Part 3 ===========================-->
-  <part id="P3beb4585518bb87bf4163fbc7f811010">
+  <part id="P2a6af4c0cf490cdc56d0dd8291bbd363">
     <!--========================= Measure 1 ==========================-->
     <measure implicit="no" number="1">
       <attributes>
@@ -6704,7 +6722,7 @@
     </measure>
   </part>
   <!--=========================== Part 4 ===========================-->
-  <part id="Pe75bd0a4241a3836228b0e8e9a4f7ab8">
+  <part id="P0cd9fe7e10c1e772f2699acd2c6db8f0">
     <!--========================= Measure 1 ==========================-->
     <measure implicit="no" number="1">
       <attributes>
@@ -9000,7 +9018,7 @@
     </measure>
   </part>
   <!--=========================== Part 5 ===========================-->
-  <part id="P842e74de0ef17cb801adb3bf33d5ff40">
+  <part id="P8cc31f4846e0f28eff02781443653db6">
     <!--========================= Measure 1 ==========================-->
     <measure implicit="no" number="1">
       <attributes>
@@ -12296,7 +12314,7 @@
     </measure>
   </part>
   <!--=========================== Part 6 ===========================-->
-  <part id="Pa50fa2bc9dd25f56a4ff128e4c91603b">
+  <part id="P706130be3db02ac31b45a143f1b7bf9a">
     <!--========================= Measure 1 ==========================-->
     <measure implicit="no" number="1">
       <attributes>

@@ -209,6 +209,30 @@ def fill_rests(sc):
     return sc
 
 
+def fix_clefs(sc):
+    """Temporary bass clef for treble-staff measures that sit below middle
+    C (e.g. the bar-21 arpeggio run starting at Bb2), switching back when
+    the line climbs out."""
+    for part in sc.parts:
+        clefs = part.recurse().getElementsByClass(clef.Clef)
+        if not clefs or not isinstance(clefs[0], clef.TrebleClef):
+            continue
+        in_bass = False
+        for m in part.getElementsByClass("Measure"):
+            midis = [q.midi for n in m.flatten().notes if hasattr(n, "pitches")
+                     for q in n.pitches if q is not None]
+            if not midis:
+                continue
+            # centre of gravity decides: a bar averaging below middle C
+            # wears fewer ledger lines in bass clef
+            want_bass = sum(midis) / len(midis) < 60
+            if want_bass != in_bass:
+                m.insert(0, clef.BassClef() if want_bass
+                         else clef.TrebleClef())
+                in_bass = want_bass
+    return sc
+
+
 def fix_voices(sc):
     """Renumber measure voices 1-based (MusicXML convention: Verovio drops
     'voice 0' content out of its layer, rendering it sequentially) and
@@ -397,6 +421,7 @@ def main():
     fix_naturals(sc)
     fill_rests(sc)
     fix_voices(sc)
+    fix_clefs(sc)
     xml = f"{base}.musicxml"
     sc.write("musicxml", fp=xml)
     print(f"wrote {xml}")
