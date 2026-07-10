@@ -136,11 +136,44 @@ dumps are, so the build works without it.
 Only song 0 is included in the disc image. The jingles are too short for
 efficient LZ4 compression and would need a different packing approach.
 
+## The sheet music
+
+The other direction: from register dumps *up* to notation. Rather than
+transcribing the captured AY output (which is smeared by vibrato, arpeggio
+and portamento effects), `dw_decode.py` is a faithful Python port of David
+Whittaker's actual Z80 music driver -- self-modifying code and all. It
+interprets the original song data, so it recovers the *written* music:
+notes, durations, volume-envelope instruments, chord (arpeggio) tables,
+vibrato parameters and drum modes. The port also renders AY register
+frames, verified **100% frame-exact** against all seven captured PSGs.
+
+`score_gen.py` turns that into notation
+([PDF](ninja_song0.pdf), [MusicXML](ninja_song0.musicxml),
+[MIDI](ninja_song0.mid)). Staves are musical roles rather than chip
+channels -- Whittaker moves the bass, riff and drum duties between the
+three AY voices freely. Frame-rate arpeggio-table cycling (an unplayable
+50 notes/sec) is notated as the block chords it emulates; row-rate runs
+(playable sixteenths) stay written out. The main theme is B flat
+mixolydian, notated with the B flat major signature and the modal A flats
+as accidentals, as adjudicated by Rich Talbot-Watkins.
+
+`audio_render.py` writes two WAVs for A/B listening: the exact chip
+register frames through a small AY emulator, versus the notation played
+straight -- the performance versus the page.
+
+The score files are committed because regenerating them needs the music
+engine from the .z80 snapshot, which is not distributable.
+
 ## Project structure
 
 | File | Description |
 |---|---|
 | `ay_capture.py` | Z80 emulator + AY register capture from .z80 snapshots |
+| `extract_z80.py` | Extract 128K RAM pages from a .z80 snapshot |
+| `dw_decode.py` | Port of the Whittaker music driver; decoder + verifier |
+| `score_gen.py` | Decoded music to notation (MusicXML/MIDI) |
+| `audio_render.py` | A/B WAVs: chip emulation vs the score as written |
+| `ninja_song0.pdf` | The main theme, engraved |
 | `raw_to_ym.py` | Convert raw register dumps to YM6 format |
 | `psg_to_vgm.py` | Convert PSG files to VGM format |
 | `player.asm` | BBC Micro 6502 player (BeebASM source) |
@@ -157,6 +190,8 @@ efficient LZ4 compression and would need a different packing approach.
   [ym2149f](https://github.com/simondotm/ym2149f) (AY-to-SN conversion),
   [vgm-packer](https://github.com/simondotm/vgm-packer) (VGM compression),
   [vgm-player-bbc](https://github.com/simondotm/vgm-player-bbc) (6502 playback engine)
-- **[Rich Talbot-Watkins](https://github.com/waitingforvsync)** -- fellow Ninja Massacre enthusiast
+- **[Rich Talbot-Watkins](https://github.com/waitingforvsync)** -- fellow
+  Ninja Massacre enthusiast, and adjudicator of key signatures
 - **Claude** (Anthropic) -- wrote the Z80 emulator, conversion scripts,
-  6502 player integration, and found the LZ4 decoder bug
+  6502 player integration, found the LZ4 decoder bug; later
+  reverse-engineered the music driver and generated the score
