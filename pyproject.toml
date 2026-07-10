@@ -3,4 +3,7 @@ name = "nm"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "music21>=10.5.0",
+    "numpy>=2.5.1",
+]
