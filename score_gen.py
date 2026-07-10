@@ -141,6 +141,35 @@ def classify_patterns(drv, arps, song):
     return roles
 
 
+def pattern_rhythms(drv):
+    """Rhythm signature per pattern: tone-note (relative row, duration)
+    pairs. Two patterns with equal signatures are octave/unison doublings
+    of each other; anything else that happens to coincide is two separate
+    musical lines and must not be merged into chords."""
+    sigs = defaultdict(list)
+    cur, start = {}, {}
+    for ev in drv.events:
+        if ev["type"] == "pattern":
+            cur[ev["voice"]] = ev["addr"]
+            start[ev["voice"]] = ev["row"]
+        elif ev["type"] == "note" and not ev.get("drum"):
+            vi = ev["voice"]
+            key = (cur[vi], ev["row"] - start[vi])
+            sigs[cur[vi]].append((ev["row"] - start[vi], ev["dur"]))
+    # keep only the first occurrence's worth: signatures repeat per play
+    out = {}
+    for addr, pairs in sigs.items():
+        seen = set()
+        sig = []
+        for rel, dur in pairs:
+            if rel in seen:
+                break
+            seen.add(rel)
+            sig.append((rel, dur))
+        out[addr] = tuple(sig)
+    return out
+
+
 def pick_key(drv, arps):
     """Choose the signature minimising duration-weighted accidentals."""
     pcs = Counter()
@@ -246,6 +275,7 @@ def build_score(drv, hihat_rows, song, notation=True):
     bpm = round(50 * 60 / speed / 4)
     arps = {i: drv.arp_steps(i) for i in range(16)}
     roles = classify_patterns(drv, arps, song)
+    rhythms = pattern_rhythms(drv)
     sharps = SONG_KEY.get(song, pick_key(drv, arps))
 
     sc = stream.Score()
@@ -305,25 +335,31 @@ def build_score(drv, hihat_rows, song, notation=True):
             continue
 
         midis = sounding_midis(ev, arps)
-        role = roles.get(cur_pattern.get(vi), "bass")
+        pat = cur_pattern.get(vi)
+        role = roles.get(pat, "bass")
         prev = at.get((role, off))
-        if prev is not None and prev.quarterLength == ql:
-            # two chip voices in unison rhythm: merge octave doublings and
-            # power chords into one chord, but keep wider coincidences as
-            # separate lines (music21 will voice them on the staff)
-            combined = sorted(({p.midi for p in prev.pitches}
-                               if prev.isChord else {prev.pitch.midi})
-                              | set(midis))
-            if combined[-1] - combined[0] <= 12:
-                midis = combined
-                parts[role].remove(prev)
+        if prev is not None:
+            prev_n, prev_pat = prev
+            # merge only genuine doublings: the other chip voice must be
+            # playing a rhythm-identical pattern (octave/unison copy) with
+            # a chord-sized span. Coinciding hits from rhythmically
+            # different lines stay separate voices on the staff.
+            twins = (prev_pat == pat
+                     or rhythms.get(prev_pat) == rhythms.get(pat))
+            if twins and prev_n.quarterLength == ql:
+                combined = sorted(({p.midi for p in prev_n.pitches}
+                                   if prev_n.isChord else {prev_n.pitch.midi})
+                                  | set(midis))
+                if combined[-1] - combined[0] <= 12:
+                    midis = combined
+                    parts[role].remove(prev_n)
         # NB: Pitch(midi=...), not Note(int): the int constructors attach
         # explicit natural accidentals that makeAccidentals then displays
         ps = [flatten(pitch.Pitch(midi=m)) for m in midis]
         n = note.Note(ps[0]) if len(ps) == 1 else chord.Chord(ps)
         n.quarterLength = ql
         parts[role].insert(off, n)
-        at[(role, off)] = n
+        at[(role, off)] = (n, pat)
         last_note[vi] = n
 
     # hi-hat: one sixteenth per row while armed

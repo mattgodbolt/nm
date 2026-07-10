@@ -22,68 +22,68 @@
     </scaling>
   </defaults>
   <part-list>
-    <score-part id="Pe3494047391775481556caeb81abb426">
+    <score-part id="Pb7dca7e6c60c746f7e8c4aefe89fb17b">
       <part-name>Lead</part-name>
       <part-abbreviation>Ld.</part-abbreviation>
-      <score-instrument id="Iaf2df31e9a0e19edbbdf677dad3bbee4">
+      <score-instrument id="If5551ce8011cfb62ca972bb83e39aa73">
         <instrument-name>Electric Guitar</instrument-name>
         <instrument-abbreviation>Elec Gtr</instrument-abbreviation>
       </score-instrument>
-      <midi-instrument id="Iaf2df31e9a0e19edbbdf677dad3bbee4">
+      <midi-instrument id="If5551ce8011cfb62ca972bb83e39aa73">
         <midi-channel>1</midi-channel>
         <midi-program>27</midi-program>
       </midi-instrument>
     </score-part>
-    <score-part id="Pbc6f7360e49563ca312a7311a8d220e6">
+    <score-part id="Pd5ae82a153c3a82872367abef4abbd4b">
       <part-name>Chords</part-name>
       <part-abbreviation>Ch.</part-abbreviation>
-      <score-instrument id="I89457e881e9f4723e8aded20a105d572">
+      <score-instrument id="I8fff4ac781e0310a4c007153991a6cad">
         <instrument-name>Piano</instrument-name>
         <instrument-abbreviation>Pno</instrument-abbreviation>
       </score-instrument>
-      <midi-instrument id="I89457e881e9f4723e8aded20a105d572">
+      <midi-instrument id="I8fff4ac781e0310a4c007153991a6cad">
         <midi-channel>2</midi-channel>
         <midi-program>1</midi-program>
       </midi-instrument>
     </score-part>
-    <score-part id="P99f0ac8a6a19ec16c2263e57966afe0c">
+    <score-part id="P0757b94dc6cb9b71475b9d0ea0577ad7">
       <part-name>Riff</part-name>
       <part-abbreviation>Rf.</part-abbreviation>
-      <score-instrument id="I379d2efaeb11f0d3c1dcf02dd458c689">
+      <score-instrument id="Icb59e12a05fefa1d0e3e7b1b4ecd83d1">
         <instrument-name>Electric Guitar</instrument-name>
         <instrument-abbreviation>Elec Gtr</instrument-abbreviation>
       </score-instrument>
-      <midi-instrument id="I379d2efaeb11f0d3c1dcf02dd458c689">
+      <midi-instrument id="Icb59e12a05fefa1d0e3e7b1b4ecd83d1">
         <midi-channel>3</midi-channel>
         <midi-program>27</midi-program>
       </midi-instrument>
     </score-part>
-    <score-part id="P72d1797060ce7580e6f972bd8c15d628">
+    <score-part id="Pb59b50d5eee643d278d78365d89e9735">
       <part-name>Bass</part-name>
       <part-abbreviation>Bs.</part-abbreviation>
-      <score-instrument id="Ifdc1c281b307ceb2dda6768c2007c4f9">
+      <score-instrument id="I8b74d292b9651ce27e8d7bcce3cf575a">
         <instrument-name>Electric Bass</instrument-name>
         <instrument-abbreviation>Elec b</instrument-abbreviation>
       </score-instrument>
-      <midi-instrument id="Ifdc1c281b307ceb2dda6768c2007c4f9">
+      <midi-instrument id="I8b74d292b9651ce27e8d7bcce3cf575a">
         <midi-channel>4</midi-channel>
         <midi-program>34</midi-program>
       </midi-instrument>
     </score-part>
-    <score-part id="P8ca7fd43584380d118bdd9b73ad7d37a">
+    <score-part id="P13ee9f7955f852961a291ed1f5660029">
       <part-name>Drums</part-name>
       <part-abbreviation>Dr.</part-abbreviation>
-      <score-instrument id="I4711ca92da26a53ab993eb3646b938c6">
+      <score-instrument id="Ibe6af369e873c6ad62a6b04fe97acd43">
         <instrument-name>Percussion</instrument-name>
         <instrument-abbreviation>Perc</instrument-abbreviation>
       </score-instrument>
-      <midi-instrument id="I4711ca92da26a53ab993eb3646b938c6">
+      <midi-instrument id="Ibe6af369e873c6ad62a6b04fe97acd43">
         <midi-channel>10</midi-channel>
       </midi-instrument>
     </score-part>
   </part-list>
   <!--=========================== Part 1 ===========================-->
-  <part id="Pe3494047391775481556caeb81abb426">
+  <part id="Pb7dca7e6c60c746f7e8c4aefe89fb17b">
     <!--========================= Measure 1 ==========================-->
     <measure implicit="no" number="1">
       <attributes>
@@ -974,7 +974,7 @@
     </measure>
   </part>
   <!--=========================== Part 2 ===========================-->
-  <part id="Pbc6f7360e49563ca312a7311a8d220e6">
+  <part id="Pd5ae82a153c3a82872367abef4abbd4b">
     <!--========================= Measure 1 ==========================-->
     <measure implicit="no" number="1">
       <attributes>
@@ -1876,7 +1876,7 @@
     </measure>
   </part>
   <!--=========================== Part 3 ===========================-->
-  <part id="P99f0ac8a6a19ec16c2263e57966afe0c">
+  <part id="P0757b94dc6cb9b71475b9d0ea0577ad7">
     <!--========================= Measure 1 ==========================-->
     <measure implicit="no" number="1">
       <attributes>
@@ -6692,7 +6692,7 @@
     </measure>
   </part>
   <!--=========================== Part 4 ===========================-->
-  <part id="P72d1797060ce7580e6f972bd8c15d628">
+  <part id="Pb59b50d5eee643d278d78365d89e9735">
     <!--========================= Measure 1 ==========================-->
     <measure implicit="no" number="1">
       <attributes>
@@ -7013,93 +7013,120 @@
         <pitch>
           <step>B</step>
           <alter>-1</alter>
-          <octave>2</octave>
+          <octave>3</octave>
         </pitch>
         <duration>7560</duration>
+        <voice>1</voice>
         <type>eighth</type>
         <dot />
         <stem>down</stem>
         <beam number="1">begin</beam>
       </note>
       <note>
-        <chord />
         <pitch>
           <step>B</step>
           <alter>-1</alter>
           <octave>3</octave>
         </pitch>
-        <duration>7560</duration>
-        <type>eighth</type>
-        <dot />
-      </note>
-      <note>
-        <pitch>
-          <step>B</step>
-          <alter>-1</alter>
-          <octave>2</octave>
-        </pitch>
         <duration>2520</duration>
+        <voice>1</voice>
         <type>16th</type>
         <stem>down</stem>
         <beam number="1">end</beam>
         <beam number="2">backward hook</beam>
       </note>
       <note>
-        <chord />
-        <pitch>
-          <step>B</step>
-          <alter>-1</alter>
-          <octave>3</octave>
-        </pitch>
-        <duration>2520</duration>
-        <type>16th</type>
-      </note>
-      <note>
         <rest />
         <duration>5040</duration>
+        <voice>1</voice>
         <type>eighth</type>
       </note>
       <note>
-        <pitch>
-          <step>B</step>
-          <alter>-1</alter>
-          <octave>2</octave>
-        </pitch>
-        <duration>5040</duration>
-        <type>eighth</type>
-      </note>
-      <note>
-        <chord />
         <pitch>
           <step>B</step>
           <alter>-1</alter>
           <octave>3</octave>
         </pitch>
         <duration>5040</duration>
+        <voice>1</voice>
         <type>eighth</type>
       </note>
       <note>
-        <pitch>
-          <step>B</step>
-          <alter>-1</alter>
-          <octave>2</octave>
-        </pitch>
-        <duration>5040</duration>
-        <type>eighth</type>
-      </note>
-      <note>
-        <chord />
         <pitch>
           <step>B</step>
           <alter>-1</alter>
           <octave>3</octave>
         </pitch>
         <duration>5040</duration>
+        <voice>1</voice>
         <type>eighth</type>
       </note>
       <note>
         <rest />
         <duration>15120</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+        <dot />
+      </note>
+      <backup>
+        <duration>40320</duration>
+      </backup>
+      <note>
+        <pitch>
+          <step>B</step>
+          <alter>-1</alter>
+          <octave>2</octave>
+        </pitch>
+        <duration>7560</duration>
+        <voice>2</voice>
+        <type>eighth</type>
+        <dot />
+        <stem>up</stem>
+        <beam number="1">begin</beam>
+      </note>
+      <note>
+        <pitch>
+          <step>B</step>
+          <alter>-1</alter>
+          <octave>2</octave>
+        </pitch>
+        <duration>2520</duration>
+        <voice>2</voice>
+        <type>16th</type>
+        <stem>up</stem>
+        <beam number="1">end</beam>
+        <beam number="2">backward hook</beam>
+      </note>
+      <note>
+        <rest />
+        <duration>5040</duration>
+        <voice>2</voice>
+        <type>eighth</type>
+      </note>
+      <note>
+        <pitch>
+          <step>B</step>
+          <alter>-1</alter>
+          <octave>2</octave>
+        </pitch>
+        <duration>5040</duration>
+        <voice>2</voice>
+        <type>eighth</type>
+      </note>
+      <note>
+        <pitch>
+          <step>B</step>
+          <alter>-1</alter>
+          <octave>2</octave>
+        </pitch>
+        <duration>5040</duration>
+        <voice>2</voice>
+        <type>eighth</type>
+      </note>
+      <note>
+        <rest />
+        <duration>15120</duration>
+        <voice>2</voice>
         <type>quarter</type>
         <dot />
       </note>
@@ -12452,7 +12479,7 @@
     </measure>
   </part>
   <!--=========================== Part 5 ===========================-->
-  <part id="P8ca7fd43584380d118bdd9b73ad7d37a">
+  <part id="P13ee9f7955f852961a291ed1f5660029">
     <!--========================= Measure 1 ==========================-->
     <measure implicit="no" number="1">
       <attributes>
