@@ -19,6 +19,7 @@ maps them to notation:
 """
 
 import argparse
+import math
 from collections import Counter, defaultdict
 
 from music21 import (chord, clef, instrument, key, metadata, meter, note,
@@ -399,13 +400,17 @@ def build_score(drv, hihat_rows, song, notation=True):
         drums.insert(row * 0.25, n)
 
     # pad every part to the full song length, else parts whose material
-    # ends early get fewer measures and a premature final barline
+    # ends early get fewer measures and a premature final barline. Pad in
+    # whole-bar rests: a stray short rest at the end makes the gap-filler
+    # render fragmented rest clusters in the final bar.
     total_ql = drv.row * 0.25
+    bar_ql = 4.0
     for p in list(parts.values()) + [drums]:
-        if p.highestTime < total_ql:
+        first_empty = math.ceil(p.highestTime / bar_ql)
+        for bar in range(first_empty, int(total_ql / bar_ql)):
             r = note.Rest()
-            r.quarterLength = 0.25
-            p.insert(total_ql - 0.25, r)
+            r.quarterLength = bar_ql
+            p.insert(bar * bar_ql, r)
 
     for role in ROLES:
         sc.insert(0, parts[role])
