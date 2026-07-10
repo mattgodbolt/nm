@@ -43,16 +43,20 @@ DEFAULT_DRUM = (38, "C5", "normal")
 # tone-channel notes that are really percussion: the C#6 inst-11 ping
 TONE_PERC = {(63, 11): (76, "A5", "x")}  # -> high woodblock
 
-ROLES = ["lead", "chords", "riff", "bass"]
+ROLES = ["lead", "chords", "riff", "pedal", "bass"]
 
 # Musical role of each pattern in song 0 (from per-pattern analysis).
 # Patterns not listed fall back to a mean-pitch heuristic (the jingles).
+# The c8e2 family is the tune's signature dotted figure: it opens the song
+# as the octave bass, then runs as a Bb pedal *against* the real bassline
+# (c934) - a separate contrapuntal line, so it gets its own staff rather
+# than fighting the deep bass across two octaves of ledger lines.
 SONG0_ROLES = {
     0xCA15: "lead", 0xCA50: "lead",
     0xCA06: "chords", 0xCA7B: "chords",
     0xC94C: "riff", 0xC967: "riff",
-    0xC934: "bass", 0xC8E2: "bass", 0xC90C: "bass",
-    0xC9AF: "bass", 0xC9D9: "bass",
+    0xC8E2: "pedal", 0xC90C: "pedal", 0xC9AF: "pedal", 0xC9D9: "pedal",
+    0xC934: "bass",
 }
 
 # Key signature overrides (sharps count, negative = flats).
@@ -73,6 +77,7 @@ PART_STYLE = {  # name, abbreviation, clef, instrument
     "lead": ("Lead", "Ld.", clef.TrebleClef, instrument.ElectricGuitar),
     "chords": ("Chords", "Ch.", clef.TrebleClef, instrument.Piano),
     "riff": ("Riff", "Rf.", clef.BassClef, instrument.ElectricGuitar),
+    "pedal": ("Pedal", "Pd.", clef.BassClef, instrument.ElectricGuitar),
     "bass": ("Bass", "Bs.", clef.BassClef, instrument.ElectricBass),
 }
 
@@ -153,8 +158,9 @@ def pattern_rhythms(drv):
             cur[ev["voice"]] = ev["addr"]
             start[ev["voice"]] = ev["row"]
         elif ev["type"] == "note" and not ev.get("drum"):
+            if (ev["note"], ev["inst"]) in TONE_PERC:
+                continue  # clicks live on the drum staff, not the rhythm
             vi = ev["voice"]
-            key = (cur[vi], ev["row"] - start[vi])
             sigs[cur[vi]].append((ev["row"] - start[vi], ev["dur"]))
     # keep only the first occurrence's worth: signatures repeat per play
     out = {}
