@@ -174,6 +174,29 @@ def fill_rests(sc):
     return sc
 
 
+def fix_voices(sc):
+    """Renumber measure voices 1-based (MusicXML convention: Verovio drops
+    'voice 0' content out of its layer, rendering it sequentially) and
+    prune voices that contain no notes, keeping a bar rest if needed."""
+    from music21 import note as m21note
+    for part in sc.parts:
+        for m in part.getElementsByClass("Measure"):
+            voices = list(m.voices)
+            if not voices:
+                continue
+            keep = [v for v in voices if len(v.notes)]
+            for v in voices:
+                if v not in keep:
+                    m.remove(v)
+            if not keep:
+                r = m21note.Rest()
+                r.quarterLength = m.barDuration.quarterLength
+                m.insert(0, r)
+            for i, v in enumerate(keep):
+                v.id = str(i + 1)
+    return sc
+
+
 def fix_naturals(sc):
     """Remove spurious courtesy naturals music21's makeAccidentals leaves
     behind: a displayed natural is kept only if the key signature alters
@@ -331,6 +354,7 @@ def main():
     sc = build_score(drv, hihat_rows, args.song).makeNotation(inPlace=False)
     fix_naturals(sc)
     fill_rests(sc)
+    fix_voices(sc)
     xml = f"{base}.musicxml"
     sc.write("musicxml", fp=xml)
     print(f"wrote {xml}")
