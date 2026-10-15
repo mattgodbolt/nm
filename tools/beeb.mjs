@@ -40,7 +40,10 @@ export function loadSymbols(path = "build/symbols.json") {
 }
 
 // bootUntil names a symbol to run to after booting (up to 30s): the way to
-// know the program is running, since loading takes a while.
+// know the program is running, since loading takes a while. A symbol in
+// the sideways bank is reached by way of start: until the loader fills
+// the bank, &8000-&BFFF is BASIC's ROM, which runs while the disc boots,
+// and a breakpoint there can stop in BASIC instead.
 export async function startBeeb({ disc, model = process.env.NM_MODEL || "B-DFS1.2", bootSecs = 0, bootUntil, symbols = "build/symbols.json" } = {}) {
     const transport = new StdioClientTransport(MCP);
     const client = new Client({ name: "nm-harness", version: "1.0.0" });
@@ -160,7 +163,11 @@ export async function startBeeb({ disc, model = process.env.NM_MODEL || "B-DFS1.
     };
     if (disc) {
         await beeb.boot(disc);
-        if (bootUntil) await beeb.runUntil(bootUntil);
+        if (bootUntil) {
+            const at = beeb.addr(bootUntil);
+            if (at >= 0x8000 && at < 0xC000 && "start" in syms) await beeb.runUntil("start");
+            await beeb.runUntil(bootUntil);
+        }
         if (bootSecs) await beeb.run(bootSecs);
     }
     return beeb;
