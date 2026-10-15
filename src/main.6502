@@ -65,6 +65,10 @@ rhl = rl
 .music_key_held SKIP 1      ; the music's key, until seen released (the original's &B8E0)
 .music_off  SKIP 1          ; bit 7: the music is off (EXTEND+T; the original's &B8DF)
 .pass_sp    SKIP 1          ; the stack at a player's pass, for its exit (player.6502)
+.sh_steps   SKIP 1          ; a slide's steps so far, its attributes not yet moved (shift.6502)
+.sh_prog    SKIP 1          ; ... and its shift's program
+.sp_mode    SKIP 1          ; draw_sprite's: SP_PIXELS, SP_ATTRS or 0 (sprite.6502)
+.dt_whole   SKIP 1          ; bit 7: draw_block_at's stores are all STAs
     \ The music (music.6502): the interrupt's, so not in baron's pool
 .mu_on      SKIP 1          ; non-zero: a song is playing (&C00C)
 .mu_busy    SKIP 1          ; non-zero: the game is writing the sound chip
@@ -88,9 +92,9 @@ ENDSECTION
 
 \ OS workspace the game takes once it owns the machine (decision 11): the
 \ language's pages, and the sound and buffer pages, whose interrupts are
-\ stopped (install_irq).
+\ stopped (start, startup.6502).
 SECTION Work, org = &0400, guard = &0D9F, virtual = TRUE
-.hi_nibble  SKIP &100       ; tables.6502, made at start-up
+.hi_nibble  SKIP &100       ; made at start-up (startup.6502)
 .lo_nibble  SKIP &100
 .map        SKIP 32 * 32    ; the level being played (the original's &BC00)
     \ What follows the original's map: its code, from &C000, whose first
@@ -126,9 +130,14 @@ CODE_LOAD = &1900
 SECTION Code, org = CODE_BASE, load = &FFFF0000 OR CODE_LOAD, exec = &FFFF0000 + start, filename = "NINJA", guard = screen
     ZA_POOL ZP_FIXED..DATA_BANK_ZP-1
 .code_start
-    INCLUDE "startup.6502"
+    \ The blocks (tools/mkgfx.py) first, where nothing moves them: on a
+    \ page, so the drawer's loads never cross one
+.blocks
+    INCBIN "data/blocks.bin"
+    ASSERT LO(blocks) = 0
+    \ The shifts next, so the copier's rows start at a page's start
+    INCLUDE "shift.6502"
     INCLUDE "irq.6502"
-    INCLUDE "screen.6502"
     INCLUDE "view.6502"
     INCLUDE "sprite.6502"
     INCLUDE "mapcell.6502"
@@ -138,7 +147,6 @@ SECTION Code, org = CODE_BASE, load = &FFFF0000 OR CODE_LOAD, exec = &FFFF0000 +
     INCLUDE "monsters.6502"
     INCLUDE "stars.6502"
     INCLUDE "status.6502"
-    INCLUDE "shift.6502"
     INCLUDE "spread.6502"
     INCLUDE "stubs.6502"
     INCLUDE "bomb.6502"
@@ -147,16 +155,14 @@ SECTION Code, org = CODE_BASE, load = &FFFF0000 OR CODE_LOAD, exec = &FFFF0000 +
     INCLUDE "music.6502"
 .music_code_end
     PRINT "music's driver: ", music_code_end - music_code, " bytes"
-    INCLUDE "tables.6502"
     \ Data from the original (tools/mkgfx.py, tools/mklevels.py)
-.blocks
-    INCBIN "data/blocks.bin"
 .tileattr
 TileAttrs = tileattr          ; (the original's &FF02)
     INCBIN "data/tileattr.bin"
-    \ What each panel cell shows (text.6502's print_char): &FF, nothing yet
-.panel_shown
-    SKIP SCREEN_ROWS * PANEL_COLS
+    \ What each panel cell shows (text.6502's print_char): &FF, nothing
+    \ yet. Until draw_panel sets it, it holds the start-up's code that runs
+    \ once; the rest of the start-up follows it.
+    INCLUDE "startup.6502"
     \ The original's variables, as the tape leaves them (tools/mkvars.py)
 .vars_ba
     INCBIN "data/vars_ba.bin"

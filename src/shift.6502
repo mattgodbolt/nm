@@ -14,22 +14,35 @@ PF_COLS    = SCREEN_COLS - VIEW_LEFT
 \ The copier, for speed (decision 22): a LDA abs,Y : STA abs,Y for each
 \ character row, the rows' addresses written into it (cp_set), and Y
 \ stepped across the rows' bytes, so a byte costs little more than its
-\ load and store. A shift is three runs of it: the pixels in the first
+\ load and store. A shift is two runs of it: the pixels in the first
 \ page of each row's playfield and in the second (the same rows a page
-\ on or back), then the attributes. Within a run the rows go in
-\ the order cp_set gave them, so a row is read before it's written over.
+\ on or back). Within a run the rows go in the order cp_set gave them,
+\ so a row is read before it's written over.
+\
+\ The attributes wait until the slide is done (slide_attrs): nothing
+\ reads them during one, and they move once, however many steps it took,
+\ where the original moves them with each step's pixels. Its strips draw
+\ their pixels alone meanwhile (sp_mode), and slide_attrs draws their
+\ attributes where they end up.
 CP_PAIRS = SCREEN_ROWS
 OP_INY = &C8
 OP_DEY = &88
 OP_INC_ABSX = &FE
 OP_DEC_ABSX = &DE
 
-\ cp_set's: the first row's source and destination, and the step from
-\ one row's to the next (words, as a shift's program has them)
-ZA_AUTO 6, cp_par
+\ A program's rows and run, as shift_by reads them (CP_ROWS, CP_RUN): for
+\ cp_set, the first row's source and destination and the step from one
+\ row's to the next (words), and the first row's offset in cp_pairs;
+\ then the run's INY or DEY, its end and its start.
+CP_LEN = 10
+ZA_AUTO CP_LEN, cp_par
 CP_SRC = 0
 CP_DST = 2
 CP_STRIDE = 4
+CP_FIRST = 6
+CP_OP = 7
+CP_END = 8
+CP_FROM = 9
 ZA_AUTO1 sh_i                   ; shift_by's next byte, from shift_progs
 
 \ Run the copier from Y, stepping Y (INY or DEY) until it's the end.
@@ -39,6 +52,7 @@ ZA_AUTO1 sh_i                   ; shift_by's next byte, from shift_progs
 FOR k = 0..CP_PAIRS - 1
     LDA &FFFF,Y : STA &FFFF,Y
 NEXT
+    ASSERT HI(cp_pairs) = HI(P% - 1)
 .cp_step
     INY                         ; (or DEY: shift_by)
 .cp_end
@@ -65,15 +79,41 @@ NEXT
     ASSERT prog_left = shift_progs
     \ (fall into shift_by)
 
-\ A shift, from its program at shift_progs + X: the pixels' rows, the
-\ first run, the second a page on or back, then the attributes' rows and
-\ their run.
+\ A shift, from its program at shift_progs + X: the pixels' rows and
+\ the first run, then the second a page on or back. The slide's step is
+\ counted, for slide_attrs.
 .shift_by
 {
     STX sh_i
-    JSR rows
-    JSR run
-    JSR next : STA inc1 : STA inc2      ; (INC or DEC abs,X)
+    STX sh_prog
+    LDA #SP_PIXELS : STA sp_mode
+    JSR load
+    LDA sh_steps : BNE again
+    LDA cp_par + CP_FIRST : JSR cp_set
+    BEQ first                   ; (always: cp_set ends on Z)
+.again
+    \ the slide's last step left the copier on these rows' second page:
+    \ back to the first, cheaper than setting the rows again
+    LDY sh_i : LDA shift_progs,Y : EOR #OP_INC_ABSX EOR OP_DEC_ABSX
+    JSR page_by
+.first
+    JSR go_run
+    INC sh_steps
+    \ the second page's run, after its INC or DEC abs,X (read where the
+    \ first row's offset was, which cp_set has used)
+    LDX #CP_FIRST : JSR load_x
+    LDA cp_par + CP_FIRST : JSR page_by
+    \ (fall into go_run)
+\ cp_par's run: Y from its start, stepping until it's the end.
+.go_run
+    LDA cp_par + CP_OP : STA cp_step
+    LDA cp_par + CP_END : STA cp_end + 1
+    LDY cp_par + CP_FROM
+    JMP cp_go
+\ Every row's addresses in the copier a page on or back: A is INC or DEC
+\ abs,X.
+.page_by
+    STA inc1 : STA inc2
     LDX #6 * (CP_PAIRS - 1)
 .page
 .inc1
@@ -82,27 +122,17 @@ NEXT
     INC cp_pairs + 5,X
     TXA : SEC : SBC #6 : TAX
     BCS page
-    JSR run
-    JSR rows
-    \ (fall into run)
-.run
-    JSR next : STA cp_step
-    JSR next : STA cp_end + 1
-    JSR next : TAY
-    JMP cp_go
-.next
-    LDY sh_i : INC sh_i
-    LDA shift_progs,Y
     RTS
-.rows
+\ The program's rows and run, from sh_i, into cp_par (or from its X'th
+\ byte on).
+.load
     LDX #0
-    ZA_DISCARD cp_par
-.param
-    JSR next : STA cp_par,X
-    ZA_INDEXEDBY 0..5
-    INX : CPX #6 : BNE param
-    JSR next
-    \ (fall into cp_set)
+.load_x
+    LDY sh_i : INC sh_i
+    LDA shift_progs,Y : STA cp_par,X
+    ZA_INDEXEDBY 0..CP_LEN - 1
+    INX : CPX #CP_LEN : BNE load_x
+    RTS
 }
 
 \ The copier's rows, from the one at offset A in cp_pairs to its last,
@@ -110,8 +140,7 @@ NEXT
 .cp_set
 {
     TAX
-    CLC : ADC #LO(cp_pairs) : STA cp_go + 1 : STA cp_loop + 1
-    LDA #HI(cp_pairs) : ADC #0 : STA cp_go + 2 : STA cp_loop + 2
+    CLC : ADC #LO(cp_pairs) : STA cp_go + 1 : STA cp_loop + 1   ; (cp_pairs is in a page)
 .pair
     LDA cp_par + CP_SRC : STA cp_pairs + 1,X : CLC : ADC cp_par + CP_STRIDE : STA cp_par + CP_SRC
     LDA cp_par + CP_SRC + 1 : STA cp_pairs + 2,X : ADC cp_par + CP_STRIDE + 1 : STA cp_par + CP_SRC + 1
@@ -122,10 +151,77 @@ NEXT
     RTS
 }
 
+\ After a slide (player.6502's scrolls) of sh_steps steps: the
+\ attributes moved as far as its pixels, and the strips' it uncovered
+\ drawn alone (the same strips, from the first to the slide's last, so
+\ the registers are left as its last left them). A step's attribute
+\ program (shift_progs) moves them a tile; the others stretch it. The
+\ attributes come out as the original's, which moves them with each
+\ step: each strip covers the attributes that moved into its place.
+.slide_attrs
+{
+    LDA sh_steps : BNE some
+    RTS
+.some
+    LDA sh_prog : CLC : ADC #PROG_ATTRS : STA sh_i
+    JSR shift_by.load
+    LDX sh_steps
+.stretch
+    DEX : BEQ go
+    LDA sh_prog
+    CMP #prog_up - shift_progs : BCS vertical
+    CMP #prog_right - shift_progs : BEQ right
+    \ ShiftLeft's: from a tile further right, a tile fewer
+    INC cp_par + CP_SRC : INC cp_par + CP_SRC
+    DEC cp_par + CP_END : DEC cp_par + CP_END
+    BNE stretch                 ; (always: the run's end is past 0)
+.right
+    \ ShiftRight's: to a tile further right, from a tile fewer
+    INC cp_par + CP_DST : INC cp_par + CP_DST
+    DEC cp_par + CP_FROM : DEC cp_par + CP_FROM
+    BNE stretch                 ; (always: the run starts past 0)
+.vertical
+    \ ShiftUp's and ShiftDown's: from a tile further on (two strides), a
+    \ tile's rows fewer
+    LDY #2
+.stride
+    LDA cp_par + CP_SRC : CLC : ADC cp_par + CP_STRIDE : STA cp_par + CP_SRC
+    LDA cp_par + CP_SRC + 1 : ADC cp_par + CP_STRIDE + 1 : STA cp_par + CP_SRC + 1
+    LDA cp_par + CP_FIRST : CLC : ADC #6 : STA cp_par + CP_FIRST
+    DEY : BNE stride
+    BEQ stretch                 ; (always)
+.go
+    LDA cp_par + CP_FIRST : JSR cp_set
+    JSR shift_by.go_run
+    \ the strips' attributes alone (sp_mode), each from the map as the
+    \ slide drew it: a tile (2 characters) a step back from its last
+    LDA #SP_ATTRS : STA sp_mode
+    LDX sh_prog : LDA shift_progs + PROG_STRIP,X : STA last
+    LDA sh_steps : STA k
+.strip
+    LDA #0 : STA rb : STA rc
+    DEC k
+    LDA k : ASL A                       ; (the strip's distance from the last)
+    LDY last : BEQ placed               ; (the last at 0: this one on from it)
+    EOR #&FF : SEC : ADC last           ; (the last at the far side: back from it)
+.placed
+    LDX sh_prog : CPX #prog_up - shift_progs : BCS row
+    STA rc : JSR view_strip_col
+    JMP more
+.row
+    STA rb : JSR view_strip_row
+.more
+    LDA k : BNE strip
+    STA sh_steps : STA sp_mode          ; (A is 0)
+    RTS
+    ZA_AUTO1 last                       ; the slide's last strip: a view row or column
+    ZA_AUTO1 k                          ; strips to go
+}
+
 \ The shifts' programs for shift_by: the pixels' rows (the first row's
 \ source and destination, the step to the next, how many), a run of the
 \ first page (Y's start, end, INY or DEY), INC or DEC for the second
-\ page, its run; then the attributes' rows and their run.
+\ page, its run; then the attributes' rows and their run (slide_attrs).
 MACRO CP_ROWS src, dst, stride, n
     EQUW src, dst, stride AND &FFFF
     EQUB 6 * (CP_PAIRS - n)     ; (the first row's offset in cp_pairs)
@@ -145,8 +241,10 @@ ENDMACRO
     CP_RUN PF_OFFSET + TILE_BYTES, &FF, OP_INY
     EQUB OP_INC_ABSX
     CP_RUN 0, &FF, OP_INY
+.left_attrs
     CP_ROWS attrs + VIEW_LEFT + 2, attrs + VIEW_LEFT, SCREEN_COLS, SCREEN_ROWS
     CP_RUN 0, PF_COLS - 3, OP_INY
+    EQUB SCREEN_ROWS - 2        ; (scroll_right's strips: view columns, the last at the right)
     \ ShiftRight: columns 8-29 to 10-31: from the right (the second page,
     \ then the first), each from its last byte.
 .prog_right
@@ -156,6 +254,7 @@ ENDMACRO
     CP_RUN &FF, PF_OFFSET, OP_DEY
     CP_ROWS attrs + VIEW_LEFT, attrs + VIEW_LEFT + 2, SCREEN_COLS, SCREEN_ROWS
     CP_RUN PF_COLS - 3, 0, OP_DEY
+    EQUB 0                      ; (scroll_left's: the last at the left)
     \ ShiftUp: rows 2-23 to 0-21, from the top.
 .prog_up
     CP_ROWS screen + 2 * ROW_BYTES, screen, ROW_BYTES, SCREEN_ROWS - 2
@@ -164,6 +263,7 @@ ENDMACRO
     CP_RUN 0, &FF, OP_INY
     CP_ROWS attrs + 2 * SCREEN_COLS + VIEW_LEFT, attrs + VIEW_LEFT, SCREEN_COLS, SCREEN_ROWS - 2
     CP_RUN 0, PF_COLS - 1, OP_INY
+    EQUB SCREEN_ROWS - 2        ; (scroll_down's: view rows, the last at the bottom)
     \ ShiftDown: rows 0-21 to 2-23, from the bottom.
 .prog_down
     CP_ROWS screen + (SCREEN_ROWS - 3) * ROW_BYTES, screen + (SCREEN_ROWS - 1) * ROW_BYTES, -ROW_BYTES, SCREEN_ROWS - 2
@@ -172,5 +272,13 @@ ENDMACRO
     CP_RUN 0, &FF, OP_INY
     CP_ROWS attrs + (SCREEN_ROWS - 3) * SCREEN_COLS + VIEW_LEFT, attrs + (SCREEN_ROWS - 1) * SCREEN_COLS + VIEW_LEFT, -SCREEN_COLS, SCREEN_ROWS - 2
     CP_RUN 0, PF_COLS - 1, OP_INY
+    EQUB 0                      ; (scroll_up's: the last at the top)
 .shift_progs_end
     ASSERT shift_progs_end - shift_progs <= &100
+PROG_ATTRS = left_attrs - prog_left         ; a program's attributes' part
+PROG_STRIP = PROG_ATTRS + CP_LEN            ; ... and its slide's last strip
+PROG_LEN = PROG_STRIP + 1
+    ASSERT prog_right - prog_left = PROG_LEN AND prog_up - prog_right = PROG_LEN
+    ASSERT prog_down - prog_up = PROG_LEN AND shift_progs_end - prog_down = PROG_LEN
+    \ (ShiftLeft's and ShiftRight's stretch the low byte of an address)
+    ASSERT LO(attrs + VIEW_LEFT) + PF_COLS < &100

@@ -275,8 +275,9 @@ SCROLL_STEPS = 8
     JSR view_strip_row
     LDA ViewOrigin : CMP #VIEW_MAX : BCS edge
     DEC steps : BNE step
-    BEQ erase_old                   ; (always)
+    BEQ slide_end                   ; (always)
 .edge
+    JSR slide_attrs
     LDA #0                          ; (Z)
 .done
     RTS
@@ -295,11 +296,14 @@ SCROLL_STEPS = 8
     DEC ViewOrigin : DEC ViewOrigin
     LDA #0 : STA rb : STA rc
     JSR view_strip_row
-    LDA ViewOrigin : BEQ scroll_down.done
+    LDA ViewOrigin : BEQ scroll_down.edge
     DEC steps : BNE step
-    \ (fall into erase_old)
+    \ (fall into slide_end)
     ZA_AUTO1 steps
 }
+\ A slide's end: its attributes (shift.6502), then erase_old.
+.slide_end
+    JSR slide_attrs
 \ &CC75 EraseOld: floor at the moving player's old position, with the
 \ click. &CC79 EraseAt: at map position (rd, re).
 .erase_old
@@ -359,9 +363,9 @@ ICON_SCROLL_COL = 4
     DEC ViewOrigin + 1 : DEC ViewOrigin + 1
     LDA #0 : STA rb : STA rc
     JSR view_strip_col
-    LDA ViewOrigin + 1 : BEQ done
+    LDA ViewOrigin + 1 : BEQ scroll_right.edge
     DEC steps : BNE step
-    JMP erase_old
+    JMP slide_end
 .done
     RTS
     ZA_AUTO1 steps
@@ -381,8 +385,9 @@ ICON_SCROLL_COL = 4
     JSR view_strip_col
     LDA ViewOrigin + 1 : CMP #VIEW_MAX : BCS edge
     DEC steps : BNE step
-    JMP erase_old
+    JMP slide_end
 .edge
+    JSR slide_attrs
     LDA #0
 .done
     RTS

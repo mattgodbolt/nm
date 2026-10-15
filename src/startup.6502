@@ -8,6 +8,46 @@ ELSE
     START_LEVEL = 0
 ENDIF
 
+\ What runs once at start-up lives in panel_shown's bytes (main.6502
+\ includes this file there): draw_panel fills them only after all of it
+\ has run, and nothing calls it again, so it takes no main RAM of its own.
+\ (music_init is in the bank.) It ends at panel_shown's end, so it falls
+\ into the rest of the start-up.
+.panel_shown
+    SKIP PANEL_CELLS - (started - crtc_regs)
+
+\ Register, value pairs, from the last: MODE 1's, but R2 and R7 move with
+\ the narrower, shorter picture to keep its centre where MODE 1's is
+\ (Chuckie Egg 2's). The display is blank until the rest is set.
+.crtc_regs
+    EQUB 8, 0                   ; the display on, once it's set up
+    EQUB 0, 127
+    EQUB 3, &28
+    EQUB 4, 38
+    EQUB 5, 0
+    EQUB 9, 7
+    EQUB 10, &20                ; the cursor off
+    EQUB 11, 8
+    EQUB 1, SCREEN_COLS * 2
+    EQUB 2, 98 - (80 - SCREEN_COLS * 2) / 2
+    EQUB 6, SCREEN_ROWS
+    EQUB 7, 34 - (32 - SCREEN_ROWS) / 2
+    EQUB 12, HI(screen / 8)
+    EQUB 13, LO(screen / 8)
+    EQUB 8, CRTC_BLANK
+.crtc_end
+
+\ The colours until a level or the menu sets its own: a level's, without
+\ its floor (decision 5): black, yellow, (black), cyan, as the panel
+\ wants them.
+PAL = {0, 3, 0, 6}
+.palette
+FOR l = 0..3
+    FOR n = 0..3
+        EQUB ula_entry(l, n, PAL[l])
+    NEXT
+NEXT
+
 .start
 {
     ZA_ENTRY
@@ -23,9 +63,62 @@ ENDIF
     STA &00,X
     DEX : BPL zp
     JSR music_init                  ; (before the interrupt plays it)
-    JSR make_tables
-    JSR init_system
-    JSR cls
+
+    \ The tables, made in the OS workspace the game takes (decision 20). A
+    \ byte of one-bit pixels becomes two MODE 1 bytes in colour 3:
+    \ hi_nibble from its left four pixels, lo_nibble from its right four.
+    \ MODE 1 keeps a pixel's two bits in bits 7 and 3 (the leftmost) down
+    \ to 4 and 0, so four one-bit pixels n make n * &11.
+    LDX #0
+.tables
+    TXA : AND #&0F : STA tmp : ASL A : ASL A : ASL A : ASL A : ORA tmp
+    STA lo_nibble,X
+    TXA : LSR A : LSR A : LSR A : LSR A : TAY  ; (lo_nibble's entry Y, at most X, is made)
+    LDA lo_nibble,Y : STA hi_nibble,X
+    INX : BNE tables
+
+    \ MODE 1's pixels on the narrowed CRTC, set in the hardware: an OS
+    \ mode change would want the OS's workspace, which the game takes.
+    LDA #&D8 : STA ula_ctrl         ; MODE 1's pixels: 4 colours, 20 columns of bytes
+    LDX #15
+.pal
+    LDA palette,X : STA ula_pal
+    DEX : BPL pal
+    LDX #crtc_end - crtc_regs - 2
+.crtc
+    LDA crtc_regs,X : STA crtc_reg
+    LDA crtc_regs+1,X : STA crtc_data
+    DEX : DEX : BPL crtc
+
+    \ The interrupt (irq.6502): the game owns IRQ1V. vsyncs is 0 (the
+    \ fixed zero page was cleared).
+    LDA #&7F : STA sysvia_ier : STA usrvia_ier  ; anything we don't service
+    \ The pass clock (decision 12): System VIA T1, free-running. (Writing
+    \ T1's high counter loads the counter from the latches, and starts it.)
+    LDA sysvia_acr : AND #&3F : ORA #&40 : STA sysvia_acr
+    LDA #LO(PASS_TICK - 2) : STA sysvia_t1ll
+    LDA #HI(PASS_TICK - 2) : STA sysvia_t1ch
+    LDA #&C2 : STA sysvia_ier                   ; T1 and VSync (CA1)
+    LDA #LO(irq_handler) : STA irq1v
+    LDA #HI(irq_handler) : STA irq1v + 1
+    CLI
+
+    \ The screen cleared to logical colour 0, a page at a time (the
+    \ store's page is written into it: this code runs once)
+    LDA #0 : TAY
+.cls
+    STA screen,Y
+    INY : BNE cls
+    INC cls + 2 : BPL cls
+    \ (fall into started)
+    ZA_AUTO1 tmp
+}
+    ASSERT P% = panel_shown + PANEL_CELLS
+
+\ The rest of start-up, in main RAM of its own: draw_panel writes over
+\ the code above.
+.started
+{
     JSR draw_panel
     \ the original's &C000-&C001 after the map (decision 23): LD SP,&FFFF's
     \ (after the panel, which was unpacked over it)
@@ -116,53 +209,3 @@ ASSERT MC_FRAMES * MC_RECORD <= 32 * 32
     JMP mc_chunk
 ENDIF
 
-\ Register, value pairs: MODE 1's, but R2 and R7 move with the narrower,
-\ shorter picture to keep its centre where MODE 1's is (Chuckie Egg 2's).
-.crtc_regs
-    EQUB 0, 127
-    EQUB 3, &28
-    EQUB 4, 38
-    EQUB 5, 0
-    EQUB 9, 7
-    EQUB 10, &20                ; the cursor off
-    EQUB 11, 8
-    EQUB 1, SCREEN_COLS * 2
-    EQUB 2, 98 - (80 - SCREEN_COLS * 2) / 2
-    EQUB 6, SCREEN_ROWS
-    EQUB 7, 34 - (32 - SCREEN_ROWS) / 2
-    EQUB 12, HI(screen / 8)
-    EQUB 13, LO(screen / 8)
-    EQUB 8, CRTC_BLANK          ; blank until init_system is done
-.crtc_end
-
-\ The colours until a level or the menu sets its own: a level's, without
-\ its floor (decision 5): black, yellow, (black), cyan, as the panel
-\ wants them.
-PAL = {0, 3, 0, 6}
-.palette
-FOR l = 0..3
-    FOR n = 0..3
-        EQUB ula_entry(l, n, PAL[l])
-    NEXT
-NEXT
-
-\ MODE 1's pixels on the narrowed CRTC, set in the hardware: an OS mode
-\ change would want the OS's workspace, which the game takes.
-.init_system
-{
-    LDA #&D8 : STA ula_ctrl         ; MODE 1's pixels: 4 colours, 20 columns of bytes
-    LDX #crtc_end - crtc_regs - 2
-.crtc
-    LDA crtc_regs,X : STA crtc_reg
-    LDA crtc_regs+1,X : STA crtc_data
-    DEX : DEX : BPL crtc
-    LDX #15
-.pal
-    LDA palette,X : STA ula_pal
-    DEX : BPL pal
-    LDA #8 : STA crtc_reg           ; the display on, once it's set up
-    LDA #0 : STA crtc_data
-    \ (fall into install_irq: main.6502 includes irq.6502 next. vsyncs is
-    \ 0: start cleared the fixed zero page)
-}
-.init_system_end
