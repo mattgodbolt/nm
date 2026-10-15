@@ -126,6 +126,11 @@ CODE_LOAD = &1900
 SECTION Code, org = CODE_BASE, load = &FFFF0000 OR CODE_LOAD, exec = &FFFF0000 + start, filename = "NINJA", guard = screen
     ZA_POOL ZP_FIXED..DATA_BANK_ZP-1
 .code_start
+    \ The blocks (tools/mkgfx.py) first, where nothing moves them: on a
+    \ page, so the drawer's loads never cross one
+.blocks
+    INCBIN "data/blocks.bin"
+    ASSERT LO(blocks) = 0
     INCLUDE "irq.6502"
     INCLUDE "view.6502"
     INCLUDE "sprite.6502"
@@ -146,8 +151,6 @@ SECTION Code, org = CODE_BASE, load = &FFFF0000 OR CODE_LOAD, exec = &FFFF0000 +
 .music_code_end
     PRINT "music's driver: ", music_code_end - music_code, " bytes"
     \ Data from the original (tools/mkgfx.py, tools/mklevels.py)
-.blocks
-    INCBIN "data/blocks.bin"
 .tileattr
 TileAttrs = tileattr          ; (the original's &FF02)
     INCBIN "data/tileattr.bin"

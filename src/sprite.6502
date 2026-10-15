@@ -65,9 +65,9 @@ OP_CMP_ABSY = &D9
     \ the quarters: blocks + 8A in each plane
     TAY
     LSR A : LSR A : LSR A : LSR A : LSR A : STA bhi
-    TYA : ASL A : ASL A : ASL A
-    CLC : ADC #LO(blocks) : STA src0+1 : STA src1+1 : STA src2+1 : STA src3+1
-    LDA bhi : ADC #HI(blocks) : STA src0+2
+    TYA : ASL A : ASL A : ASL A                         ; (blocks is on a page)
+    STA src0+1 : STA src1+1 : STA src2+1 : STA src3+1
+    LDA bhi : CLC : ADC #HI(blocks) : STA src0+2
     ADC #HI(PLANE) : STA src1+2                         ; (C clear: blocks is below &8000)
     ADC #HI(PLANE) : STA src2+2
     ADC #HI(PLANE) : STA src3+2
