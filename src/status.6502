@@ -49,27 +49,27 @@ TIMERS = 5
     JSR close_one_ways
     DEC IdleTicks : BNE done
     \ keys, doors and chests (&08-&0B) go
-    LDA #T_KEY : LDX #T_CHEST : LDY #0
+    LDA #T_KEY : LDX #T_CHEST - T_KEY : LDY #0
     JSR replace_codes
     LDA #IDLE_TICKS : STA IdleTicks
     DEC IdleStage : BNE done
     \ the walls open
-    LDA #T_BORDER_LO : LDX #T_BORDER_HI : LDY #T_EXIT
+    LDA #T_BORDER_LO : LDX #T_BORDER_HI - T_BORDER_LO : LDY #T_EXIT
     JSR replace_codes
 .done
     RTS
 }
 
-\ Every map code from A up to X (not including it) becomes Y, and is
-\ redrawn (&DA1D, &DA41).
+\ Every map code from A, X of them (the count, so a range may end at
+\ &FF), becomes Y, and is redrawn (&DA1D, &DA41, and the smart bomb's
+\ &C531).
 .replace_codes
 {
-    STA lo : STX hi : STY new
+    STA lo : STX count : STY new
     LDA #LO(map) : STA rl : LDA #HI(map) : STA rh
 .next
     LDY #0 : LDA (rhl),Y
-    CMP lo : BCC skip
-    CMP hi : BCS skip
+    SEC : SBC lo : CMP count : BCS skip
     LDA new : STA (rhl),Y
     JSR redraw_cell
 .skip
@@ -77,7 +77,7 @@ TIMERS = 5
     INC rh : LDA rh : CMP #HI(map) + 4 : BNE next
     RTS
     ZA_AUTO1 lo
-    ZA_AUTO1 hi
+    ZA_AUTO1 count
     ZA_AUTO1 new
 }
 

@@ -488,7 +488,7 @@ ZX_MAP_HI = &BC                     ; the original's map's page
     JSR take_away
     \ (as replace_codes, though the original starts at the map's second
     \ cell: the first is a top wall, &04 or &05, and nothing makes a &06)
-    LDA #T_SWITCH_WALL : LDX #T_SWITCH_WALL + 1 : LDY #0
+    LDA #T_SWITCH_WALL : LDX #1 : LDY #0
     JMP replace_codes
 T_SWITCH_WALL = &06
 

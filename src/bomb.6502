@@ -59,23 +59,14 @@ T_TEA      = &0E
 }
 
 \ &C531 BombJackpot: every monster's cell (from &7F) a locked chest, every
-\ other from &20 tea, and redrawn.
+\ other from &20 tea, and redrawn. (The original does both in one sweep
+\ of the map; the two sets don't overlap, nor do the codes they become,
+\ so two sweeps leave the same map.)
 .bomb_jackpot
-{
-    LDA #LO(map) : STA rl : LDA #HI(map) : STA rh
-.next
-    LDY #0 : LDA (rhl),Y
-    CMP #T_TRAP : BCC skip
-    CMP #T_MARKER
-    LDA #T_CHEST : BCS put
-    LDA #T_TEA
-.put
-    STA (rhl),Y
-    JSR redraw_cell
-.skip
-    INC rl : BNE next
-    INC rh : LDA rh : CMP #HI(map) + 4 : BNE next
+    LDA #T_MARKER : LDX #&100 - T_MARKER : LDY #T_CHEST
+    JSR replace_codes
+    LDA #T_TRAP : LDX #T_MARKER - T_TRAP : LDY #T_TEA
+    JSR replace_codes
     JMP bomb_flash
-}
 ZA_AUTO1 bomb_rows
 ZA_AUTO1 bomb_cols
