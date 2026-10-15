@@ -181,8 +181,7 @@ TOUCH_EVERY = 10                ; the touch gate: one contact in this many acts 
     LSR rb : ASL rb : LSR rc : ASL rc
     JSR code_offset
     LDA rb : STA rd : LDA rc : STA re
-    LDA #0 : STA MapStamp
-    JSR fill_cells
+    JSR clear_cells
     JSR draw_floor_at
     \ The original leaves BC as the drawing left it, and a touch carries
     \ on from there (&D1BA's INC B, INC C, DEC B): (0, &40 less the
@@ -519,13 +518,6 @@ T_SWITCH_WALL = &06
     EQUB 0, R_SIZE
 .player_code
     EQUB T_P1, T_P2
-
-\ &D517 PutPlayer: code A into the four cells at (rb, rc); rb, rc kept.
-.put_player
-    STA MapStamp
-    JSR fill_cells
-    DEC rc
-    RTS
 
 \ &D537 P1Exits, &D550 P2Exits: the player (pl) has left by the exit: out
 \ of play (InPlay's bit 0 or 1) and through (bit 2 or 3), its old place

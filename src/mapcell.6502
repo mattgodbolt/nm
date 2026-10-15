@@ -46,6 +46,21 @@
     RTS
 }
 
+\ &D517 PutPlayer: code A into the four cells at (rb, rc); rb, rc kept.
+\ (The monsters' move stamps its cells the same way.)
+.put_player
+    JSR stamp_cells
+    DEC rc
+    RTS
+
+\ fill_cells with 0 (clear_cells) or A (stamp_cells) as MapStamp. A
+\ comes back as MapStamp.
+.clear_cells
+    LDA #0
+.stamp_cells
+    STA MapStamp
+    \ (fall into fill_cells)
+
 \ &D1A2 FillCells: MapStamp into the four cells at (rb, rc): (rb, rc),
 \ (rb+1, rc), (rb+1, rc+1), (rb, rc+1). rc comes back one more. A cell in
 \ a tile already stamped is skipped (the same again would change

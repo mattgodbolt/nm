@@ -44,8 +44,8 @@ CONTROLS = 6
     LDX pl : LDA P1Facing,X : ORA pass_step_bit,X : STA P1Facing,X
 .drawn
     JSR rec_pos
-    LDX pl : LDA player_code,X : STA MapStamp
-    JMP fill_cells
+    LDX pl : LDA player_code,X
+    JMP stamp_cells
 }
 .in_play_bit
     EQUB 1, 2
@@ -155,8 +155,7 @@ CONTROLS = 6
     \ where it is)
     LDA OldPos + 1 : STA rb : STA rd
     LDA OldPos : STA rc : STA re
-    LDA #0 : STA MapStamp
-    JSR fill_cells
+    JSR clear_cells
     \ a new facing clears the step bit: a turn takes a pass
     LDX pl
     LDA P1LastFacing,X : EOR P1Facing,X : AND #&FE : BEQ same

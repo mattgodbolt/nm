@@ -182,8 +182,7 @@ ZA_AUTO1 put_at
     LDY prec
     LDA Player1 + R_ROW,Y : STA rb
     LDA Player1 + R_COL,Y : STA rc
-    LDA #0 : STA MapStamp
-    JSR fill_cells
+    JSR clear_cells
     STA rl : STA rh                 ; (A = 0: fill_cells leaves MapStamp in it)
     JSR set_strength
     LDA #SONG_DEAD : JSR play_song

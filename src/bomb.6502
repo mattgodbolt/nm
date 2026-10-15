@@ -30,8 +30,7 @@ T_TEA      = &0E
     \ &C515 BombMonster: its four cells cleared
     LDA rl : PHA : LDA rh : PHA
     JSR head_pos
-    LDA #0 : STA MapStamp
-    JSR fill_cells
+    JSR clear_cells
     PLA : STA rh : PLA : STA rl
 .next
     INC rl : BNE n : INC rh

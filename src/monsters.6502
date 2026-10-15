@@ -104,9 +104,7 @@ BURST       = 50                ; the noise burst's segments (&CEF2)
     JSR head_pos
     LDA rc : STA MonNewPos : STA MonOldPos
     LDA rb : STA MonNewPos + 1 : STA MonOldPos + 1
-    LDA #0 : STA MapStamp
-    JSR fill_cells
-    DEC rc                          ; (fill_cells leaves it one more)
+    LDA #0 : JSR put_player         ; (its cells cleared; rb, rc kept)
     JSR monster_chase
     LDA MoveSweep : BEQ stay
     JSR monster_try : BEQ place
@@ -121,9 +119,7 @@ BURST       = 50                ; the noise burst's segments (&CEF2)
 .place
     \ &CF62: &7F in its cells, its code (with the new offset bits) at the head
     LDA rc : STA MonNewPos : LDA rb : STA MonNewPos + 1
-    LDA #T_MARKER : STA MapStamp
-    JSR fill_cells
-    DEC rc
+    LDA #T_MARKER : JSR put_player
     JSR map_cell
     LDA rc : LSR A                  ; (C: the column's bit 0)
     LDA rb : ROL A : AND #3 : STA ra2   ; (the offset bits: the row's bit 0, the column's)
