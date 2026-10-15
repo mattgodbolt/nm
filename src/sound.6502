@@ -27,7 +27,11 @@ US_PER_T_256 = (256 * 1000 + 1773) DIV 3547
 \ held the interrupt doesn't write the chip.
 .effect_start
     INC mu_busy
-    LDA #&0B : STA sysvia_orb       ; the keyboard on auto-scan, off port A's bit 7
+    \ (fall into sn_port)
+\ System VIA port A set up for the chip (mu_write): the keyboard on
+\ auto-scan, off port A's bit 7, and the port an output.
+.sn_port
+    LDA #&0B : STA sysvia_orb
     LDA #&FF : STA sysvia_ddra
     RTS
 

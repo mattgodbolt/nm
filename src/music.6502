@@ -408,8 +408,7 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     \ The System VIA's port A as the interrupted code had it, after.
     LDA sysvia_ddra : PHA
     LDA sysvia_ora_nh : PHA
-    LDA #&0B : STA sysvia_orb           ; the keyboard on auto-scan, off port A's bit 7
-    LDA #&FF : STA sysvia_ddra
+    JSR sn_port
     LDA mu_ay + 7 : STA mu_tmp          ; (the mixer, a voice's bit at a time)
     LDX #0
 .channel
