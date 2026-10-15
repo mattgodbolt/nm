@@ -29,7 +29,9 @@ Where it has got to (`docs/journal.md` has the story):
 
 ## Playing
 
-Boot `build/nm.ssd` (SHIFT-BREAK). Keys, as the original's where the BBC
+[Play it in jsbeeb](https://bbc.xania.org/?autoboot&disc1=https://raw.githubusercontent.com/mattgodbolt/nm/port/ninja-massacre.ssd)
+(a Model B with sideways RAM), or write `ninja-massacre.ssd` to a disc and
+SHIFT-BREAK. Press a key at the first screen for the menu. Keys, as the original's where the BBC
 has them (decision 13):
 
 | | Player 1 | Player 2 |
