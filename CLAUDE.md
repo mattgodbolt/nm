@@ -91,7 +91,13 @@ local one.
   the conversion in both. `tools/mkmusic.py` makes `src/data/music.6502`
   from bank 1; the build never runs it, and its output is committed.
 - The music plays from the VSync interrupt and writes the chip: a sound
-  the game writes goes through `sound_write`, which holds `mu_busy`.
+  the game writes holds `mu_busy` throughout (`effect_start` and
+  `effect_end`, sound.6502).
+- Speed: `node tools/scrolltime.mjs [--against old.ssd]` times each
+  direction's slide (and compares the screen at every step);
+  `node tools/passtime.mjs [--against old.ssd]` gives each pass's busy
+  cycles over scenarios. A drawing change must leave every pixel as it
+  was.
 
 ## The screen
 

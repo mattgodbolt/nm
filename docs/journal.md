@@ -320,3 +320,32 @@ and the conversion notes say where their commands run. `make music-disc`
 rebuilds `ninja_music.ssd` byte for byte from the committed captures; and
 from TOSEC's 128K snapshot (`make fetch`), the AY captures come out byte
 for byte as committed.
+
+### A round of optimisation
+
+Four agents, each in its own worktree and with its own part of the code
+(the game logic, the bank's code and data, the music and the effects,
+the screen), looked for space and speed with the checks as the bar: no
+change to anything the game does. Merged, everything still matches pass
+for pass on the B and the Master.
+
+- Main RAM's free space below the screen roughly trebled: the logic's
+  shared tails, fall-throughs and table lookups; the shifts rewritten as
+  one copier with an `LDA abs,Y : STA abs,Y` pair per character row;
+  the music driver's commands dispatched through a table of offsets, its
+  voices looped, and its entry points moved to the bank.
+- The bank gained most from the levels: only the 30 x 30 inside of the
+  border walls is packed, by columns or rows, whichever is smaller. The
+  panel is packed as attributes and character cells, and the font stops
+  at Z.
+- The slide is about a quarter faster (decision 22 has the measurement);
+  ordinary passes' drawing about an eighth. The blocks are stored as
+  four planes of 8 x 8 quarters, so one index reads a line of each.
+- Two new timing tools: `tools/scrolltime.mjs` and `tools/passtime.mjs`.
+- 32 coverage scenarios, picked from random games on the original so
+  that every touch, star and bomb handler runs at least three times: the
+  old scenarios never reached a scroll's pickup, a chest's opening, the
+  switch or the jackpot.
+- Two fixes found on the way: `mul8` gave 0 for a length of 0 where the
+  original's loop counts 256 (a noise segment went silent); and
+  `make views` now depends on the 48K snapshot it reads.
