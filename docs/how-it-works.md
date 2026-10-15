@@ -241,7 +241,7 @@ MODE 2 would halve.
 
 The graphics stay one bit a pixel, as the original keeps them. Drawing a
 block turns each byte of eight pixels into two MODE 1 bytes through two
-tables made at start-up (`hi_nibble` and `lo_nibble`, made in `start`),
+tables made at start-up (`hi_nibble` and `lo_nibble`),
 then masks them with the colour the attribute's ink maps to
 (`ink_mask`). Tiles and characters are drawn opaque, as the original
 draws them (`draw_tile`, `draw_sprite`).
