@@ -96,7 +96,10 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     LDA mv_ptr,X : STA mu_ptr
     LDA mv_ptr+1,X : STA mu_ptr+1
 .next
-    JSR mu_byte
+    LDY #0 : LDA (mu_ptr),Y             ; (mu_byte, written out: a row reads
+    INC mu_ptr : BNE read               ; many of them)
+    INC mu_ptr+1
+.read
     CMP #&80 : BCC note
     JSR command                         ; (the commands that end the row don't
     JMP next                            ; return here: c_rest, c_tie, c_stop)
@@ -220,7 +223,8 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     JMP music_stop
 .c_tie                              ; &8F: the note carries on (&C29D)
     PLA : PLA                           ; (the row ends)
-    JMP tied
+    LDA mv_evol,X : STA mv_vol,X        ; (its volume back, after a rest:
+    JMP tied                            ; mu_render's envelope)
 .c_hihat_on                         ; &90
     LDA #&FF : BNE set_hihat
 .c_hihat_off                        ; &91
@@ -256,33 +260,35 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
 .mu_render
 {
     LDA mv_flags,X : STA mu_flags
+    EOR #1 : STA mv_flags,X             ; (&C41B: the frame's parity, flipped
+                                        ; here; mu_flags keeps the old one)
     AND #&20 : BEQ pitch
     \ The envelope: a step every mv_estep + 1 frames, until one with bit 7.
     \ (The count runs down from mv_estep, which tools/mkmusic.py checks is
-    \ below &80, so it's negative only once it has passed 0.)
-    DEC mv_ecnt,X : BPL held
+    \ below &80, so it's negative only once it has passed 0.) The original
+    \ copies the envelope's volume to the voice's every frame; here only
+    \ when it changes, since while bit 5 is set the two are the same (a
+    \ note sets both, and c_tie, after a rest, copies it).
+    DEC mv_ecnt,X : BPL pitch
     LDA mv_estep,X : STA mv_ecnt,X
     LDA mv_epos,X : STA mu_ptr2
     LDA mv_epos+1,X : STA mu_ptr2+1
-    LDY #2 : LDA (mu_ptr2),Y : BMI held ; (the next step: mv_epos is a byte before)
-    STA mv_evol,X
-    INC mv_epos,X : BNE held
+    LDY #2 : LDA (mu_ptr2),Y : BMI pitch    ; (the next step: mv_epos is a byte before)
+    STA mv_evol,X : STA mv_vol,X
+    INC mv_epos,X : BNE pitch
     INC mv_epos+1,X
-.held
-    LDA mv_evol,X : STA mv_vol,X
 .pitch
     \ &C3A0: the note, transposed, and the arpeggio's next step
     LDA mv_arp,X : STA mu_ptr2
     LDA mv_arp+1,X : STA mu_ptr2+1
-    LDY #0 : LDA (mu_ptr2),Y : TAY
-    INC mv_arp,X : BNE stepped
-    INC mv_arp+1,X
-.stepped
-    TYA : BPL add_step
+    LDY #0 : LDA (mu_ptr2),Y : BPL more
     AND #&7F : TAY                      ; bit 7: the last step, then from the start
     LDA mv_arp0,X : STA mv_arp,X
     LDA mv_arp0+1,X : STA mv_arp+1,X
-    TYA
+    TYA : BPL add_step                  ; (always)
+.more
+    INC mv_arp,X : BNE add_step
+    INC mv_arp+1,X
 .add_step
     CLC : ADC mu_transpose
     CLC : ADC mv_note,X
@@ -326,8 +332,6 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     LDA mu_per+1 : ADC mu_off+1 : STA mu_per+1
 
 .parity
-    LDA mu_flags : EOR #1 : STA mv_flags,X
-
     \ &C421: the portamento, from its delay on, adding its step each frame
     LDA mu_flags : AND #4 : BEQ mixer
     DEC mv_pdelay,X : BNE mixer
@@ -514,19 +518,18 @@ MU_SILENT = 15
 .mu_period
 {
     TXA : ASL A : TAY
-    LDA mu_ay + 1,Y : AND #&0F : STA mu_p+1     ; (the AY keeps 12 bits)
+    LDA mu_ay + 1,Y : AND #&0F : STA mu_p+1 : STA mu_t+1   ; (the AY keeps 12 bits)
     LDA mu_ay,Y : STA mu_p
     \ mu_t = P x 3 + 512 ... (no carries out: P is 12 bits)
-    ASL A : TAY
-    LDA mu_p+1 : ROL A : STA mu_t+1
-    TYA : ADC mu_p : STA mu_t
+    ASL A : ROL mu_t+1
+    ADC mu_p : STA mu_t
     LDA mu_t+1 : ADC mu_p+1 : ADC #HI(MU_ROUND) : STA mu_t+1
     \ ... + P x 128 = P x 131 + 512, 24 bits (of the low byte, only its carry)
     LDA mu_p+1 : LSR A : STA mu_t+2
-    LDA mu_p : ROR A : PHA
+    LDA mu_p : ROR A : TAY
     LDA #0 : ROR A                      ; (and the carry clear)
     ADC mu_t
-    PLA : ADC mu_t+1
+    TYA : ADC mu_t+1
     BCC high
     INC mu_t+2
 .high
@@ -534,15 +537,17 @@ MU_SILENT = 15
     LSR mu_t+2 : ROR A
     LSR mu_t+2 : ROR A
     CLC : ADC mu_p : STA mu_s
+    LDY #0                              ; (octaves up, for mu_bass)
     LDA mu_t+2 : ADC mu_p+1 : STA mu_s+1
-    ORA mu_s : BNE octaves
+    BNE fit
+    ORA mu_s : BNE fits
     INC mu_s                            ; (period 0: the AY plays it as 1)
-.octaves
-    LDY #0
-.fit
-    LDA mu_s+1 : CMP #HI(MU_SN_PERIODS) : BCC fits
+    BNE fits                            ; (always)
+.octave
     LSR mu_s+1 : ROR mu_s
-    INY : BNE fit                       ; (always)
+    INY
+.fit
+    LDA mu_s+1 : CMP #HI(MU_SN_PERIODS) : BCS octave
 .fits
     TYA : STA mu_bass,X
     RTS

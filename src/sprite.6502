@@ -83,12 +83,12 @@ OP_CMP_ABSY = &D9
     ORA #8 : STA dst0b+1 : STA dst2b+1
     TAX
     LDA dt_row : ROL A : CLC : ADC #HI(screen)          ; (row * 2 + col / 16)
-    STA dst0+2 : STA dst0b+2
+    STA dst0+2 : STA dst0b+2 : TAY
     CLC : ADC #2 : STA dst2+2 : STA dst2b+2             ; (row -1 wraps below the screen: only its bottom half shows)
     TXA : CLC : ADC #8                                  ; (C set if the right quarters are a page on)
     STA dst1+1 : STA dst3+1
     ORA #8 : STA dst1b+1 : STA dst3b+1
-    LDA dst0+2 : ADC #0 : STA dst1+2 : STA dst1b+2
+    TYA : ADC #0 : STA dst1+2 : STA dst1b+2
     ADC #2 : STA dst3+2 : STA dst3b+2                   ; (C clear: the screen's pages are below &80)
     \ which quarters show: STA, or CMP. Most pictures show whole, as the
     \ last one did, and find their stores STAs already (dt_whole).
