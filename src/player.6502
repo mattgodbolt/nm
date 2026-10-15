@@ -240,8 +240,10 @@ CONTROLS = 6
     EQUB P1_COLOUR, P2_COLOUR
 
 \ Player pl's position from its record, in (rb, rc) and (rd, re). Y = prec.
+\ rec_pos_y: the record at Player1 + Y's.
 .rec_pos
     LDY prec
+.rec_pos_y
     LDA Player1 + R_ROW,Y : STA rb : STA rd
     LDA Player1 + R_COL,Y : STA rc : STA re
     RTS

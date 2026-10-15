@@ -144,9 +144,7 @@ TOUCH_EVERY = 10                ; the touch gate: one contact in this many acts 
 {
     SEC : SBC #T_P1 : STA shoved : TAX
     LDA rb : PHA : LDA rc : PHA
-    LDY player_rec,X
-    LDA Player1 + R_ROW,Y : STA rb
-    LDA Player1 + R_COL,Y : STA rc
+    LDY player_rec,X : JSR rec_pos_y
     LDA #0 : JSR put_player
     LDA rb : CLC : ADC StepV : STA rb
     LDA rc : CLC : ADC StepH : STA rc
@@ -158,9 +156,7 @@ TOUCH_EVERY = 10                ; the touch gate: one contact in this many acts 
     LDA rc : STA Player1 + R_COL,Y
     JSR erase_at
 .stays
-    LDX shoved : LDY player_rec,X
-    LDA Player1 + R_ROW,Y : STA rb
-    LDA Player1 + R_COL,Y : STA rc
+    LDX shoved : LDY player_rec,X : JSR rec_pos_y
     LDA player_code,X : JSR put_player
     JSR clear_step
     PLA : STA rc : PLA : STA rb
