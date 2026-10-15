@@ -119,26 +119,27 @@ TIMERS = 5
     INC rl
     LDA #3 : STA grid_rows
 .row
-    LDA re : STA PrintPos
     LDA rd : STA PrintPos + 1
-    JSR panel_cell
+    ASL A : ASL A : ASL A : ORA re : TAX    ; (panel_cell's index, in X)
     LDA #3 : STA grid_cols
 .col
     DEC rl : BNE draw
     LDA #' ' : STA icon             ; (spaces from there on: the count wraps past 0)
 .draw
-    \ (print_char's, unless the cell shows it: panel_cell)
+    \ print_char's, unless the cell shows it (panel_cell); the cursor's
+    \ column is only set for print_char, and at the end
     LDA icon
-    LDX put_at : INC put_at
     CMP panel_shown,X : BEQ shown
+    STX put_at
+    PHA : TXA : AND #PANEL_COLS - 1 : STA PrintPos : PLA
     JSR print_char
-    JMP drawn
+    LDX put_at
 .shown
-    INC PrintPos
-.drawn
+    INX
     DEC grid_cols : BNE col
     INC rd
     DEC grid_rows : BNE row
+    LDA re : CLC : ADC #3 : STA PrintPos    ; (as print_char leaves it)
     RTS
     ZA_AUTO1 icon
     ZA_AUTO1 grid_rows
