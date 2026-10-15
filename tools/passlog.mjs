@@ -25,6 +25,13 @@ const disc = option("--disc", "build/test.ssd");
 // --screens N: every N passes (and the last), the screen (12K) and the
 // attributes the port keeps, for tools/passcmp.py.
 const screens = parseInt(option("--screens", "0"));
+// --two: a two-player game (the test disc's direct_players). --poke
+// pass:addr:value,...: the original's addresses, in its variable blocks
+// (decision 10), set at the top of that pass.
+const twoAt = args.indexOf("--two");
+const two = twoAt >= 0 && args.splice(twoAt, 1).length > 0;
+const pokes = option("--poke", "").split(",").filter(Boolean).map((p) => p.split(":").map((v) => parseInt(v.replace("&", "0x"))));
+const level = parseInt(option("--level", "1"));
 const inputs = (args[0] ?? "").split(",").filter(Boolean).map((part) => {
     const [name, rng] = part.split(":");
     const [a, b] = rng.split("-").map(Number);
@@ -33,9 +40,11 @@ const inputs = (args[0] ?? "").split(",").filter(Boolean).map((part) => {
 const passes = parseInt(args[1] ?? "100");
 const hex = (bytes) => bytes.map((b) => b.toString(16).padStart(2, "0")).join("");
 
-const beeb = await startBeeb({ disc, symbols: disc.replace(/\.ssd$/, ".json") });
+const beeb = await startBeeb({ disc, symbols: disc.replace(/\.ssd$/, ".json"), bootUntil: "start" });
 const log = [];
 try {
+    if (two) await beeb.write("direct_players", [3]);
+    await beeb.write("direct_level", [level - 1]);
     await beeb.breakpoint("pass_top");
     const held = new Set();
     for (let n = 0; n < passes; n++) {
@@ -47,6 +56,11 @@ try {
             if (!want && held.has(key) && !inputs.some((i) => i.key === key && i.a <= n && n <= i.b)) {
                 await beeb.keyUp(key); held.delete(key);
             }
+        }
+        for (const [when, addr, value] of pokes) {
+            if (when !== n) continue;
+            const at = addr >= 0xFF2A ? beeb.addr("vars_ff") + addr - 0xFF2A : beeb.addr("vars_ba") + addr - 0xBA29;
+            await beeb.write(at, [value]);
         }
         log.push({
             pass: n,

@@ -11,3 +11,8 @@ monsters     | up:5-60,right:61-300             | 320
 throw        | fire:10,right:20-25,fire:30-60   | 90
 throw-walk   | up:5-40,fire:41-200,right:150-250 | 260
 shoot        | up:5-60,right:61-160,fire:161-400,left:200-210 | 420
+two          | up:5-40,p2right:10-60,p2up:61-100 | 160 | --two
+two-fight    | up:5-60,right:61-160,fire:161-300,p2up:5-50,p2right:51-200,p2fire:201-300 | 320 | --two
+next-level   | right:5-20                       | 60  | --poke 30:0xBA73:4
+level-10     | up:5-80,right:81-200,fire:150-250 | 260 | --level 10
+level-37     | left:5-80,down:81-200,fire:150-250 | 260 | --level 37

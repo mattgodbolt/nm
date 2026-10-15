@@ -15,6 +15,9 @@ The game starts as the menu's 1 (or 2 with --two) starts it, at level 1
 tools/zxviews.py does), with the random generator shared and seeded
 (tools/zx.py's share_random, decision 7).
 
+--poke pass:addr:value,... sets the original's bytes at the top of a
+pass, before it's logged (the port's logger sets the same variables).
+
 --screens N also logs the screen (6,912 bytes) every N passes and on the
 last, for tools/passcmp.py to compare with the port's.
 
@@ -72,6 +75,8 @@ def main():
     ap.add_argument("--out", default="build/zx_passes.json")
     ap.add_argument("--level", type=int, default=1)
     ap.add_argument("--two", action="store_true")
+    ap.add_argument("--poke", default="",
+                    help="pass:addr:value,... (the original's addresses): set at the top of that pass")
     ap.add_argument("--screens", type=int, default=0,
                     help="every N passes (and the last), log the screen too")
     args = ap.parse_args()
@@ -99,6 +104,10 @@ def main():
         for key, a, b in inputs:
             if a <= n <= b:
                 spec.key(key, True)
+        for p in filter(None, args.poke.split(",")):
+            when, addr, value = p.split(":")
+            if int(when) == n:
+                spec.mem[zx.parse_num(addr)] = zx.parse_num(value)
         log.append(state(spec.mem, n))
         if args.screens and (n % args.screens == 0 or n == args.passes - 1):
             log[-1]["scr"] = "".join(f"{spec.mem[a]:02x}" for a in range(0x4000, 0x5B00))

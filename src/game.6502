@@ -23,6 +23,9 @@ PASSWORDS    = 8
     LDA #HI(START_STRENGTH) : STA P2Strength + 1
 .one
     JSR find_password
+IF DEFINED(DIRECT)
+    ORA direct_level            ; (the tests' disc: tools/passlog.mjs --level)
+ENDIF
     JSR start_level
     \ &C00C: the view, and the opening jingle
     JSR draw_view

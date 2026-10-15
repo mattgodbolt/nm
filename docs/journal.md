@@ -238,3 +238,10 @@ The menu's flash: the original rewrites the attributes of rows 4-23
 between yellow on blue and white on red twice a frame, for about 12.6 s.
 Here the rows are repainted once so that their paper is logical colour 2
 and their ink 3, and the flash swaps those two's physical colours.
+
+More scenarios: the loggers take `--two` (a two-player game: on the port,
+a byte the test disc's start reads), `--level n` and `--poke
+pass:addr:value` (the original's addresses, set on both: so a scenario can
+make a player leave by the exit without walking to one). Two-player play
+with both fighting, a level change, and play on levels 10 and 37 all
+match pass for pass, screens included.

@@ -39,8 +39,8 @@ IF DEFINED(MUSICCHECK)
     JMP music_check
 ELSE
 IF DEFINED(DIRECT)
-    JSR reset_game              ; (the tests' disc: straight into a one-player game)
-    LDA #1
+    JSR reset_game              ; (the tests' disc: straight into a game,
+    LDA direct_players          ; one player unless a tool sets it to 3)
     JMP new_game
 ELSE
     JMP start_game
@@ -48,6 +48,11 @@ ENDIF
 ENDIF
 ENDIF
 }
+
+IF DEFINED(DIRECT)
+.direct_players EQUB 1          ; (the tests' disc: tools/passlog.mjs --two sets 3)
+.direct_level EQUB 0            ; (... and --level n sets n - 1)
+ENDIF
 
 IF DEFINED(VIEWCHECK)
 \ The view check's build (tools/viewcheck.mjs): every level's title and
