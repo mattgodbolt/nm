@@ -9,280 +9,165 @@ PF_OFFSET  = VIEW_LEFT * 16     ; a character row's playfield, from its start
 PF_BYTES   = ROW_BYTES - PF_OFFSET
 TILE_BYTES = 32                 ; a tile's width in a character row's bytes
 PF_COLS    = SCREEN_COLS - VIEW_LEFT
+    ASSERT ROW_BYTES = &200 AND PF_OFFSET < &100
 
-ZA_AUTO2 sh_src
-ZA_AUTO2 sh_dst
-ZA_AUTO2 sh_len
+\ The copier, for speed (decision 22): a LDA abs,Y : STA abs,Y for each
+\ character row, the rows' addresses written into it (cp_set), and Y
+\ stepped across the rows' bytes, so a byte costs little more than its
+\ load and store. A shift is three runs of it: the pixels in the first
+\ page of each row's playfield and in the second (the same rows a page
+\ on or back, cp_page), then the attributes. Within a run the rows go in
+\ the order cp_set gave them, so a row is read before it's written over.
+CP_PAIRS = SCREEN_ROWS
+OP_INY = &C8
+OP_DEY = &88
+OP_INC_ABSX = &FE
+OP_DEC_ABSX = &DE
 
-\ Copy sh_len bytes from sh_src to sh_dst, forwards (for a copy down in
-\ memory, or one that doesn't overlap).
-.move_up
-{
-    LDY #0
-    LDX sh_len + 1 : BEQ part
-.page
-    LDA (sh_src),Y : STA (sh_dst),Y
-    INY : BNE page
-    INC sh_src + 1 : INC sh_dst + 1
-    DEX : BNE page
-.part
-    LDX sh_len : BEQ done
-.bytes
-    LDA (sh_src),Y : STA (sh_dst),Y
-    INY : DEX : BNE bytes
-.done
+\ cp_set's: the first row's source and destination, and the step from
+\ one row's to the next (words, as a shift's program has them)
+ZA_AUTO 6, cp_par
+CP_SRC = 0
+CP_DST = 2
+CP_STRIDE = 4
+ZA_AUTO2 sh_at                  ; shift_by's program
+ZA_AUTO1 sh_i                   ; ... and the next byte in it
+
+\ Run the copier from Y, stepping Y (INY or DEY) until it's the end.
+.cp_go
+    JMP cp_pairs                ; (cp_set: the first row in use)
+.cp_pairs
+FOR k = 0..CP_PAIRS - 1
+    LDA &FFFF,Y : STA &FFFF,Y
+NEXT
+.cp_step
+    INY                         ; (or DEY: shift_by)
+.cp_end
+    CPY #0                      ; (the end: shift_by)
+    BEQ cp_done
+.cp_loop
+    JMP cp_pairs                ; (as cp_go)
+.cp_done
     RTS
-}
 
-\ ... backwards, from the last byte (for a copy up in memory).
-.move_down
+\ The copier's rows: the last A of its CP_PAIRS, from cp_par's source
+\ and destination, each the last's plus its stride.
+.cp_set
 {
-    LDA sh_src + 1 : CLC : ADC sh_len + 1 : STA sh_src + 1
-    LDA sh_dst + 1 : CLC : ADC sh_len + 1 : STA sh_dst + 1
-    LDY sh_len : BEQ pages
-.part
-    DEY
-    LDA (sh_src),Y : STA (sh_dst),Y
-    CPY #0 : BNE part
-.pages
-    LDX sh_len + 1 : BEQ done
-.page
-    DEC sh_src + 1 : DEC sh_dst + 1
-.bytes
-    DEY
-    LDA (sh_src),Y : STA (sh_dst),Y
-    CPY #0 : BNE bytes
-    DEX : BNE page
-.done
-    RTS
-}
-
-
-\ The pixels' copier, for speed (decision 22): sixteen LDA abs,Y : STA
-\ abs,Y a group, their addresses written into the loop once a shift
-\ (fast_set), then moved a page at a time (fast_page). A row's playfield
-\ is two runs, its first 256 bytes and the rest, and the next row's first
-\ is a page on from this row's second: so a shift is runs of 256 and the
-\ rest in turn, each a page on (or back) from the last. fast_up copies a
-\ run from its first group, fast_down from its last (for a copy that
-\ overlaps by at least a group, up in memory).
-FAST_GROUP = 16
-.fast_set
-{
-    LDX #0
-    LDY #0
-.op
-    TYA : CLC : ADC sh_src : STA fast_up_loop + 1,X : STA fast_down_loop + 1,X
-    LDA sh_src + 1 : ADC #0 : STA fast_up_loop + 2,X : STA fast_down_loop + 2,X
-    TYA : CLC : ADC sh_dst : STA fast_up_loop + 4,X : STA fast_down_loop + 4,X
-    LDA sh_dst + 1 : ADC #0 : STA fast_up_loop + 5,X : STA fast_down_loop + 5,X
+    EOR #&FF : SEC : ADC #CP_PAIRS  ; CP_PAIRS - A, the first in use
+    STA first : ASL A : ADC first : ASL A : TAX     ; (C clear: under 128)
+    ADC #LO(cp_pairs) : STA cp_go + 1 : STA cp_loop + 1
+    LDA #HI(cp_pairs) : ADC #0 : STA cp_go + 2 : STA cp_loop + 2
+.pair
+    LDA cp_par + CP_SRC : STA cp_pairs + 1,X : CLC : ADC cp_par + CP_STRIDE : STA cp_par + CP_SRC
+    LDA cp_par + CP_SRC + 1 : STA cp_pairs + 2,X : ADC cp_par + CP_STRIDE + 1 : STA cp_par + CP_SRC + 1
+    LDA cp_par + CP_DST : STA cp_pairs + 4,X : CLC : ADC cp_par + CP_STRIDE : STA cp_par + CP_DST
+    LDA cp_par + CP_DST + 1 : STA cp_pairs + 5,X : ADC cp_par + CP_STRIDE + 1 : STA cp_par + CP_DST + 1
     TXA : CLC : ADC #6 : TAX
-    INY : CPY #FAST_GROUP : BNE op
+    CPX #6 * CP_PAIRS : BNE pair
     RTS
+    ZA_AUTO1 first
 }
-\ Every operand of a loop a page on, or back: straight runs of INC or
-\ DEC, as they're done twice a row.
-.up_page_on
-FOR i = 0..FAST_GROUP - 1
-    INC fast_up_loop + 6 * i + 2 : INC fast_up_loop + 6 * i + 5
-NEXT
-    RTS
-.up_page_back
-FOR i = 0..FAST_GROUP - 1
-    DEC fast_up_loop + 6 * i + 2 : DEC fast_up_loop + 6 * i + 5
-NEXT
-    RTS
-.down_page_back
-FOR i = 0..FAST_GROUP - 1
-    DEC fast_down_loop + 6 * i + 2 : DEC fast_down_loop + 6 * i + 5
-NEXT
-    RTS
-\ Copy A bytes (a multiple of FAST_GROUP; 0 is 256) at the operands.
-.fast_up
-    STA fast_n
-    LDY #0
-.fast_up_loop
-FOR i = 0..FAST_GROUP - 1
-    LDA &FFFF,Y : STA &FFFF,Y
-NEXT
-    TYA : CLC : ADC #FAST_GROUP : TAY
-    CPY fast_n : BNE fast_up_loop
-    RTS
-.fast_down
-    SEC : SBC #FAST_GROUP : TAY
-.fast_down_loop
-FOR i = 0..FAST_GROUP - 1
-    LDA &FFFF,Y : STA &FFFF,Y
-NEXT
-    TYA : BEQ fast_down_done
-    SEC : SBC #FAST_GROUP : TAY
-    JMP fast_down_loop
-.fast_down_done
-    RTS
-ZA_AUTO1 fast_n
 
-\ sh_src = character row X's playfield + A, sh_dst = row Y's + rx,
-\ sh_len = ra2 (under 256) or PF_BYTES (ra2 = 0).
-.rows_at
+\ A shift, from its program at X:A (SHIFT_PROGRAM): the pixels' rows, the
+\ first run, the second a page on or back, then the attributes' rows and
+\ their run.
+.shift_by
 {
-    PHA
-    TXA : ASL A : CLC : ADC #HI(screen) : STA sh_src + 1
-    TYA : ASL A : CLC : ADC #HI(screen) : STA sh_dst + 1
-    PLA : CLC : ADC #LO(PF_OFFSET) : STA sh_src
-    BCC s : INC sh_src + 1
-.s
-    LDA rx : CLC : ADC #LO(PF_OFFSET) : STA sh_dst
-    BCC d : INC sh_dst + 1
-.d
-    LDA ra2 : STA sh_len : LDA #0 : STA sh_len + 1
-    LDA ra2 : BNE done
-    LDA #LO(PF_BYTES) : STA sh_len : LDA #HI(PF_BYTES) : STA sh_len + 1
-.done
-    RTS
-}
-    ASSERT PF_BYTES - TILE_BYTES < &200
-
-\ sh_src = attribute row X's playfield + A, sh_dst = row Y's + rx, sh_len
-\ = ra2 (or PF_COLS for 0).
-.attr_rows_at
-{
-    CLC : ADC #VIEW_LEFT : ADC attr_row_lo,X : STA sh_src
-    LDA attr_row_hi,X : ADC #0 : STA sh_src + 1
-    LDA rx : CLC : ADC #VIEW_LEFT : ADC attr_row_lo,Y : STA sh_dst
-    LDA attr_row_hi,Y : ADC #0 : STA sh_dst + 1
-    LDA #0 : STA sh_len + 1
-    LDA ra2 : BNE n
-    LDA #PF_COLS
-.n
-    STA sh_len
+    STA sh_at : STX sh_at + 1
+    LDA #0 : STA sh_i
+    JSR rows
+    JSR run
+    JSR next : STA inc1 : STA inc2      ; (INC or DEC abs,X)
+    LDX #6 * (CP_PAIRS - 1)
+.page
+.inc1
+    INC cp_pairs + 2,X
+.inc2
+    INC cp_pairs + 5,X
+    TXA : SEC : SBC #6 : TAX
+    BCS page
+    JSR run
+    JSR rows
+    \ (fall into run)
+.run
+    JSR next : STA cp_step
+    JSR next : STA cp_end + 1
+    JSR next : TAY
+    JMP cp_go
+.rows
+    LDX #0
+    ZA_DISCARD cp_par
+.param
+    JSR next : STA cp_par,X
+    ZA_INDEXEDBY 0..5
+    INX : CPX #6 : BNE param
+    JSR next
+    JMP cp_set
+.next
+    LDY sh_i : INC sh_i
+    LDA (sh_at),Y
     RTS
 }
 
-\ All the rows' pixels, from the operands fast_set gave: the first row's
-\ two runs (256 bytes, then sh_len's low byte more), then the next row's,
-\ forwards (fast_up, a page on each run) for SCREEN_ROWS - X rows.
-.pixels_up
-{
-    STX fast_rows
-    JSR fast_set
-.row
-    LDA #0 : JSR fast_up
-    JSR up_page_on
-    LDA sh_len : JSR fast_up
-    JSR up_page_on
-    INC fast_rows : LDA fast_rows : CMP #SCREEN_ROWS : BNE row
-    RTS
-}
-\ ... backwards: the operands at the last row's second run; each run from
-\ its end (fast_down), then a page back, for the rows from the bottom.
-.pixels_down
-{
-    STX fast_rows
-    JSR fast_set
-.row
-    LDA sh_len : JSR fast_down
-    JSR down_page_back
-    LDA #0 : JSR fast_down
-    JSR down_page_back
-    INC fast_rows : LDA fast_rows : CMP #SCREEN_ROWS : BNE row
-    RTS
-}
-ZA_AUTO1 fast_rows
-    ASSERT (PF_BYTES - TILE_BYTES) MOD FAST_GROUP = 0 AND PF_BYTES MOD FAST_GROUP = 0
-    ASSERT PF_BYTES > &100 AND PF_BYTES - TILE_BYTES > &100
+\ A shift's program for shift_by: the pixels' rows (the first row's
+\ source and destination, the step to the next, how many), a run of the
+\ first page (Y's start, end, INY or DEY), INC or DEC for the second
+\ page, its run; then the attributes' rows and their run.
+MACRO CP_ROWS src, dst, stride, n
+    EQUW src, dst, stride AND &FFFF
+    EQUB n
+ENDMACRO
+MACRO CP_RUN from, to, op
+    IF op = OP_INY
+        EQUB op, LO(to + 1), from
+    ELSE
+        EQUB op, LO(to - 1), from
+    ENDIF
+ENDMACRO
 
-\ &DBE8 ShiftLeft: columns 10-31 to 8-29.
+\ &DBE8 ShiftLeft: columns 10-31 to 8-29. Each row's bytes a tile back,
+\ from the left (the first page, then the second).
 .shift_left
-{
-    \ the pixels: each row's, less a tile, a tile back
-    LDA #0 : STA rx
-    LDA #LO(PF_BYTES - TILE_BYTES) : STA ra2
-    LDX #0 : LDY #0 : LDA #TILE_BYTES : JSR rows_at
-    LDX #0 : JSR pixels_up
-    \ the attributes
-    LDX #0
-.row
-    STX shr
-    LDA #0 : STA rx
-    LDA #PF_COLS - 2 : STA ra2
-    LDX shr : LDY shr : LDA #2 : JSR attr_rows_at
-    JSR move_up
-    LDX shr : INX : CPX #SCREEN_ROWS : BNE row
-    RTS
-    ZA_AUTO1 shr
-}
+    LDA #LO(prog_left) : LDX #HI(prog_left) : JMP shift_by
+.prog_left
+    CP_ROWS screen, screen - TILE_BYTES, ROW_BYTES, SCREEN_ROWS
+    CP_RUN PF_OFFSET + TILE_BYTES, &FF, OP_INY
+    EQUB OP_INC_ABSX
+    CP_RUN 0, &FF, OP_INY
+    CP_ROWS attrs + VIEW_LEFT + 2, attrs + VIEW_LEFT, SCREEN_COLS, SCREEN_ROWS
+    CP_RUN 0, PF_COLS - 3, OP_INY
 
-\ &DC17 ShiftRight: columns 8-29 to 10-31.
+\ &DC17 ShiftRight: columns 8-29 to 10-31: from the right (the second
+\ page, then the first), each from its last byte.
 .shift_right
-{
-    \ the pixels: from the last row's second run, backwards
-    LDA #TILE_BYTES : STA rx
-    LDA #LO(PF_BYTES - TILE_BYTES) : STA ra2
-    LDX #SCREEN_ROWS - 1 : LDY #SCREEN_ROWS - 1 : LDA #0 : JSR rows_at
-    INC sh_src + 1 : INC sh_dst + 1
-    LDX #0 : JSR pixels_down
-    LDX #0
-.row
-    STX shr
-    LDA #2 : STA rx
-    LDA #PF_COLS - 2 : STA ra2
-    LDX shr : LDY shr : LDA #0 : JSR attr_rows_at
-    JSR move_down
-    LDX shr : INX : CPX #SCREEN_ROWS : BNE row
-    RTS
-    ZA_AUTO1 shr
-}
+    LDA #LO(prog_right) : LDX #HI(prog_right) : JMP shift_by
+.prog_right
+    CP_ROWS screen + &100, screen + &100 + TILE_BYTES, ROW_BYTES, SCREEN_ROWS
+    CP_RUN &FF - TILE_BYTES, 0, OP_DEY
+    EQUB OP_DEC_ABSX
+    CP_RUN &FF, PF_OFFSET, OP_DEY
+    CP_ROWS attrs + VIEW_LEFT, attrs + VIEW_LEFT + 2, SCREEN_COLS, SCREEN_ROWS
+    CP_RUN PF_COLS - 3, 0, OP_DEY
 
-\ &DC48 ShiftUp: rows 2-23 to 0-21.
+\ &DC48 ShiftUp: rows 2-23 to 0-21, from the top.
 .shift_up
-{
-    \ the pixels: rows 2-23's to 0-21
-    LDA #0 : STA rx : STA ra2
-    LDX #2 : LDY #0 : LDA #0 : JSR rows_at
-    LDX #2 : JSR pixels_up
-    LDY #0
-.row
-    STY shr
-    LDA #0 : STA rx : STA ra2
-    LDA shr : CLC : ADC #2 : TAX : LDY shr
-    LDA #0 : JSR attr_rows_at
-    JSR move_up
-    LDY shr : INY : CPY #SCREEN_ROWS - 2 : BNE row
-    RTS
-    ZA_AUTO1 shr
-}
+    LDA #LO(prog_up) : LDX #HI(prog_up) : JMP shift_by
+.prog_up
+    CP_ROWS screen + 2 * ROW_BYTES, screen, ROW_BYTES, SCREEN_ROWS - 2
+    CP_RUN PF_OFFSET, &FF, OP_INY
+    EQUB OP_INC_ABSX
+    CP_RUN 0, &FF, OP_INY
+    CP_ROWS attrs + 2 * SCREEN_COLS + VIEW_LEFT, attrs + VIEW_LEFT, SCREEN_COLS, SCREEN_ROWS - 2
+    CP_RUN 0, PF_COLS - 1, OP_INY
 
-\ &DC7F ShiftDown: rows 0-21 to 2-23 (from the bottom up).
+\ &DC7F ShiftDown: rows 0-21 to 2-23, from the bottom.
 .shift_down
-{
-    \ the pixels: rows 0-21's to 2-23, from the bottom: the operands at
-    \ row 21's second run to row 23's
-    LDA #0 : STA rx : STA ra2
-    LDX #SCREEN_ROWS - 3 : LDY #SCREEN_ROWS - 1 : LDA #0 : JSR rows_at
-    INC sh_src + 1 : INC sh_dst + 1
-    LDX #2 : JSR pixels_down_rows
-    LDY #SCREEN_ROWS - 1
-.row
-    STY shr
-    LDA #0 : STA rx : STA ra2
-    LDA shr : SEC : SBC #2 : TAX : LDY shr
-    LDA #0 : JSR attr_rows_at
-    JSR move_up
-    LDY shr : DEY : CPY #1 : BNE row
-    RTS
-    ZA_AUTO1 shr
-}
-\ (rows that don't overlap: copied forwards within a run, the runs from
-\ the bottom, a page back each)
-.pixels_down_rows
-{
-    STX fast_rows
-    JSR fast_set
-.row
-    LDA sh_len : JSR fast_up
-    JSR up_page_back
-    LDA #0 : JSR fast_up
-    JSR up_page_back
-    INC fast_rows : LDA fast_rows : CMP #SCREEN_ROWS : BNE row
-    RTS
-}
+    LDA #LO(prog_down) : LDX #HI(prog_down) : JMP shift_by
+.prog_down
+    CP_ROWS screen + (SCREEN_ROWS - 3) * ROW_BYTES, screen + (SCREEN_ROWS - 1) * ROW_BYTES, -ROW_BYTES, SCREEN_ROWS - 2
+    CP_RUN PF_OFFSET, &FF, OP_INY
+    EQUB OP_INC_ABSX
+    CP_RUN 0, &FF, OP_INY
+    CP_ROWS attrs + (SCREEN_ROWS - 3) * SCREEN_COLS + VIEW_LEFT, attrs + (SCREEN_ROWS - 1) * SCREEN_COLS + VIEW_LEFT, -SCREEN_COLS, SCREEN_ROWS - 2
+    CP_RUN 0, PF_COLS - 1, OP_INY
