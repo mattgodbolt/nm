@@ -23,11 +23,11 @@ STAR_VIEW_MAX = &17             ; a star lives in the view's rows and columns 1-
     LDY st
     LDA Star1 + S_THROWER,Y : BEQ done
     LDA Star1 + S_ROW,Y : STA rd
+    CLC : ADC Star1 + S_DROW,Y : STA rb
     LDA Star1 + S_COL,Y : STA re
     CLC : ADC Star1 + S_DCOL,Y : STA rc
-    LDA Star1 + S_ROW,Y : CLC : ADC Star1 + S_DROW,Y : STA rb
     LDA #LO(FloorQuarter) : STA rl : LDA #HI(FloorQuarter) : STA rh
-    JSR star_cell : BNE done
+    JSR star_cell : BEQ done
     JMP star_look
 .done
     RTS
@@ -53,10 +53,115 @@ STAR_VIEW_MAX = &17             ; a star lives in the view's rows and columns 1-
     CLC : ADC rb : STA rb : STA Star1 + S_ROW,Y
     LDA Star1 + S_DCOL,Y : CMP #&80 : ROL A
     CLC : ADC rc : STA rc : STA Star1 + S_COL,Y
-    \ (fall into star_look)
+    JMP star_look
+
+\ &C816 StarCell: an 8 x 8 pattern (rhl: StarPattern, or FloorQuarter to
+\ erase) at map cell (rd, re), if inside the view's rows and columns
+\ 1-22; else the star is gone (star_stop). Its attribute is the floor's
+\ when the byte after the pattern is 0 (FloorQuarter's), else the star's
+\ ink, the next of 0-7 (StarInk). NZ if drawn; Z if gone.
+.star_cell
+{
+    LDA rd : SEC : SBC ViewOrigin : BEQ star_stop
+    CMP #STAR_VIEW_MAX : BCS star_stop
+    TAX
+    LDA re : SEC : SBC ViewOrigin + 1 : BEQ star_stop
+    CMP #STAR_VIEW_MAX : BCS star_stop
+    ADC #VIEW_LEFT : STA cell_col   ; (C clear: in the view)
+    LDY #8 : LDA (rhl),Y : BEQ floor
+    LDA StarInk : CLC : ADC #1 : AND #7 : STA StarInk
+    BPL attr                        ; (always)
+.floor
+    LDA TileAttrs
+.attr
+    LDY rl : STY gl_src : LDY rh : STY gl_src + 1
+    LDY cell_col
+    JSR draw_glyph                  ; (at row X)
+    LDA #&FF                        ; (NZ: drawn)
+    RTS
+    ZA_AUTO1 cell_col
+}
+
+\ The star stops: its thrower 0. A = 0.
+.star_stop
+    LDY st : LDA #0 : STA Star1 + S_THROWER,Y
+    RTS
+
+\ &C762 StarHitCrumble: a crumbling wall (&01-&03) goes a stage; after
+\ &03 it's gone, and the wall above is mended.
+.star_hit_crumble
+{
+    LDY #0
+    ADC #1 : AND #3                 ; (C clear: below &04)
+    STA (rhl),Y
+    BNE stop
+    \ &C770 CrumbleAbove: &05 above becomes &04, &11 above &01
+    LDA rl : PHA : SEC : SBC #32 : STA rl
+    LDA rh : PHA : BCS c
+    DEC rh
+.c
+    LDA (rhl),Y
+    CMP #&05 : BNE not5
+    LDA #&04 : BNE mend             ; (always)
+.not5
+    CMP #T_WALL11 : BNE back
+    LDA #&01
+.mend
+    STA (rhl),Y
+    DEC rb : DEC rb
+    JSR redraw_tile
+    INC rb : INC rb
+.back
+    PLA : STA rh : PLA : STA rl
+.stop
+    JMP star_stop_redraw
+}
+
+\ &C7A3 StarHitCreeper: the creeper goes on every Nth hit, N random 1-32
+\ (CreeperHits, shared by every creeper tile).
+.star_hit_creeper
+    DEC CreeperHits : BNE star_stop
+    JSR random : AND #&1F : CLC : ADC #1 : STA CreeperHits
+    JMP star_destroy
+
+\ &C78E StarHitMagic: the scroll goes off as a smart bomb.
+.star_hit_magic
+    JSR star_stop
+    TAY : STA (rhl),Y               ; (A = 0: the scroll goes)
+    JSR smart_bomb
+    JMP draw_view
+
+\ &C7C0 StarTransport: out of a random teleporter in the view, two cells
+\ on, and on it flies.
+.star_transport
+    JSR pick_teleporter
+    JSR cell_pos
+    LDY st
+    JMP star_from
+
+\ &C7B7 StarDestroy: the tile it hit goes (food, a rock, the creeper).
+.star_destroy
+    LDA #0
+    \ (fall into star_put)
+\ The tile the star hit (rhl) becomes A; the star stops, and the tile is
+\ redrawn (star_stop_redraw).
+.star_put
+    LDY #0 : STA (rhl),Y
+.star_stop_redraw
+    JSR star_stop
+    JMP redraw_tile
+
+\ &C79A StarHitWall11: the wall becomes crumbling (&02).
+.star_hit_wall11
+    LDA #&02 : BNE star_put         ; (always)
+
+\ &C717 StarHitWall1F: the wall becomes &27, a hell hole.
+.star_hit_wall1f
+    LDA #&27 : BNE star_put         ; (always)
 
 \ &C659 StarLook: the star's next cell, (rb, rc): empty, or the
-\ thrower's own, it moves there; anything else is a hit.
+\ thrower's own, it moves there; anything else is a hit. (The tests are
+\ in the order their handlers are placed, so that each is a branch.)
 .star_look
 {
     JSR map_cell : BEQ advance
@@ -65,45 +170,27 @@ STAR_VIEW_MAX = &17             ; a star lives in the view's rows and columns 1-
     CMP #&04 : BCS not_crumble
     JMP star_hit_crumble
 .not_crumble
-    CMP #T_WALL11 : BNE not11
-    JMP star_hit_wall11
-.not11
-    CMP #&0E : BEQ destroy
-    CMP #T_SCROLL : BNE not_scroll
-    JMP star_hit_magic
-.not_scroll
-    CMP #T_CREEPER : BNE not_creeper
-    JMP star_hit_creeper
-.not_creeper
-    CMP #T_ROCK : BEQ destroy
-    CMP #T_TELEPORT : BNE not_teleport
-    JMP star_transport
-.not_teleport
-    CMP #&1F : BNE not1f
-    JMP star_hit_wall1f
-.not1f
-    CMP #T_TRAP : BCC not_trap
-    CMP #&40 : BCS not_trap
-    JMP star_hit_trap
-.not_trap
+    CMP #T_WALL11 : BEQ star_hit_wall11
+    CMP #&0E : BEQ star_destroy
+    CMP #T_ROCK : BEQ star_destroy
+    CMP #&1F : BEQ star_hit_wall1f
+    CMP #T_TELEPORT : BEQ star_transport
+    CMP #T_SCROLL : BEQ star_hit_magic
+    CMP #T_CREEPER : BEQ star_hit_creeper
     CMP #T_MARKER : BNE not_marker
     JMP hit_marker
 .not_marker
-    BCC not_monster
-    JMP star_hit_monster
-.not_monster
-    CMP #&70 : BCC not_player
-    JMP star_hit_player
-.not_player
+    BCS star_hit_monster
+    CMP #&70 : BCS star_hit_player
+    CMP #T_TRAP : BCC not_trap
+    CMP #&40 : BCC star_hit_trap
+.not_trap
     AND #&E0 : CMP #T_SPARKLE : BEQ advance
     \ a wall: bounce while the bounces last, else stop
     LDA Bounces : BEQ stop
     JMP star_bounce
 .stop
-    LDA #0 : STA Star1 + S_THROWER,Y
-    RTS
-.destroy
-    JMP star_destroy
+    JMP star_stop
 .advance
     \ &C660 StarAdvance: there, and the star drawn
     LDY st
@@ -127,9 +214,24 @@ STAR_VIEW_MAX = &17             ; a star lives in the view's rows and columns 1-
     LDY st : LDA Star1 + S_THROWER,Y : SEC : SBC #T_P1
     JSR set_player
     JSR add_treasure
-    LDY st : LDA #0 : STA Star1 + S_THROWER,Y
-    RTS
+    JMP star_stop
     ZA_AUTO1 hits
+}
+
+\ &C7DB StarHitPlayer: if the other player holds the freeze ring, the
+\ player hit is frozen (or freed). (The thrower isn't checked: kept.)
+.star_hit_player
+{
+    LDX #0 : LDY #R_SIZE            ; player 1 hit: player 2's ring
+    CMP #T_P1 : BEQ hit
+    LDX #1 : LDY #0                 ; player 2 hit: player 1's
+    CMP #T_P2 : BNE stop
+.hit
+    LDA Player1 + R_RING,Y : BEQ stop
+    \ frozen, or freed: 0 becomes &FF, anything else 0
+    LDA P1Frozen,X : CMP #1 : LDA #0 : SBC #0 : STA P1Frozen,X
+.stop
+    JMP star_stop
 }
 
 \ &C6E4 StarHitTrapDoor: power + 1 hits (player 1's again) of 8 off the
@@ -141,34 +243,26 @@ STAR_VIEW_MAX = &17             ; a star lives in the view's rows and columns 1-
     AND #7 : CMP #7 : BEQ stop
     LDA P1Power + 1 : CLC : ADC #1 : STA hits
     LDA code
+    SEC
 .hit
-    SEC : SBC #8
+    SBC #8
     CMP #T_TRAP : BCC gone
     LDY #0 : STA (rhl),Y
-    DEC hits : BNE hit
-    JMP drawn
+    DEC hits : BNE hit              ; (C set: from the CMP)
+    JMP star_stop_redraw
 .gone
-    LDA #0 : TAY : STA (rhl),Y
-.drawn
-    JSR redraw_tile
+    LDA #0 : JMP star_put
 .stop
-    LDY st : LDA #0 : STA Star1 + S_THROWER,Y
-    RTS
+    JMP star_stop
     ZA_AUTO1 code
     ZA_AUTO1 hits
 }
-
-\ &C717 StarHitWall1F: the wall becomes &27, a hell hole.
-.star_hit_wall1f
-    LDA #0 : STA Star1 + S_THROWER,Y
-    LDA #&27 : LDY #0 : STA (rhl),Y
-    JMP redraw_tile
 
 \ &C720 StarBounce: one bounce used; each axis whose next cell isn't
 \ empty is reversed, and the star steps back along it, undrawn.
 .star_bounce
 {
-    SEC : SBC #1 : STA Bounces
+    DEC Bounces
     LDY st
     LDA Star1 + S_ROW,Y : CLC : ADC Star1 + S_DROW,Y : STA rb
     LDA Star1 + S_COL,Y : STA rc
@@ -186,133 +280,4 @@ STAR_VIEW_MAX = &17             ; a star lives in the view's rows and columns 1-
     CLC : ADC Star1 + S_COL,Y : STA Star1 + S_COL,Y
 .done
     RTS
-}
-
-\ &C762 StarHitCrumble: a crumbling wall (&01-&03) goes a stage; after
-\ &03 it's gone, and the wall above is mended.
-.star_hit_crumble
-{
-    LDY #0
-    CLC : ADC #1 : AND #3
-    STA (rhl),Y
-    BNE stop
-    \ &C770 CrumbleAbove: &05 above becomes &04, &11 above &01
-    LDA rl : PHA : LDA rh : PHA
-    LDA rl : SEC : SBC #32 : STA rl
-    BCS c : DEC rh
-.c
-    LDA (rhl),Y
-    CMP #&05 : BNE not5
-    LDA #&04 : JMP mend
-.not5
-    CMP #T_WALL11 : BNE back
-    LDA #&01
-.mend
-    STA (rhl),Y
-    DEC rb : DEC rb
-    JSR redraw_tile
-    INC rb : INC rb
-.back
-    PLA : STA rh : PLA : STA rl
-.stop
-    LDY st : LDA #0 : STA Star1 + S_THROWER,Y
-    JMP redraw_tile
-}
-
-\ &C78E StarHitMagic: the scroll goes off as a smart bomb.
-.star_hit_magic
-    LDA #0 : TAY : STA (rhl),Y
-    LDY st : STA Star1 + S_THROWER,Y
-    JSR smart_bomb
-    JMP draw_view
-
-\ &C79A StarHitWall11: the wall becomes crumbling (&02).
-.star_hit_wall11
-    LDA #&02 : LDY #0 : STA (rhl),Y
-    LDY st : LDA #0 : STA Star1 + S_THROWER,Y
-    JMP redraw_tile
-
-\ &C7A3 StarHitCreeper: the creeper goes on every Nth hit, N random 1-32
-\ (CreeperHits, shared by every creeper tile).
-.star_hit_creeper
-{
-    LDA #0 : STA Star1 + S_THROWER,Y
-    DEC CreeperHits : BNE done
-    JSR random : AND #&1F : CLC : ADC #1 : STA CreeperHits
-    JMP star_destroy
-.done
-    RTS
-}
-
-\ &C7B7 StarDestroy: the tile it hit goes (food, a rock, the creeper).
-.star_destroy
-    LDA #0 : TAY : STA (rhl),Y
-    LDY st : STA Star1 + S_THROWER,Y
-    JMP redraw_tile
-
-\ &C7C0 StarTransport: out of a random teleporter in the view, two cells
-\ on, and on it flies.
-.star_transport
-{
-    JSR pick_teleporter
-    JSR cell_pos
-    LDY st
-    JMP star_from
-}
-
-\ &C7DB StarHitPlayer: if the other player holds the freeze ring, the
-\ player hit is frozen (or freed). (The thrower isn't checked: kept.)
-.star_hit_player
-{
-    CMP #T_P1 : BNE p2
-    LDX #0 : LDA P2Ring : JSR freeze
-    JMP stop
-.p2
-    CMP #T_P2 : BNE stop
-    LDX #1 : LDA P1Ring : JSR freeze
-.stop
-    LDY st : LDA #0 : STA Star1 + S_THROWER,Y
-    RTS
-.freeze
-    BEQ done
-    LDA P1Frozen,X : BNE thaw
-    LDA #&FF : STA P1Frozen,X
-    RTS
-.thaw
-    LDA #0 : STA P1Frozen,X
-.done
-    RTS
-}
-
-\ &C816 StarCell: an 8 x 8 pattern (rhl: StarPattern, or FloorQuarter to
-\ erase) at map cell (rd, re), if inside the view's rows and columns
-\ 1-22; else the star is gone. Its attribute is the floor's when the
-\ byte after the pattern is 0 (FloorQuarter's), else the star's ink, the
-\ next of 0-7 (StarInk). Z if drawn.
-.star_cell
-{
-    LDA rd : SEC : SBC ViewOrigin : BEQ off
-    CMP #STAR_VIEW_MAX : BCS off
-    TAX
-    LDA re : SEC : SBC ViewOrigin + 1 : BEQ off
-    CMP #STAR_VIEW_MAX : BCS off
-    CLC : ADC #VIEW_LEFT : TAY
-    STX cell_row : STY cell_col
-    LDY #8 : LDA (rhl),Y : BEQ floor
-    LDA StarInk : CLC : ADC #1 : AND #7 : STA StarInk
-    JMP attr
-.floor
-    LDA TileAttrs
-.attr
-    LDX rl : STX gl_src : LDX rh : STX gl_src + 1
-    LDX cell_row : LDY cell_col
-    JSR draw_glyph
-    LDA #0
-    RTS
-.off
-    LDY st : LDA #0 : STA Star1 + S_THROWER,Y
-    LDA #&FF
-    RTS
-    ZA_AUTO1 cell_row
-    ZA_AUTO1 cell_col
 }
