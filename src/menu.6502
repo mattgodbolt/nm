@@ -105,18 +105,14 @@ MENU_SWAPS = MENU_SETTLE_FRAMES DIV FLASH_FRAMES
 {
     LDA #MENU_ATTR : JSR menu_palette
     LDA #MENU_ATTR : JSR title
-    LDX #9 : LDY #7 : JSR print_at
-    EQUS "WRITTEN BY ADAM WARING", 0
-    LDX #&0B : LDY #8 : JSR print_at
-    EQUS "TAG COMPUTER GAMES", 0
-    LDX #&0B : LDY #&0B : JSR print_at
-    EQUS "1  ONE PLAYER GAME", 0
-    LDX #&0B : LDY #&0D : JSR print_at
-    EQUS "2  TWO PLAYER GAME", 0
-    LDX #&0B : LDY #&0F : JSR print_at
-    EQUS "3  SELECT CONTROLS", 0
-    LDX #&0B : LDY #&11 : JSR print_at
-    EQUS "4  ENTER  PASSWORD", 0
+    JSR print_lines
+    EQUB 9, 7 : EQUS "WRITTEN BY ADAM WARING", 0
+    EQUB &0B, 8 : EQUS "TAG COMPUTER GAMES", 0
+    EQUB &0B, &0B : EQUS "1  ONE PLAYER GAME", 0
+    EQUB &0B, &0D : EQUS "2  TWO PLAYER GAME", 0
+    EQUB &0B, &0F : EQUS "3  SELECT CONTROLS", 0
+    EQUB &0B, &11 : EQUS "4  ENTER  PASSWORD", 0
+    EQUB PRINT_END
     \ the high score, its 0, and its name
     LDA #9 : STA PrintPos : LDA #&15 : STA PrintPos + 1
     LDA HighScore : STA rl : LDA HighScore + 1 : STA rh
@@ -263,14 +259,12 @@ MENU_INK   = 3                  ; BBC yellow
 .up
     JSR read_key : BNE up
     LDA #CONTROLS_ATTR : JSR title
-    LDX #9 : LDY #&0A : JSR print_at
-    EQUS "1  REDEFINE PLAYER ONE", 0
-    LDX #9 : LDY #&0C : JSR print_at
-    EQUS "2  REDEFINE PLAYER TWO", 0
-    LDX #9 : LDY #&0E : JSR print_at
-    EQUS "3  KEMPSTON PLAYER ONE", 0
-    LDX #9 : LDY #&10 : JSR print_at
-    EQUS "4  KEMPSTON PLAYER TWO", 0
+    JSR print_lines
+    EQUB 9, &0A : EQUS "1  REDEFINE PLAYER ONE", 0
+    EQUB 9, &0C : EQUS "2  REDEFINE PLAYER TWO", 0
+    EQUB 9, &0E : EQUS "3  KEMPSTON PLAYER ONE", 0
+    EQUB 9, &10 : EQUS "4  KEMPSTON PLAYER TWO", 0
+    EQUB PRINT_END
 .key
     LDX #K_1 : JSR key_down : BNE p1
     LDX #K_2 : JSR key_down : BNE p2

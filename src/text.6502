@@ -57,6 +57,21 @@
     ZA_AUTO1 fill
 }
 
+\ &D995 for several lines: after the JSR, each line's column, its row
+\ and its string (ending with 0), then PRINT_END; it returns after that.
+PRINT_END = &FF                     ; (no column has bit 7 set)
+.print_lines
+{
+    PLA : STA str
+    PLA : STA str+1
+.line
+    JSR str_next : BMI print_return
+    STA PrintPos
+    JSR str_next : STA PrintPos+1
+    JSR print_str
+    JMP line
+}
+
 \ &D995: print the string after the JSR (ending with 0) at row Y,
 \ column X; it returns after the string. (The original passes the row and
 \ column in DE.)
@@ -70,6 +85,11 @@
     PLA : STA str
     PLA : STA str+1
     JSR print_str
+    \ (fall into print_return)
+}
+\ Return to the byte after str.
+.print_return
+{
     LDA str+1 : PHA
     LDA str : PHA
     RTS
@@ -79,12 +99,19 @@
 .print_str
 {
 .next
-    INC str : BNE c : INC str+1
-.c
-    LDY #0 : LDA (str),Y : BEQ done
+    JSR str_next : BEQ done
     JSR print_char
     JMP next
 .done
+    RTS
+}
+
+\ str moved on a byte, and the byte there in A (Y = 0).
+.str_next
+{
+    INC str : BNE c : INC str+1
+.c
+    LDY #0 : LDA (str),Y
     RTS
 }
 ZA_AUTO2 str
