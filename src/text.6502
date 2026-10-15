@@ -24,20 +24,16 @@
     ZA_AUTO2 at
     STA fill
     JSR attr_colours
-    \ the attributes
-    LDA #LO(attrs) : STA at
-    LDA #HI(attrs) : STA at+1
-    LDX #SCREEN_ROWS
-.arow
-    LDY #VIEW_LEFT
+    \ the attributes: every one not in the panel's columns (0-7: bits 3
+    \ and 4 of the offset clear)
+    ASSERT SCREEN_ROWS * SCREEN_COLS = &300 AND SCREEN_COLS = 32 AND VIEW_LEFT = 8
+    LDX #0
+.attr
+    TXA : AND #&18 : BEQ in_panel
     LDA fill
-.acol
-    STA (at),Y
-    INY : CPY #SCREEN_COLS : BNE acol
-    LDA at : CLC : ADC #SCREEN_COLS : STA at
-    BCC ac : INC at+1
-.ac
-    DEX : BNE arow
+    STA attrs,X : STA attrs + &100,X : STA attrs + &200,X
+.in_panel
+    INX : BNE attr
     \ the pixels, all paper: each row's playfield is 256 bytes, then the
     \ rest of it before the next row's panel
     ASSERT ROW_BYTES - VIEW_LEFT * 16 > &100
@@ -71,9 +67,17 @@
 }
 .print_inline
 {
-    ZA_AUTO2 str
     PLA : STA str
     PLA : STA str+1
+    JSR print_str
+    LDA str+1 : PHA
+    LDA str : PHA
+    RTS
+}
+
+\ Print the string after str (ending with 0), leaving str at its 0.
+.print_str
+{
 .next
     INC str : BNE c : INC str+1
 .c
@@ -81,10 +85,9 @@
     JSR print_char
     JMP next
 .done
-    LDA str+1 : PHA
-    LDA str : PHA
     RTS
 }
+ZA_AUTO2 str
 
 \ &D9AA: print character A at the cursor, in the cell's colours, and move
 \ the cursor on (to the next row after column 31, and to the top after the
@@ -101,12 +104,11 @@
     CMP panel_shown,X : BEQ advance
     STA panel_shown,X
 .draw
-    \ the glyph: font + 8 * (A - FONT_FIRST)
-    SEC : SBC #FONT_FIRST
+    \ the glyph: font + 8 * (A - FONT_FIRST), as (font - 8 * FONT_FIRST) + 8 * A
     LDX #0 : STX gl_src + 1
     ASL A : ROL gl_src + 1 : ASL A : ROL gl_src + 1 : ASL A : ROL gl_src + 1
-    CLC : ADC #LO(font) : STA gl_src
-    LDA gl_src + 1 : ADC #HI(font) : STA gl_src + 1
+    ADC #LO(font - 8 * FONT_FIRST) : STA gl_src     ; (C clear: the last ROL took a 0 from gl_src + 1)
+    LDA gl_src + 1 : ADC #HI(font - 8 * FONT_FIRST) : STA gl_src + 1
     \ in the cell's colours
     LDX PrintPos + 1 : LDY PrintPos
     LDA attr_row_lo,X : STA gl_at
@@ -136,10 +138,11 @@
     LDA attr_row_hi,X : STA gl_at + 1
     PLA : STA (gl_at),Y
     JSR attr_colours                ; (which uses X and Y)
-    \ the screen: screen + row * &200 + col * 16
+    \ the screen: screen + row * &200 + col * 16 (the column's bit 4 is
+    \ the carry the shifts leave, which ROL takes into the high byte)
     LDA gl_col : ASL A : ASL A : ASL A : ASL A : STA gl_at
-    LDA gl_row : ASL A : CLC : ADC #HI(screen) : STA gl_at + 1
-    LDA gl_col : LSR A : LSR A : LSR A : LSR A : CLC : ADC gl_at + 1 : STA gl_at + 1
+    LDA gl_row : ROL A : ADC #HI(screen) : STA gl_at + 1     ; (C clear: the row's top bit)
+    ASSERT LO(screen) = 0 AND SCREEN_COLS = 32 AND SCREEN_ROWS < 128
     LDY #0
 .line
     STY gl_tmp

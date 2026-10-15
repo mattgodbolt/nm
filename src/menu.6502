@@ -299,7 +299,8 @@ MENU_INK   = 3                  ; BBC yellow
     LDX #0
 .ask
     STX asked
-    LDA ask_row,X : TAY : JSR print_at_ask
+    TXA : ASL A : ADC #ASK_ROW : TAY     ; (C clear: X is small)
+    JSR print_at_ask
     LDX asked
     LDA ask_control,X : CLC : ADC at : TAY
     JSR read_key_for
@@ -313,9 +314,9 @@ MENU_INK   = 3                  ; BBC yellow
     ZA_AUTO1 at
     ZA_AUTO1 asked
 }
-\ The order the original asks in, each word's row, and its control.
-.ask_row
-    EQUB 4, 6, 8, &0A, &0C, &0E
+\ The order the original asks in, and each one's control. The words are
+\ on every other row from ASK_ROW.
+ASK_ROW = 4
 .ask_control
     EQUB C_UP, C_DOWN, C_LEFT, C_RIGHT, C_FIRE, C_MAGIC
 
@@ -324,21 +325,14 @@ ASK_COL = &14
 .print_at_ask
 {
     LDA #ASK_COL : STA PrintPos : STY PrintPos + 1
-    LDA ask_word_lo,X : STA aw : LDA ask_word_hi,X : STA aw + 1
-    LDY #0
-.char
-    LDA (aw),Y : BEQ done
-    STY ay : JSR print_char : LDY ay
-    INY : JMP char
-.done
-    RTS
-    ZA_AUTO2 aw
-    ZA_AUTO1 ay
+    LDA ask_word_lo,X : STA str : LDA ask_word_hi,X : STA str + 1
+    JMP print_str
 }
+\ (each word less one: print_str starts after str)
 .ask_word_lo
-    EQUB LO(w_up), LO(w_down), LO(w_left), LO(w_right), LO(w_fire), LO(w_magic)
+    EQUB LO(w_up - 1), LO(w_down - 1), LO(w_left - 1), LO(w_right - 1), LO(w_fire - 1), LO(w_magic - 1)
 .ask_word_hi
-    EQUB HI(w_up), HI(w_down), HI(w_left), HI(w_right), HI(w_fire), HI(w_magic)
+    EQUB HI(w_up - 1), HI(w_down - 1), HI(w_left - 1), HI(w_right - 1), HI(w_fire - 1), HI(w_magic - 1)
 .w_up    EQUS "UP.....", 0
 .w_down  EQUS "DOWN...", 0
 .w_left  EQUS "LEFT...", 0
