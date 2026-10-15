@@ -82,7 +82,7 @@ views: build/viewcheck.ssd build/views/zx_50.scr
 	node tools/viewcheck.mjs
 	$(PYTHON) tools/viewcmp.py
 
-build/views/zx_50.scr: build/nm128.z80 tools/zxviews.py tools/zx.py tools/mklevels.py
+build/views/zx_50.scr: build/nm48.z80 tools/zxviews.py tools/zx.py tools/mklevels.py
 	$(PYTHON) tools/zxviews.py
 
 # The music check's disc: every song on the driver, as fast as it goes

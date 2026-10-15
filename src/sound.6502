@@ -166,6 +166,7 @@ CLICK_US = 20
 {
     STA m : STX k
     LDA #0 : STA t_lo : STA t_hi
+    CPX #0 : BEQ x256
     LDX #8
 .bit
     ASL t_lo : ROL t_hi
@@ -174,9 +175,9 @@ CLICK_US = 20
     BCC no : INC t_hi
 .no
     DEX : BNE bit
-    LDA k : BNE done
-    \ (X was 0: 256 x A)
-.done
+    RTS
+.x256
+    LDA m : STA t_hi
     RTS
     ZA_AUTO1 m
     ZA_AUTO1 k
