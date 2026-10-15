@@ -19,6 +19,19 @@
     RTS
 }
 
+\ rhl += A, a signed offset. N must be A's sign (as the caller's LDA or
+\ ADC of it leaves it). X and Y are kept.
+.add_rhl
+{
+    BPL add
+    DEC rh                          ; (a negative offset: the high byte's -1)
+.add
+    CLC : ADC rl : STA rl
+    BCC done : INC rh
+.done
+    RTS
+}
+
 \ &D117 CellPos: the position (rb, rc) of the map tile at rhl. X is kept.
 \ (rh past the map, as the scan's reach of map_tail gives, takes its low
 \ two bits only, as a 16-bit shift and the AND of rows would.)

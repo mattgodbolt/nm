@@ -36,9 +36,7 @@ T_TEA      = &0E
     INC rl : BNE n : INC rh
 .n
     DEC bomb_cols : BNE tile
-    LDA rl : CLC : ADC #&12 : STA rl
-    BCC m : INC rh
-.m
+    LDA #&12 : JSR add_rhl
     DEC bomb_rows : BNE row
     \ (fall into bomb_flash)
 }

@@ -96,10 +96,8 @@ STAR_VIEW_MAX = &17             ; a star lives in the view's rows and columns 1-
     STA (rhl),Y
     BNE stop
     \ &C770 CrumbleAbove: &05 above becomes &04, &11 above &01
-    LDA rl : PHA : SEC : SBC #32 : STA rl
-    LDA rh : PHA : BCS c
-    DEC rh
-.c
+    LDA rl : PHA : LDA rh : PHA
+    LDA #&100 - 32 : JSR add_rhl
     LDA (rhl),Y
     CMP #&05 : BNE not5
     LDA #&04 : BNE mend             ; (always)

@@ -289,11 +289,7 @@ ENDMACRO
 {
     LDA rl : PHA : LDA rh : PHA
 .next
-    LDX #0 : LDA door_step : BPL forwards
-    DEX                             ; (backwards: the high byte -1)
-.forwards
-    CLC : ADC rl : STA rl
-    TXA : ADC rh : STA rh
+    LDA door_step : JSR add_rhl
     LDY #0 : LDA (rhl),Y : CMP door_code : BNE done
     TYA : STA (rhl),Y
     JSR redraw_cell
@@ -340,13 +336,8 @@ ZA_AUTO1 door_step
     LDA rl : STA rock : LDA rh : STA rock + 1   ; the rock's cell
     \ the step as an offset in the map, -33 to 33: StepV rows of 32, StepH
     \ columns (each -1, 0 or 1)
-    LDX #0
     LDA StepV : ASL A : ASL A : ASL A : ASL A : ASL A
-    CLC : ADC StepH : BPL ahead
-    DEX                             ; (back: the high byte -1)
-.ahead
-    CLC : ADC rl : STA rl
-    TXA : ADC rh : STA rh
+    CLC : ADC StepH : JSR add_rhl
     \ rhl: where it would go
     LDY #0 : LDA (rhl),Y : BNE stays
     LDA #T_ROCK : STA (rhl),Y
@@ -404,16 +395,12 @@ ZA_AUTO1 door_step
     INC count
 .next
     INY : CPY #VIEW_TILES : BNE cols
-    LDA rl : CLC : ADC #32 : STA rl
-    BCC c : INC rh
-.c
+    LDA #32 : JSR add_rhl
     DEX : BNE rows
     LDA #&FF                        ; (NZ: none found)
     RTS
 .found
-    TYA : CLC : ADC rl : STA rl
-    BCC f : INC rh
-.f
+    TYA : JSR add_rhl
     LDA #0
 .done
     RTS                             ; (Z)
