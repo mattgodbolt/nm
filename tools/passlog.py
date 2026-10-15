@@ -21,6 +21,9 @@ pass, before it's logged (the port's logger sets the same variables).
 --screens N also logs the screen (6,912 bytes) every N passes and on the
 last, for tools/passcmp.py to compare with the port's.
 
+A game that ends (game over, and back to the menu) ends the log, with a
+last entry {"pass": n, "end": true}.
+
 Each pass logs the original's variables (&BA29-&BA9F and &FF2A-&FF61, the
 blocks the port keeps in the same layout: decision 10) and the map
 (&BC00, 1K), as hex.
@@ -37,6 +40,7 @@ from nmsnap import SNAP48, mem48  # noqa: E402
 from skoolkit.simutils import A  # noqa: E402
 
 MAIN_LOOP = 0xC014
+GAME_END_SECS = 20      # no pass for this long: the game has ended
 LEVEL_SETUP = 0xC34F
 SEED = 1
 KEYS = {"up": "Q", "down": "A", "left": "O", "right": "P", "fire": "SPACE", "magic": "ENTER",
@@ -97,8 +101,10 @@ def main():
 
     log = []
     for n in range(args.passes):
-        pc = spec.run_tstates(60 * 50 * spec.frame, stop=MAIN_LOOP)
-        assert pc == MAIN_LOOP, f"pass {n}: the main loop wasn't reached"
+        pc = spec.run_tstates(GAME_END_SECS * 50 * spec.frame, stop=MAIN_LOOP)
+        if pc != MAIN_LOOP:
+            log.append({"pass": n, "end": True})   # the game ended (game over: the menu)
+            break
         for key, a, b in inputs:
             spec.key(key, False)
         for key, a, b in inputs:
@@ -109,6 +115,7 @@ def main():
             if int(when) == n:
                 spec.mem[zx.parse_num(addr)] = zx.parse_num(value)
         log.append(state(spec.mem, n))
+        log[-1]["rng"] = spec.mem[zx.RNG_STATE]
         if args.screens and (n % args.screens == 0 or n == args.passes - 1):
             log[-1]["scr"] = "".join(f"{spec.mem[a]:02x}" for a in range(0x4000, 0x5B00))
         spec.run_tstates(1)          # off the breakpoint

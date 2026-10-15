@@ -38,6 +38,8 @@ const inputs = (args[0] ?? "").split(",").filter(Boolean).map((part) => {
     return { key: KEYS[name], a, b: b ?? a };
 });
 const passes = parseInt(args[1] ?? "100");
+// No pass for this long: the game has ended (tools/passlog.py's).
+const GAME_END_SECS = 20;
 const hex = (bytes) => bytes.map((b) => b.toString(16).padStart(2, "0")).join("");
 
 const beeb = await startBeeb({ disc, symbols: disc.replace(/\.ssd$/, ".json"), bootUntil: "start" });
@@ -48,8 +50,11 @@ try {
     await beeb.breakpoint("pass_top");
     const held = new Set();
     for (let n = 0; n < passes; n++) {
-        const r = await beeb.run(60);
-        if (!JSON.stringify(r).includes("breakpoint")) throw new Error(`pass ${n}: pass_top not reached (${JSON.stringify(r)})`);
+        const r = await beeb.run(GAME_END_SECS);
+        if (r.stopped_reason !== "breakpoint") {
+            log.push({ pass: n, end: true });   // the game ended (as tools/passlog.py's)
+            break;
+        }
         for (const { key, a, b } of inputs) {
             const want = a <= n && n <= b;
             if (want && !held.has(key)) { await beeb.keyDown(key); held.add(key); }
@@ -67,6 +72,7 @@ try {
             ba: hex(await beeb.read("vars_ba", 0xBAA0 - 0xBA29)),
             ff: hex(await beeb.read("vars_ff", 0xFF62 - 0xFF2A)),
             map: hex(await beeb.read("map", 1024)),
+            rng: await beeb.peek("seed"),
         });
         if (screens && (n % screens === 0 || n === passes - 1)) {
             log[log.length - 1].scr = hex(await beeb.read(0x5000, 0x3000));

@@ -15,6 +15,10 @@ PANEL_COLS = 8
 
 .draw_panel
 {
+    LDA #&FF : LDX #SCREEN_ROWS * PANEL_COLS - 1
+.unshown
+    STA panel_shown,X
+    DEX : CPX #&FF : BNE unshown
     LDA #LO(attrs) : STA attr_dst : LDA #HI(attrs) : STA attr_dst + 1
     LDA #LO(panel_packed) : STA zsrc : LDA #HI(panel_packed) : STA zsrc + 1
     LDA #LO(panel) : STA zdst : LDA #HI(panel) : STA zdst + 1

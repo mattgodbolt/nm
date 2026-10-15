@@ -57,6 +57,70 @@ ZA_AUTO2 sh_len
     RTS
 }
 
+
+\ The pixels' copier, for speed (decision 22): sixteen LDA abs,Y : STA
+\ abs,Y a group, their addresses written into the loop once a shift
+\ (fast_set), then moved a page at a time (fast_page). A row's playfield
+\ is two runs, its first 256 bytes and the rest, and the next row's first
+\ is a page on from this row's second: so a shift is runs of 256 and the
+\ rest in turn, each a page on (or back) from the last. fast_up copies a
+\ run from its first group, fast_down from its last (for a copy that
+\ overlaps by at least a group, up in memory).
+FAST_GROUP = 16
+.fast_set
+{
+    LDX #0
+    LDY #0
+.op
+    TYA : CLC : ADC sh_src : STA fast_up_loop + 1,X : STA fast_down_loop + 1,X
+    LDA sh_src + 1 : ADC #0 : STA fast_up_loop + 2,X : STA fast_down_loop + 2,X
+    TYA : CLC : ADC sh_dst : STA fast_up_loop + 4,X : STA fast_down_loop + 4,X
+    LDA sh_dst + 1 : ADC #0 : STA fast_up_loop + 5,X : STA fast_down_loop + 5,X
+    TXA : CLC : ADC #6 : TAX
+    INY : CPY #FAST_GROUP : BNE op
+    RTS
+}
+\ Every operand of a loop a page on, or back: straight runs of INC or
+\ DEC, as they're done twice a row.
+.up_page_on
+FOR i = 0..FAST_GROUP - 1
+    INC fast_up_loop + 6 * i + 2 : INC fast_up_loop + 6 * i + 5
+NEXT
+    RTS
+.up_page_back
+FOR i = 0..FAST_GROUP - 1
+    DEC fast_up_loop + 6 * i + 2 : DEC fast_up_loop + 6 * i + 5
+NEXT
+    RTS
+.down_page_back
+FOR i = 0..FAST_GROUP - 1
+    DEC fast_down_loop + 6 * i + 2 : DEC fast_down_loop + 6 * i + 5
+NEXT
+    RTS
+\ Copy A bytes (a multiple of FAST_GROUP; 0 is 256) at the operands.
+.fast_up
+    STA fast_n
+    LDY #0
+.fast_up_loop
+FOR i = 0..FAST_GROUP - 1
+    LDA &FFFF,Y : STA &FFFF,Y
+NEXT
+    TYA : CLC : ADC #FAST_GROUP : TAY
+    CPY fast_n : BNE fast_up_loop
+    RTS
+.fast_down
+    SEC : SBC #FAST_GROUP : TAY
+.fast_down_loop
+FOR i = 0..FAST_GROUP - 1
+    LDA &FFFF,Y : STA &FFFF,Y
+NEXT
+    TYA : BEQ fast_down_done
+    SEC : SBC #FAST_GROUP : TAY
+    JMP fast_down_loop
+.fast_down_done
+    RTS
+ZA_AUTO1 fast_n
+
 \ sh_src = character row X's playfield + A, sh_dst = row Y's + rx,
 \ sh_len = ra2 (under 256) or PF_BYTES (ra2 = 0).
 .rows_at
@@ -94,19 +158,51 @@ ZA_AUTO2 sh_len
     RTS
 }
 
+\ All the rows' pixels, from the operands fast_set gave: the first row's
+\ two runs (256 bytes, then sh_len's low byte more), then the next row's,
+\ forwards (fast_up, a page on each run) for SCREEN_ROWS - X rows.
+.pixels_up
+{
+    STX fast_rows
+    JSR fast_set
+.row
+    LDA #0 : JSR fast_up
+    JSR up_page_on
+    LDA sh_len : JSR fast_up
+    JSR up_page_on
+    INC fast_rows : LDA fast_rows : CMP #SCREEN_ROWS : BNE row
+    RTS
+}
+\ ... backwards: the operands at the last row's second run; each run from
+\ its end (fast_down), then a page back, for the rows from the bottom.
+.pixels_down
+{
+    STX fast_rows
+    JSR fast_set
+.row
+    LDA sh_len : JSR fast_down
+    JSR down_page_back
+    LDA #0 : JSR fast_down
+    JSR down_page_back
+    INC fast_rows : LDA fast_rows : CMP #SCREEN_ROWS : BNE row
+    RTS
+}
+ZA_AUTO1 fast_rows
+    ASSERT (PF_BYTES - TILE_BYTES) MOD FAST_GROUP = 0 AND PF_BYTES MOD FAST_GROUP = 0
+    ASSERT PF_BYTES > &100 AND PF_BYTES - TILE_BYTES > &100
+
 \ &DBE8 ShiftLeft: columns 10-31 to 8-29.
 .shift_left
 {
+    \ the pixels: each row's, less a tile, a tile back
+    LDA #0 : STA rx
+    LDA #LO(PF_BYTES - TILE_BYTES) : STA ra2
+    LDX #0 : LDY #0 : LDA #TILE_BYTES : JSR rows_at
+    LDX #0 : JSR pixels_up
+    \ the attributes
     LDX #0
 .row
     STX shr
-    \ the pixels: PF_BYTES - TILE_BYTES from a tile on, to the start
-    LDA #0 : STA rx
-    LDA #LO(PF_BYTES - TILE_BYTES) : STA ra2
-    LDY shr : LDA #TILE_BYTES : JSR rows_at
-    LDA #HI(PF_BYTES - TILE_BYTES) : STA sh_len + 1
-    JSR move_up
-    \ the attributes
     LDA #0 : STA rx
     LDA #PF_COLS - 2 : STA ra2
     LDX shr : LDY shr : LDA #2 : JSR attr_rows_at
@@ -119,14 +215,15 @@ ZA_AUTO2 sh_len
 \ &DC17 ShiftRight: columns 8-29 to 10-31.
 .shift_right
 {
+    \ the pixels: from the last row's second run, backwards
+    LDA #TILE_BYTES : STA rx
+    LDA #LO(PF_BYTES - TILE_BYTES) : STA ra2
+    LDX #SCREEN_ROWS - 1 : LDY #SCREEN_ROWS - 1 : LDA #0 : JSR rows_at
+    INC sh_src + 1 : INC sh_dst + 1
+    LDX #0 : JSR pixels_down
     LDX #0
 .row
     STX shr
-    LDA #TILE_BYTES : STA rx
-    LDA #LO(PF_BYTES - TILE_BYTES) : STA ra2
-    LDY shr : LDA #0 : JSR rows_at
-    LDA #HI(PF_BYTES - TILE_BYTES) : STA sh_len + 1
-    JSR move_down
     LDA #2 : STA rx
     LDA #PF_COLS - 2 : STA ra2
     LDX shr : LDY shr : LDA #0 : JSR attr_rows_at
@@ -139,13 +236,13 @@ ZA_AUTO2 sh_len
 \ &DC48 ShiftUp: rows 2-23 to 0-21.
 .shift_up
 {
+    \ the pixels: rows 2-23's to 0-21
+    LDA #0 : STA rx : STA ra2
+    LDX #2 : LDY #0 : LDA #0 : JSR rows_at
+    LDX #2 : JSR pixels_up
     LDY #0
 .row
     STY shr
-    LDA #0 : STA rx : STA ra2
-    TYA : CLC : ADC #2 : TAX
-    LDA #0 : JSR rows_at
-    JSR move_up
     LDA #0 : STA rx : STA ra2
     LDA shr : CLC : ADC #2 : TAX : LDY shr
     LDA #0 : JSR attr_rows_at
@@ -158,13 +255,15 @@ ZA_AUTO2 sh_len
 \ &DC7F ShiftDown: rows 0-21 to 2-23 (from the bottom up).
 .shift_down
 {
+    \ the pixels: rows 0-21's to 2-23, from the bottom: the operands at
+    \ row 21's second run to row 23's
+    LDA #0 : STA rx : STA ra2
+    LDX #SCREEN_ROWS - 3 : LDY #SCREEN_ROWS - 1 : LDA #0 : JSR rows_at
+    INC sh_src + 1 : INC sh_dst + 1
+    LDX #2 : JSR pixels_down_rows
     LDY #SCREEN_ROWS - 1
 .row
     STY shr
-    LDA #0 : STA rx : STA ra2
-    TYA : SEC : SBC #2 : TAX
-    LDA #0 : JSR rows_at
-    JSR move_up
     LDA #0 : STA rx : STA ra2
     LDA shr : SEC : SBC #2 : TAX : LDY shr
     LDA #0 : JSR attr_rows_at
@@ -172,4 +271,18 @@ ZA_AUTO2 sh_len
     LDY shr : DEY : CPY #1 : BNE row
     RTS
     ZA_AUTO1 shr
+}
+\ (rows that don't overlap: copied forwards within a run, the runs from
+\ the bottom, a page back each)
+.pixels_down_rows
+{
+    STX fast_rows
+    JSR fast_set
+.row
+    LDA sh_len : JSR fast_up
+    JSR up_page_back
+    LDA #0 : JSR fast_up
+    JSR up_page_back
+    INC fast_rows : LDA fast_rows : CMP #SCREEN_ROWS : BNE row
+    RTS
 }

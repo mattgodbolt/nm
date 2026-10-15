@@ -11,12 +11,12 @@
     LDA rb : AND #&3E
     ASL A : ASL A : ASL A : ASL A : STA rl      ; (the tile row's low three bits, times 32)
     LDA rb : AND #&30 : LSR A : LSR A : LSR A : LSR A
-    ORA #HI(map) : STA rh
+    CLC : ADC #HI(map) : STA rh
     LDA rc : LSR A : AND #&1F : ORA rl : STA rl
     LDY #0 : LDA (rhl),Y
     RTS
 }
-    ASSERT (HI(map) AND 3) = 0
+
 
 \ &D117 CellPos: the position (rb, rc) of the map tile at rhl.
 .cell_pos

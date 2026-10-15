@@ -27,6 +27,9 @@ ENDIF
     JSR init_system
     JSR cls
     JSR draw_panel
+    \ the original's &C000-&C001 after the map (decision 23): LD SP,&FFFF's
+    \ (after the panel, which was unpacked over it)
+    LDA #&31 : STA map_tail : LDA #&FF : STA map_tail + 1
 IF DEFINED(VIEWCHECK)
     JMP view_check
 ELSE

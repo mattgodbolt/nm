@@ -91,6 +91,16 @@
 \ last row).
 .print_char
 {
+    \ In the panel, a character already shown isn't drawn again (decision
+    \ 22): the original reprints the figures and icons on every touch,
+    \ up to three times a pass, and each costs the BBC far more.
+    LDX PrintPos : CPX #PANEL_COLS : BCS draw
+    PHA
+    LDA PrintPos + 1 : ASL A : ASL A : ASL A : ORA PrintPos : TAX
+    PLA
+    CMP panel_shown,X : BEQ advance
+    STA panel_shown,X
+.draw
     \ the glyph: font + 8 * (A - FONT_FIRST)
     SEC : SBC #FONT_FIRST
     LDX #0 : STX gl_src + 1
@@ -103,6 +113,7 @@
     LDA attr_row_hi,X : STA gl_at + 1
     LDA (gl_at),Y
     JSR draw_glyph
+.advance
     \ the cursor
     INC PrintPos
     LDA PrintPos : CMP #SCREEN_COLS : BNE done

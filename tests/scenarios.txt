@@ -27,3 +27,8 @@ hell-hole | fire:0-46,up:54-74,right:54-74,fire:77-122,down:122-187,fire:199-209
 door-run | right:0-19,fire:26-69,down:26-69,left:84-117,right:124-170,fire:124-170,right:180-221,up:180-221,fire:229-257,left:229-257,down:269-299 | 300 | --level 5
 # p1-dies: player 1's strength runs out in a two-player game; GAME OVER, then play on
 p1-dies      | up:5-40,p2right:10-60            | 150 | --two --poke 2:0xBA52:2,2:0xBA53:0
+# past-the-map: the view at the bottom right; the monsters' scan reads the byte after the map (the original's code at &C000) as a tile
+past-the-map | right:2-24,down:2-24,up:43-76,down:43-76,right:93-122,left:140-176,fire:140-176,right:193-220,left:224-270,right:272-337,right:349-355,up:365-371,fire:386-427,left:438-476,up:483-492,up:507-521,right:507-521,left:532-565,up:581-599 | 600 | --level 41
+# scroll-down and scroll-up: the view slides vertically
+scroll-down  | down:5-200 | 200 | --level 2
+scroll-up    | up:5-200   | 200 | --level 31

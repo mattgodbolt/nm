@@ -98,6 +98,11 @@ def main():
     names = labels()
     bad = 0
     for z, b in zip(zx, bbc):
+        if "end" in z or "end" in b:
+            if "end" not in z or "end" not in b:
+                bad += 1
+                print(f"pass {z['pass']}: {'the original' if 'end' in z else 'the port'}'s game ended, the other's didn't")
+            break
         diffs = []
         for block, base in BASES.items():
             zb, bb = bytes.fromhex(z[block]), bytes.fromhex(b[block])
@@ -105,6 +110,8 @@ def main():
                 name, off = names[base + i]
                 if x != y and name not in ignore:
                     diffs.append(f"{name}{'+%d' % off if off else ''} (&{base + i:04X}): {x:02x} vs {y:02x}")
+        if "rng" in z and "rng" in b and z["rng"] != b["rng"] and "rng" not in ignore:
+            diffs.append(f"the random generator: {z['rng']:02x} vs {b['rng']:02x}")
         zm, bm = bytes.fromhex(z["map"]), bytes.fromhex(b["map"])
         cells = [i for i in range(1024) if zm[i] != bm[i]]
         if cells and "map" not in ignore:
@@ -125,8 +132,12 @@ def main():
             if "--all" not in sys.argv:
                 break
     n = min(len(zx), len(bbc))
+    if not bad and len(zx) != len(bbc):
+        bad += 1
+        print(f"the logs differ in length: {len(zx)} and {len(bbc)}")
     if not bad:
-        print(f"{n} passes match")
+        ended = " (then both games ended)" if zx and "end" in zx[-1] else ""
+        print(f"{n - (1 if ended else 0)} passes match{ended}")
     return 1 if bad else 0
 
 

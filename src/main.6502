@@ -90,10 +90,14 @@ ENDSECTION
 \ language's pages, and the sound and buffer pages, whose interrupts are
 \ stopped (install_irq).
 SECTION Work, org = &0400, guard = &0D9F, virtual = TRUE
-.map        SKIP 32 * 32    ; the level being played (the original's &BC00)
-.attrs      SKIP SCREEN_ROWS * SCREEN_COLS  ; the original's attributes (&5800, text.6502)
 .hi_nibble  SKIP &100       ; tables.6502, made at start-up
 .lo_nibble  SKIP &100
+.map        SKIP 32 * 32    ; the level being played (the original's &BC00)
+    \ What follows the original's map: its code, from &C000, whose first
+    \ byte the monsters' scan reads as a tile with the view at the bottom
+    \ right (decision 23). Set at start-up (startup.6502).
+.map_tail   SKIP MAP_TAIL
+.attrs      SKIP SCREEN_ROWS * SCREEN_COLS  ; the original's attributes (&5800, text.6502)
 .ink_mask   SKIP 8          ; each Spectrum ink's MODE 1 byte (colour.6502)
     \ The music's driver (music.6502): what the original keeps in bank 1
 .mu_voices  SKIP 3 * MU_VOICE   ; the voices (&C069, &C08A, &C0AB)
@@ -111,7 +115,9 @@ SECTION Work, org = &0400, guard = &0D9F, virtual = TRUE
 .mu_sn_noise SKIP 1         ; the noise's register
 .mu_bass    SKIP 3          ; octaves each tone went up to fit (decision 12)
 ENDSECTION
-    ASSERT LO(map) = 0 AND LO(attrs) = 0 AND LO(hi_nibble) = 0
+    ASSERT LO(map) = 0 AND LO(hi_nibble) = 0
+
+MAP_TAIL = 2                ; the original's bytes after its map that its scans can reach
 
 \ NINJA loads at &1900, above the DFS's workspace, and the loader copies
 \ it down to CODE_BASE (loader.6502).
@@ -153,6 +159,9 @@ TileAttrs = tileattr          ; (the original's &FF02)
     INCBIN "data/tileattr.bin"
 .title_attr
     INCBIN "data/titleattr.bin"
+    \ What each panel cell shows (text.6502's print_char): &FF, nothing yet
+.panel_shown
+    SKIP SCREEN_ROWS * PANEL_COLS
     \ The original's variables, as the tape leaves them (tools/mkvars.py)
 .vars_ba
     INCBIN "data/vars_ba.bin"

@@ -279,3 +279,23 @@ their own variables now, and a scenario. Another checks a player's death
 in a two-player game: GAME OVER, then play on with the other, screens and
 all. The password route works on the release disc (SNOW starts level 5,
 its password shown).
+
+### Speed, and a scan past the map
+
+Measured in jsbeeb (pass to pass, in cycles), walking took two of the
+pass clock's ticks: the panel's figures and icons, reprinted on every
+touch up to three times a pass, cost more than the rest. The panel now
+keeps what each cell shows and skips a character already there (decision
+22), and walking passes are 1.22 frames, as the original's median. A pass
+with a scroll took 43 frames against the original's 18.6; the block moves
+now copy sixteen bytes a group through addresses set once a shift and
+stepped a page at a time, and it's 31.6. The shifts' screens were checked
+every 5 passes on scrolls in all four directions.
+
+The loggers now carry the random generator's state, and end a log when a
+game ends (the original goes back to its menu). Ten 600-pass fuzz seeds
+found one more: with the view at the bottom right, the original's
+monster scan reads one tile past its map, which is its own code at &C000:
+&31 there is a trap door to it. The port keeps that byte after its map
+(decision 23); `map_cell` now adds the map's page instead of ORing it, so
+the map needn't sit on a four-page boundary.
