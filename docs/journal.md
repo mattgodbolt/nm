@@ -245,3 +245,29 @@ pass:addr:value` (the original's addresses, set on both: so a scenario can
 make a player leave by the exit without walking to one). Two-player play
 with both fighting, a level change, and play on levels 10 and 37 all
 match pass for pass, screens included.
+
+### Fuzzing
+
+`make fuzz` (`tools/fuzz.py`) writes random scenarios (a random level,
+one or two players, random keys over random stretches, sometimes scrolls
+for the smart bomb) and runs them through `tools/passcheck.sh`. The first
+36 found three differences, each the original's own behaviour that the
+transcription had smoothed over or got wrong:
+
+- **A kill moves the touch.** `HitMonster` draws floor over a dead
+  monster, and the drawing leaves the Z80's BC as its loops left it: (0,
+  &20) for a whole picture, (0, &30) for half, or the floor's attribute
+  and 0 off the view. The touch loop then carries on from that BC, so the
+  cells touched after a kill are odd ones (row &FF, say), and the touch
+  gate's count follows. The port now leaves rb/rc the same way.
+- **The crumbling wall** mended the wall above at every stage: a
+  `LDY #0` between the `AND` and the branch set the Z flag. A slip of
+  mine.
+- **A hell hole's sparkle**: the original keeps the trap door's code and
+  the random number in A and A' (`EX AF,AF'`), and on one path reads back
+  the random number for the sparkle's code: &41-&43, with no second
+  random number. Transcribed.
+
+They're in `tests/scenarios.txt` now. The panel's screen comparison also
+needed the panel's own colour map: on a level whose floor is blue, the
+logo's paper looked wrong to it.

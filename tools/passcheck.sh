@@ -2,7 +2,8 @@
 # Replay every scenario in tests/scenarios.txt on the original and the port
 # and compare them pass by pass, side by side (JOBS at a time, the CPUs by
 # default). Exits non-zero if any differs. `tools/passcheck.sh --one N`
-# runs the Nth alone. The logs go in PASSDIR.
+# runs the Nth alone. The logs go in PASSDIR; SCENARIOS names another
+# scenarios file (tools/fuzz.py).
 cd "$(dirname "$0")/.."
 out=${PASSDIR:-build/passcheck}
 export PASSDIR="$out"
@@ -12,7 +13,7 @@ IGNORE=${IGNORE:-MenuColour}
 SCREENS=${SCREENS:-50}
 export SCREENS
 export IGNORE
-scenarios() { grep -v '^#' tests/scenarios.txt | grep -v '^[[:space:]]*$'; }
+scenarios() { grep -v "^#" "${SCENARIOS:-tests/scenarios.txt}" | grep -v "^[[:space:]]*$"; }
 
 if [ "$1" = "--one" ]; then
     scenarios | sed -n "$2p" | while IFS='|' read -r name inputs passes flags; do

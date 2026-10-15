@@ -188,8 +188,9 @@ STAR_VIEW_MAX = &17             ; a star lives in the view's rows and columns 1-
 \ &03 it's gone, and the wall above is mended.
 .star_hit_crumble
 {
+    LDY #0
     CLC : ADC #1 : AND #3
-    LDY #0 : STA (rhl),Y
+    STA (rhl),Y
     BNE stop
     \ &C770 CrumbleAbove: &05 above becomes &04, &11 above &01
     LDA rl : PHA : LDA rh : PHA

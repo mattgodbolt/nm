@@ -570,6 +570,29 @@ T_SWITCH_WALL = &06
     LDA TileAttrs : STA sp_attr
     LDA #0
     JSR draw_at
+    \ The original leaves BC as the drawing left it, and a touch carries
+    \ on from there (&D1BA's INC B, INC C, DEC B): (0, &40 less the
+    \ bytes drawn, two a line, one at the playfield's edge, 16 lines or 8
+    \ at the bottom); or, off the view, (the floor's attribute, 0).
+    \ Kept, as the cells the rest of the touch reaches depend on it.
+    BCC drawn
+    LDA TileAttrs : STA rb
+    LDA #0 : STA rc
+    JMP done
+.drawn
+    LDA #&40 : STA rc
+    LDA #0 : STA rb
+    LDX #16
+    BIT sp_bottom : BMI lines
+    LDX #8
+.lines
+    BIT sp_left : BPL right
+    DEC rc
+.right
+    BIT sp_right : BPL next
+    DEC rc
+.next
+    DEX : BNE lines
 .done
     LDA #0
     RTS
@@ -595,6 +618,7 @@ HIT_NOISE = 50                      ; the hit noise's segments (&C86C)
 
 \ &CFB9 DrawAt: picture A at map position (rd, re) in attribute sp_attr,
 \ if it's in the view (or a row or column above or left of it, clipped).
+\ C set if it wasn't.
 .draw_at
 {
     PHA
@@ -609,8 +633,11 @@ HIT_NOISE = 50                      ; the hit noise's segments (&C86C)
 .col_ok
     CLC : ADC #VIEW_LEFT : TAY
     PLA
-    JMP draw_sprite
+    JSR draw_sprite
+    CLC                             ; (C clear: drawn)
+    RTS
 .off
     PLA
+    SEC                             ; (C set: off the view)
     RTS
 }

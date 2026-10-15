@@ -266,7 +266,12 @@ BURST       = 50                ; the noise burst's segments (&CEF2)
     LDY #0 : LDA (rhl),Y : STA code
     LDA FreezeTimer : BNE done
     JSR random : AND #3 : BEQ spawn
+    \ (The original keeps the code and the random number in A and A'
+    \ (EX AF,AF'): on this path, the one it reads back for the sparkle is
+    \ the random number, 1-3. Kept: a hell hole's sparkle is then &41-&43.)
+    TAX
     LDA code : AND #7 : CMP #7 : BNE done
+    STX code
 .spawn
     JSR cell_pos
     LDA rc : STA TrapPos : LDA rb : STA TrapPos + 1

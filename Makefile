@@ -6,6 +6,7 @@
 #                 default B-DFS1.2)
 #   make views    every level's first view, against the original's
 #   make passes   tests/scenarios.txt on both, compared pass by pass
+#   make fuzz     random scenarios on both (SEED=n COUNT=n)
 #   make music    the music's 6502 driver against the original's, every
 #                 song frame by frame, and the sound chip's bytes
 #   make fetch    download the Spectrum original into original/
@@ -35,7 +36,7 @@ BUILD   := $(shell date -u '+%Y-%m-%d %H:%M UTC') $(shell git rev-parse --short 
 # warning after baron has written the disc).
 .DELETE_ON_ERROR:
 
-.PHONY: all run check views passes music fetch zx disasm venv music-disc clean
+.PHONY: all run check views passes fuzz music fetch zx disasm venv music-disc clean
 
 all: $(TARGET) $(TEST)
 
@@ -59,6 +60,12 @@ build/viewcheck.ssd: $(SOURCES) | build
 # tests/scenarios.txt on both machines, compared pass by pass.
 passes: $(TEST) build/nm48.z80
 	PASSDIR=build/passes-$(MODEL) tools/passcheck.sh
+
+# Random scenarios on both (tools/fuzz.py): COUNT of them from SEED.
+SEED  ?= 1
+COUNT ?= 8
+fuzz: $(TEST) build/nm48.z80
+	python3 tools/fuzz.py $(COUNT) --seed $(SEED)
 
 # Every level's first view, against the original's (tools/zxviews.py).
 views: build/viewcheck.ssd build/views/zx_50.scr

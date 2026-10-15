@@ -79,8 +79,11 @@ def screen_diffs(z, b, level):
                 if got != want:
                     out.append((x, y, want, got))
             else:
+                # the panel's own colours (src/panel.6502's panel_ink):
+                # black as 0, yellow as 1, the rest as 3
                 paper = (attrs[(y // 8) * 32 + x // 8] >> 3) & 7
-                if lit != (got != logical(paper, floor) if paper else got != 0):
+                unlit = 0 if paper == 0 else 1 if paper == 6 else 3
+                if lit != (got != unlit):
                     out.append((x, y, int(lit), got))
     return out
 
