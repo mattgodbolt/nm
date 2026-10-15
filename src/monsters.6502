@@ -124,6 +124,7 @@ BURST       = 50                ; the noise burst's segments (&CEF2)
     LDA rb : ROL A : AND #3 : STA ra2   ; (the offset bits: the row's bit 0, the column's)
     LDA MonCode : AND #&FC : ORA ra2
     STA (rhl),Y                     ; (Y = 0: map_cell's)
+    PHA                             ; (for its picture and colour)
     \ moved: floor at the old place
     LDA rc : CMP MonOldPos : BNE moved
     LDA rb : CMP MonOldPos + 1 : BEQ draw
@@ -133,9 +134,9 @@ BURST       = 50                ; the noise burst's segments (&CEF2)
 .draw
     \ its picture and colour, from its code
     LDA rb : STA rd : LDA rc : STA re
-    LDY #0 : LDA (rhl),Y
+    PLA : PHA
     LSR A : LSR A : AND #3 : ORA #MON_INK : STA sp_attr
-    LDA (rhl),Y : AND #&70 : ORA MonFacing : ORA MoveSweep : CLC : ADC #PIC_MONSTER
+    PLA : AND #&70 : ORA MonFacing : ORA MoveSweep : CLC : ADC #PIC_MONSTER
     JMP draw_at
 }
 
@@ -179,10 +180,10 @@ BURST       = 50                ; the noise burst's segments (&CEF2)
     LDA #0 : SEC : SBC dh : STA dh
     LDA #0 : SEC : SBC dl : STA dl
 .go
-    LDA rb : CLC : ADC dh : STA rb
-    LDA rc : CLC : ADC dl : STA rc
-    LDA dl : STA StepV
     LDA dh : STA StepH
+    CLC : ADC rb : STA rb
+    LDA dl : STA StepV
+    CLC : ADC rc : STA rc
     LDA face : STA MonFacing
     RTS
     ZA_AUTO1 d1

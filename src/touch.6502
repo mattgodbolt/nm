@@ -384,9 +384,7 @@ ZA_AUTO1 door_step
 \ the (random mod count) + 1'th in reading order. Z, rhl at it, if found.
 .pick_teleporter
 {
-    LDA #0 : STA rb : STA rc : STA count : STA counting
-    JSR view_cell
-    LDA rl : STA ra2 : LDA rh : STA rx  ; the view's first tile
+    LDA #0 : STA count : STA counting
     JSR scan
     \ the pick: random mod count, plus 1 (&D3AD-&D3B3)
     JSR random
@@ -395,9 +393,10 @@ ZA_AUTO1 door_step
     SEC : ADC count                 ; (the Z80's ADC takes its borrow: + 1)
     STA count
     LDA #&FF : STA counting         ; (the second scan counts down to it)
-    LDA ra2 : STA rl : LDA rx : STA rh
     \ (fall into scan, now counting down to it)
 .scan
+    LDA #0 : STA rb : STA rc
+    JSR view_cell                   ; the view's first tile
     LDX #VIEW_TILES
 .rows
     LDY #0

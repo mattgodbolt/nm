@@ -67,9 +67,8 @@ T_TEA      = &0E
 .next
     LDY #0 : LDA (rhl),Y
     CMP #T_TRAP : BCC skip
-    TAX
-    LDA #T_CHEST
-    CPX #T_MARKER : BCS put
+    CMP #T_MARKER
+    LDA #T_CHEST : BCS put
     LDA #T_TEA
 .put
     STA (rhl),Y
