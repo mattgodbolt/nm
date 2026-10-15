@@ -36,7 +36,8 @@ It's in 6502 assembly built with
 was: the Spectrum original is the specification, it runs headless as an
 oracle, and the port is checked against it in a headless
 [jsbeeb](https://github.com/mattgodbolt/jsbeeb). `docs/journal.md` has
-the story.
+the story, and [`docs/how-it-works.md`](docs/how-it-works.md) is a tour
+of the original and the port.
 
 - The whole game is transcribed from the original's code: the levels and
   the view, the players, touching and every item, the monsters, trap

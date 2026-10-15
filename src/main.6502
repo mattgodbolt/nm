@@ -113,7 +113,7 @@ SECTION Work, org = &0400, guard = &0D9F, virtual = TRUE
 .mu_sn_hi   SKIP 3
 .mu_sn_att  SKIP 4          ; each channel's attenuation, the noise's last
 .mu_sn_noise SKIP 1         ; the noise's register
-.mu_bass    SKIP 3          ; octaves each tone went up to fit (decision 12)
+.mu_bass    SKIP 3          ; octaves each tone went up to fit (decision 18)
 ENDSECTION
     ASSERT LO(map) = 0 AND LO(hi_nibble) = 0
 
