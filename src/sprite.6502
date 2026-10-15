@@ -92,11 +92,18 @@ OP_CMP_ABSY = &D9
     LDA dst0+1 : CMP #&F0                               ; (C set if the right quarters are a page on)
     LDA dst0+2 : ADC #0 : STA dst1+2 : STA dst1b+2
     ADC #2 : STA dst3+2 : STA dst3b+2                   ; (C clear: the screen's pages are below &80)
-    \ which quarters show: STA, or CMP
+    \ which quarters show: STA, or CMP. Most pictures show whole, as the
+    \ last one did, and find their stores STAs already (dt_whole).
+    LDA sp_top : AND sp_bottom : AND sp_left : AND sp_right
+    BPL quarters
+    BIT dt_whole : BMI shown
+.quarters
+    STA dt_whole
     LDA sp_top : AND sp_left : AND #&40 : EOR #OP_CMP_ABSY : STA dst0 : STA dst0b
     LDA sp_top : AND sp_right : AND #&40 : EOR #OP_CMP_ABSY : STA dst1 : STA dst1b
     LDA sp_bottom : AND sp_left : AND #&40 : EOR #OP_CMP_ABSY : STA dst2 : STA dst2b
     LDA sp_bottom : AND sp_right : AND #&40 : EOR #OP_CMP_ABSY : STA dst3 : STA dst3b
+.shown
     LDY #7
 .line
 .src0

@@ -68,6 +68,7 @@ rhl = rl
 .sh_steps   SKIP 1          ; a slide's steps so far, its attributes not yet moved (shift.6502)
 .sh_prog    SKIP 1          ; ... and its shift's program
 .sp_mode    SKIP 1          ; draw_sprite's: SP_PIXELS, SP_ATTRS or 0 (sprite.6502)
+.dt_whole   SKIP 1          ; bit 7: draw_block_at's stores are all STAs
     \ The music (music.6502): the interrupt's, so not in baron's pool
 .mu_on      SKIP 1          ; non-zero: a song is playing (&C00C)
 .mu_busy    SKIP 1          ; non-zero: the game is writing the sound chip
