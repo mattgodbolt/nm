@@ -16,7 +16,7 @@ PF_COLS    = SCREEN_COLS - VIEW_LEFT
 \ stepped across the rows' bytes, so a byte costs little more than its
 \ load and store. A shift is three runs of it: the pixels in the first
 \ page of each row's playfield and in the second (the same rows a page
-\ on or back, cp_page), then the attributes. Within a run the rows go in
+\ on or back), then the attributes. Within a run the rows go in
 \ the order cp_set gave them, so a row is read before it's written over.
 CP_PAIRS = SCREEN_ROWS
 OP_INY = &C8
@@ -30,8 +30,7 @@ ZA_AUTO 6, cp_par
 CP_SRC = 0
 CP_DST = 2
 CP_STRIDE = 4
-ZA_AUTO2 sh_at                  ; shift_by's program
-ZA_AUTO1 sh_i                   ; ... and the next byte in it
+ZA_AUTO1 sh_i                   ; shift_by's next byte, from shift_progs
 
 \ Run the copier from Y, stepping Y (INY or DEY) until it's the end.
 .cp_go
@@ -50,32 +49,28 @@ NEXT
 .cp_done
     RTS
 
-\ The copier's rows: the last A of its CP_PAIRS, from cp_par's source
-\ and destination, each the last's plus its stride.
-.cp_set
-{
-    EOR #&FF : SEC : ADC #CP_PAIRS  ; CP_PAIRS - A, the first in use
-    STA first : ASL A : ADC first : ASL A : TAX     ; (C clear: under 128)
-    ADC #LO(cp_pairs) : STA cp_go + 1 : STA cp_loop + 1
-    LDA #HI(cp_pairs) : ADC #0 : STA cp_go + 2 : STA cp_loop + 2
-.pair
-    LDA cp_par + CP_SRC : STA cp_pairs + 1,X : CLC : ADC cp_par + CP_STRIDE : STA cp_par + CP_SRC
-    LDA cp_par + CP_SRC + 1 : STA cp_pairs + 2,X : ADC cp_par + CP_STRIDE + 1 : STA cp_par + CP_SRC + 1
-    LDA cp_par + CP_DST : STA cp_pairs + 4,X : CLC : ADC cp_par + CP_STRIDE : STA cp_par + CP_DST
-    LDA cp_par + CP_DST + 1 : STA cp_pairs + 5,X : ADC cp_par + CP_STRIDE + 1 : STA cp_par + CP_DST + 1
-    TXA : CLC : ADC #6 : TAX
-    CPX #6 * CP_PAIRS : BNE pair
-    RTS
-    ZA_AUTO1 first
-}
+\ &DC48 ShiftUp, &DC7F ShiftDown, &DC17 ShiftRight, &DBE8 ShiftLeft: each
+\ its program (shift_progs).
+.shift_up
+    LDX #prog_up - shift_progs : BNE shift_by
+    ZA_UNREACHABLE
+.shift_down
+    LDX #prog_down - shift_progs : BNE shift_by
+    ZA_UNREACHABLE
+.shift_right
+    LDX #prog_right - shift_progs : BNE shift_by
+    ZA_UNREACHABLE
+.shift_left
+    LDX #prog_left - shift_progs
+    ASSERT prog_left = shift_progs
+    \ (fall into shift_by)
 
-\ A shift, from its program at X:A (SHIFT_PROGRAM): the pixels' rows, the
+\ A shift, from its program at shift_progs + X: the pixels' rows, the
 \ first run, the second a page on or back, then the attributes' rows and
 \ their run.
 .shift_by
 {
-    STA sh_at : STX sh_at + 1
-    LDA #0 : STA sh_i
+    STX sh_i
     JSR rows
     JSR run
     JSR next : STA inc1 : STA inc2      ; (INC or DEC abs,X)
@@ -95,6 +90,10 @@ NEXT
     JSR next : STA cp_end + 1
     JSR next : TAY
     JMP cp_go
+.next
+    LDY sh_i : INC sh_i
+    LDA shift_progs,Y
+    RTS
 .rows
     LDX #0
     ZA_DISCARD cp_par
@@ -103,20 +102,33 @@ NEXT
     ZA_INDEXEDBY 0..5
     INX : CPX #6 : BNE param
     JSR next
-    JMP cp_set
-.next
-    LDY sh_i : INC sh_i
-    LDA (sh_at),Y
+    \ (fall into cp_set)
+}
+
+\ The copier's rows, from the one at offset A in cp_pairs to its last,
+\ from cp_par's source and destination, each the last's plus its stride.
+.cp_set
+{
+    TAX
+    CLC : ADC #LO(cp_pairs) : STA cp_go + 1 : STA cp_loop + 1
+    LDA #HI(cp_pairs) : ADC #0 : STA cp_go + 2 : STA cp_loop + 2
+.pair
+    LDA cp_par + CP_SRC : STA cp_pairs + 1,X : CLC : ADC cp_par + CP_STRIDE : STA cp_par + CP_SRC
+    LDA cp_par + CP_SRC + 1 : STA cp_pairs + 2,X : ADC cp_par + CP_STRIDE + 1 : STA cp_par + CP_SRC + 1
+    LDA cp_par + CP_DST : STA cp_pairs + 4,X : CLC : ADC cp_par + CP_STRIDE : STA cp_par + CP_DST
+    LDA cp_par + CP_DST + 1 : STA cp_pairs + 5,X : ADC cp_par + CP_STRIDE + 1 : STA cp_par + CP_DST + 1
+    TXA : CLC : ADC #6 : TAX
+    CPX #6 * CP_PAIRS : BNE pair
     RTS
 }
 
-\ A shift's program for shift_by: the pixels' rows (the first row's
+\ The shifts' programs for shift_by: the pixels' rows (the first row's
 \ source and destination, the step to the next, how many), a run of the
 \ first page (Y's start, end, INY or DEY), INC or DEC for the second
 \ page, its run; then the attributes' rows and their run.
 MACRO CP_ROWS src, dst, stride, n
     EQUW src, dst, stride AND &FFFF
-    EQUB n
+    EQUB 6 * (CP_PAIRS - n)     ; (the first row's offset in cp_pairs)
 ENDMACRO
 MACRO CP_RUN from, to, op
     IF op = OP_INY
@@ -125,11 +137,9 @@ MACRO CP_RUN from, to, op
         EQUB op, LO(to - 1), from
     ENDIF
 ENDMACRO
-
-\ &DBE8 ShiftLeft: columns 10-31 to 8-29. Each row's bytes a tile back,
-\ from the left (the first page, then the second).
-.shift_left
-    LDA #LO(prog_left) : LDX #HI(prog_left) : JMP shift_by
+.shift_progs
+    \ ShiftLeft: columns 10-31 to 8-29. Each row's bytes a tile back,
+    \ from the left (the first page, then the second).
 .prog_left
     CP_ROWS screen, screen - TILE_BYTES, ROW_BYTES, SCREEN_ROWS
     CP_RUN PF_OFFSET + TILE_BYTES, &FF, OP_INY
@@ -137,11 +147,8 @@ ENDMACRO
     CP_RUN 0, &FF, OP_INY
     CP_ROWS attrs + VIEW_LEFT + 2, attrs + VIEW_LEFT, SCREEN_COLS, SCREEN_ROWS
     CP_RUN 0, PF_COLS - 3, OP_INY
-
-\ &DC17 ShiftRight: columns 8-29 to 10-31: from the right (the second
-\ page, then the first), each from its last byte.
-.shift_right
-    LDA #LO(prog_right) : LDX #HI(prog_right) : JMP shift_by
+    \ ShiftRight: columns 8-29 to 10-31: from the right (the second page,
+    \ then the first), each from its last byte.
 .prog_right
     CP_ROWS screen + &100, screen + &100 + TILE_BYTES, ROW_BYTES, SCREEN_ROWS
     CP_RUN &FF - TILE_BYTES, 0, OP_DEY
@@ -149,10 +156,7 @@ ENDMACRO
     CP_RUN &FF, PF_OFFSET, OP_DEY
     CP_ROWS attrs + VIEW_LEFT, attrs + VIEW_LEFT + 2, SCREEN_COLS, SCREEN_ROWS
     CP_RUN PF_COLS - 3, 0, OP_DEY
-
-\ &DC48 ShiftUp: rows 2-23 to 0-21, from the top.
-.shift_up
-    LDA #LO(prog_up) : LDX #HI(prog_up) : JMP shift_by
+    \ ShiftUp: rows 2-23 to 0-21, from the top.
 .prog_up
     CP_ROWS screen + 2 * ROW_BYTES, screen, ROW_BYTES, SCREEN_ROWS - 2
     CP_RUN PF_OFFSET, &FF, OP_INY
@@ -160,10 +164,7 @@ ENDMACRO
     CP_RUN 0, &FF, OP_INY
     CP_ROWS attrs + 2 * SCREEN_COLS + VIEW_LEFT, attrs + VIEW_LEFT, SCREEN_COLS, SCREEN_ROWS - 2
     CP_RUN 0, PF_COLS - 1, OP_INY
-
-\ &DC7F ShiftDown: rows 0-21 to 2-23, from the bottom.
-.shift_down
-    LDA #LO(prog_down) : LDX #HI(prog_down) : JMP shift_by
+    \ ShiftDown: rows 0-21 to 2-23, from the bottom.
 .prog_down
     CP_ROWS screen + (SCREEN_ROWS - 3) * ROW_BYTES, screen + (SCREEN_ROWS - 1) * ROW_BYTES, -ROW_BYTES, SCREEN_ROWS - 2
     CP_RUN PF_OFFSET, &FF, OP_INY
@@ -171,3 +172,5 @@ ENDMACRO
     CP_RUN 0, &FF, OP_INY
     CP_ROWS attrs + (SCREEN_ROWS - 3) * SCREEN_COLS + VIEW_LEFT, attrs + (SCREEN_ROWS - 1) * SCREEN_COLS + VIEW_LEFT, -SCREEN_COLS, SCREEN_ROWS - 2
     CP_RUN 0, PF_COLS - 1, OP_INY
+.shift_progs_end
+    ASSERT shift_progs_end - shift_progs <= &100
