@@ -157,7 +157,7 @@ ICON_SCROLL  = &23
     JSR fill_cells
     LDA #0 : STA rl : STA rh
     JSR set_strength
-    LDA #SONG_DEAD : JSR music_start
+    LDA #SONG_DEAD : JSR play_song
     JMP game_over
 .done
     RTS

@@ -72,3 +72,8 @@ ENDMACRO
 MACRO JEQ target
     BNE @+ : JMP target : .@
 ENDMACRO
+
+\ --- The music (music.6502) ------------------------------------------------
+
+MU_VOICE   = &21            ; a voice's state: the original driver's &21 bytes
+MU_AY_REGS = 12             ; the AY registers the driver keeps (0-11: &C47F-&C48A)

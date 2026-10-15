@@ -10,8 +10,6 @@
 .chirp                          ; &C508 the throw's chirp (A: its length)
 .click                          ; &CC8D the step's click
 .hit_noise                      ; &C8C4 HitNoise (A: its segments)
-.music_start                    ; &B8E1 (A: the song)
-.music_restart                  ; &B907
     RTS
 
 \ &C097 GameComplete, and &D85E's game over: for now, a new game.

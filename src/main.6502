@@ -41,6 +41,11 @@ SECTION Data, org = &8000, load = &FFFF3000, filename = "NDATA", guard = &C000
     \ The status panel, drawn once (panel.6502)
 .panel
     INCBIN "data/panel.bin"
+    \ The music's songs (music.6502, tools/mkmusic.py)
+.music_data
+    INCLUDE "data/music.6502"
+.music_data_end
+    PRINT "music's songs: ", music_data_end - music_data, " bytes"
 .data_end
     PRINT "sideways data &8000-&", ~data_end, " (", &C000 - data_end, " bytes free)"
 ENDSECTION
@@ -48,7 +53,7 @@ ENDSECTION
 \ The game's own state that lasts: fixed zero page (not baron's pool,
 \ which is the rest of zero page up to DATA_BANK_ZP). The original's
 \ variables are in vars_ba and vars_ff (decision 10).
-ZP_FIXED = &20
+ZP_FIXED = &40
 SECTION ZeroPage, org = &00, guard = ZP_FIXED, virtual = TRUE
 .vsyncs     SKIP 1          ; counts VSyncs (irq.6502)
 .seed       SKIP 1          ; the random generator's state (level.6502)
@@ -72,7 +77,27 @@ rhl = rl
 .sp_bottom  SKIP 1
 .sp_left    SKIP 1
 .sp_right   SKIP 1
+.music_off  SKIP 1          ; bit 7: the music is off (EXTEND+T; the original's &B8DF)
 .pass_sp    SKIP 1          ; the stack at a player's pass, for its exit (player.6502)
+    \ The music (music.6502): the interrupt's, so not in baron's pool
+.mu_on      SKIP 1          ; non-zero: a song is playing (&C00C)
+.mu_busy    SKIP 1          ; non-zero: the game is writing the sound chip
+.mu_ptr     SKIP 2          ; the pattern being read
+.mu_ptr2    SKIP 2          ; an envelope, an arpeggio, a list
+.mu_per     SKIP 2          ; mu_render's period
+.mu_off     SKIP 2          ; ... and its vibrato's offset
+.mu_flags   SKIP 1          ; ... the voice's flags as the frame began
+.mu_span    SKIP 1          ; ... the vibrato's span
+.mu_idx     SKIP 1          ; ... the note doubled
+.mu_tmp     SKIP 1
+.mu_p       SKIP 2          ; mu_period's AY period
+.mu_t       SKIP 3          ; ... its sum
+.mu_s       SKIP 2          ; ... and the SN's period
+IF DEFINED(MUSICCHECK)
+.mc_at      SKIP 2          ; the music check's next record (startup.6502)
+.mc_left    SKIP 1          ; ... records left before mc_full
+.mc_next    SKIP 1          ; ... a song to start there, or &FF
+ENDIF
 ENDSECTION
 
 \ OS workspace the game takes once it owns the machine (decision 11): the
@@ -82,6 +107,21 @@ SECTION Work, org = &0400, guard = &0D00, virtual = TRUE
 .map        SKIP 32 * 32    ; the level being played (the original's &BC00)
 .attrs      SKIP SCREEN_ROWS * SCREEN_COLS  ; the original's attributes (&5800, text.6502)
 .ink_mask   SKIP 8          ; each Spectrum ink's MODE 1 byte (colour.6502)
+    \ The music's driver (music.6502): what the original keeps in bank 1
+.mu_voices  SKIP 3 * MU_VOICE   ; the voices (&C069, &C08A, &C0AB)
+.mu_rows    SKIP 1          ; frames left of this row (&C0CC)
+.mu_speed   SKIP 1          ; frames a row (&C0F9)
+.mu_noise_note SKIP 1       ; the last note that set the noise (&C0D8)
+.mu_noise   SKIP 1          ; the noise's period this frame (&C125)
+.mu_transpose SKIP 1        ; semitones added to every note (&C3A1)
+.mu_mix     SKIP 1          ; the mixer's template (&C44A)
+.mu_ay      SKIP MU_AY_REGS ; the shadow AY registers (&C47F)
+    \ ... and the SN76489's registers as last written (music_dirty)
+.mu_sn_lo   SKIP 3          ; each tone's period
+.mu_sn_hi   SKIP 3
+.mu_sn_att  SKIP 4          ; each channel's attenuation, the noise's last
+.mu_sn_noise SKIP 1         ; the noise's register
+.mu_bass    SKIP 3          ; octaves each tone went up to fit (decision 12)
 ENDSECTION
     ASSERT LO(map) = 0 AND LO(attrs) = 0
 
@@ -110,7 +150,12 @@ SECTION Code, org = CODE_BASE, load = &FFFF0000 OR CODE_LOAD, exec = &FFFF0000 +
     INCLUDE "status.6502"
     INCLUDE "shift.6502"
     INCLUDE "spread.6502"
+    INCLUDE "songs.6502"
     INCLUDE "stubs.6502"
+.music_code
+    INCLUDE "music.6502"
+.music_code_end
+    PRINT "music's driver: ", music_code_end - music_code, " bytes"
     INCLUDE "tables.6502"
     \ Data from the original (tools/mkgfx.py, tools/mklevels.py)
 .passwords

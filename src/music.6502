@@ -1,0 +1,636 @@
+\ ***************************************************************************
+\ The music: David Whittaker's driver from the 128K's bank 1 (&C000),
+\ transcribed (decision 14), playing the original's songs (data/music.6502,
+\ which tools/mkmusic.py takes from the bank). docs/research/music-driver.md
+\ describes the driver and its data.
+\
+\   music_init   at start-up, before the interrupt is on: the driver's
+\                starting state, silent
+\   music_start  A = song 0-6 (&C000, init)
+\   music_stop   (&C006, stop)
+\   music_tick   each VSync, from the interrupt (&C003, tick)
+\
+\ The driver works on shadow AY registers, mu_ay, as the original does
+\ (&C47F-&C48A, registers 0-11). Where the original then copies them to
+\ the AY, mu_output converts them to the SN76489 (decisions 15-18): the
+\ tones' periods, an octave up where they're too low for it; the volumes;
+\ and the noise, which the AY mixes into any voice and the SN has a
+\ channel of its own for. It writes only what changed since it last wrote.
+\
+\ The game's own writes to the chip go through sound_write, which holds
+\ mu_busy across them: the chip takes a register in one byte and its
+\ value in the next, and the interrupt's bytes mustn't land between. While
+\ mu_busy is set the interrupt plays the frame but doesn't write it; the
+\ next frame writes whatever changed meanwhile.
+\
+\ Not transcribed: the sound effects entry (&C009), which the game never
+\ calls (decision 2), and with it the effects' part of the tick (&C129-
+\ &C158) and their random numbers (&C69C).
+\ ***************************************************************************
+
+\ The driver's state for a voice: the original's &21 bytes at &C069,
+\ &C08A and &C0AB, at the same offsets (IX+n there, mu_voices+n,X here).
+.mu_voice_at    EQUB 0, MU_VOICE, 2 * MU_VOICE
+mv_flags  = mu_voices + &00     ; b0 frame parity, b1 drum, b2 portamento,
+                                ; b3 slide, b5 envelope running, b7 slide up
+mv_ptr    = mu_voices + &01     ; the pattern's next byte (2)
+mv_list   = mu_voices + &03     ; the pattern list (2)
+mv_next   = mu_voices + &05     ; the list's next entry, a byte's offset
+                                ; (the original's is two: tools/mkmusic.py checks)
+mv_pacc   = mu_voices + &07     ; the portamento's sum (2)
+mv_arp0   = mu_voices + &09     ; the arpeggio's start (2)
+mv_arp    = mu_voices + &0B     ; ... and its next step (2)
+mv_pstep  = mu_voices + &0D     ; the portamento's step, signed
+mv_pdelay = mu_voices + &0E     ; ... and frames before it starts
+mv_estep  = mu_voices + &0F     ; frames for each of the envelope's steps
+mv_rows   = mu_voices + &10     ; rows left of this note
+mv_dur    = mu_voices + &11     ; each note's rows
+mv_note   = mu_voices + &12
+mv_vol    = mu_voices + &13
+mv_inst   = mu_voices + &14     ; the instrument (2)
+mv_epos   = mu_voices + &16     ; the envelope's place in it (2)
+mv_evol   = mu_voices + &18     ; the envelope's volume
+mv_ecnt   = mu_voices + &19     ; ... and frames until its next step
+mv_vdepth = mu_voices + &1A     ; the vibrato's depth,
+mv_vstep  = mu_voices + &1B     ; ... step
+mv_vphase = mu_voices + &1C     ; ... and phase
+mv_vmode  = mu_voices + &1D     ; 0 off, &40 on, &C0 on alternate frames;
+                                ; b5 the phase rising
+mv_noisep = mu_voices + &1E     ; b0: the notes set the noise's period
+mv_hihat  = mu_voices + &1F     ; non-zero: a frame of noise each row
+mv_mask   = mu_voices + &20     ; the voice's tone and noise bits in register 7
+
+\ Each voice's mv_mask, as the original's start (&C089, &C0AA, &C0CB):
+\ its tone bit and its noise bit in AY register 7.
+.mu_masks       EQUB &09, &12, &24
+MU_MIX_INIT = &38               ; the mixer template's start (&C44A): tones on, noise off
+MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
+
+\ The driver's starting state, silent (the bank as the tape loads it).
+.music_init
+{
+    LDA #0 : STA mu_on : STA mu_busy
+    LDX #3 * MU_VOICE - 1
+.clear
+    STA mu_voices,X
+    DEX : BPL clear
+    LDX #MU_AY_REGS - 1
+.ay
+    STA mu_ay,X                 ; (the original's are 0 but for register 7 and the
+    DEX : BPL ay                ; volumes, which a song's first frame sets)
+    LDX #2
+.masks
+    LDY mu_voice_at,X
+    LDA mu_masks,X : STA mv_mask,Y
+    DEX : BPL masks
+    LDA #MU_MIX_INIT : STA mu_mix
+    \ the bank's self-modified operands, as the tape has them (&C0D8,
+    \ &C125, &C3A1, &C0CC 0; &C0F9 1): the workspace isn't cleared
+    LDA #0
+    STA mu_noise_note : STA mu_noise : STA mu_transpose : STA mu_rows
+    LDA #1 : STA mu_speed
+    JMP music_dirty
+}
+
+\ &C00E: play song A (0-6) from its start.
+.music_start
+{
+    PHP : SEI                   ; (the interrupt uses mu_ptr too)
+    LDX #0 : STX mu_on          ; (the original's first step too)
+    STA mu_tmp
+    ASL A : ASL A : ASL A : SEC : SBC mu_tmp
+    TAY                         ; the song's 7 bytes in mu_songs: its speed,
+                                ; then its voices' lists
+    LDA mu_songs,Y : STA mu_speed
+    INY
+.voice
+    LDA mu_songs,Y : STA mv_list,X : STA mu_ptr
+    INY
+    LDA mu_songs,Y : STA mv_list+1,X : STA mu_ptr+1
+    INY
+    LDA #1 : STA mv_rows,X
+    LDA #0 : STA mv_flags,X : STA mv_vmode,X : STA mv_hihat,X
+    LDA #2 : STA mv_next,X
+    STY mu_tmp
+    LDY #0 : LDA (mu_ptr),Y : STA mv_ptr,X
+    INY : LDA (mu_ptr),Y : STA mv_ptr+1,X
+    LDY mu_tmp
+    TXA : CLC : ADC #MU_VOICE : TAX
+    CPX #3 * MU_VOICE : BNE voice
+    LDA #0 : STA mu_transpose
+    LDA #1 : STA mu_rows
+    STA mu_on
+    PLP
+    RTS
+}
+\ &C19D: the song stops. The original silences the AY there and then; here
+\ the next mu_output does (it writes silence while mu_on is 0).
+.music_stop
+{
+    LDA #0 : STA mu_on
+    STA mu_ay + 8 : STA mu_ay + 9 : STA mu_ay + 10
+    RTS
+}
+
+\ &C0CD, each VSync (from irq.6502, which keeps X and Y): the driver's
+\ frame, then the chip.
+.music_tick
+{
+    LDA mu_on : BEQ output
+    LDA mu_noise_note : STA mu_noise    ; &C0D7
+    DEC mu_rows : BNE render
+    LDX #0 : JSR mu_row
+    LDA mu_on : BEQ output              ; (&8E: the song stopped)
+    LDX #MU_VOICE : JSR mu_row
+    LDA mu_on : BEQ output
+    LDX #2 * MU_VOICE : JSR mu_row
+    LDA mu_on : BEQ output
+    LDA mu_speed : STA mu_rows
+.render
+    \ &C0FD: each voice's period and volume
+    LDX #0 : JSR mu_render : STA mu_ay + 8
+    LDA mu_per : STA mu_ay + 0 : LDA mu_per+1 : STA mu_ay + 1
+    LDX #MU_VOICE : JSR mu_render : STA mu_ay + 9
+    LDA mu_per : STA mu_ay + 2 : LDA mu_per+1 : STA mu_ay + 3
+    LDX #2 * MU_VOICE : JSR mu_render : STA mu_ay + 10
+    LDA mu_per : STA mu_ay + 4 : LDA mu_per+1 : STA mu_ay + 5
+    LDA mu_noise : STA mu_ay + 6
+.output
+    LDA mu_busy : BNE done              ; (the game is writing the chip)
+    JMP mu_output
+.done
+    RTS
+}
+
+\ The next byte of the pattern at mu_ptr. Keeps X.
+.mu_byte
+{
+    LDY #0 : LDA (mu_ptr),Y
+    INC mu_ptr : BNE done
+    INC mu_ptr+1
+.done
+    RTS
+}
+
+\ &C2AE: voice X's row. When its note's rows are done, the pattern's
+\ commands up to its next note, rest or tie.
+.mu_row
+{
+    DEC mv_rows,X : BEQ new_row
+    \ &C308: the slide, a semitone a row
+    LDA mv_flags,X : AND #8 : BEQ done
+    LDA mv_flags,X : BMI up
+    DEC mv_note,X
+    RTS
+.up
+    INC mv_note,X
+.done
+    RTS
+.new_row
+    LDA #0 : STA mv_flags,X
+    LDA mv_ptr,X : STA mu_ptr
+    LDA mv_ptr+1,X : STA mu_ptr+1
+.next
+    JSR mu_byte
+    CMP #&80 : BCS command
+    \ &C2C2: a note, and its instrument's envelope from the start
+    STA mv_note,X
+    LDA mv_noisep,X : LSR A : BCC envelope
+    LDA mv_note,X : STA mu_noise_note
+.envelope
+    LDA mv_inst,X : STA mv_epos,X : STA mu_ptr2
+    LDA mv_inst+1,X : STA mv_epos+1,X : STA mu_ptr2+1
+    LDY #0 : LDA (mu_ptr2),Y
+    STA mv_evol,X : STA mv_vol,X
+    LDA mv_estep,X : STA mv_ecnt,X
+    LDA mv_flags,X : ORA #&20 : STA mv_flags,X
+.row_end
+    \ &C2EB
+    LDA mv_dur,X : STA mv_rows,X
+    LDA mu_ptr : STA mv_ptr,X
+    LDA mu_ptr+1 : STA mv_ptr+1,X
+    LDA mv_hihat,X : BEQ row_done
+    LDA #&FF : STA mv_hihat,X
+.row_done
+    RTS
+
+.command
+    \ &C319
+    CMP #&B8 : BCC numbered
+    CMP #&E0 : BCC not_duration
+    SBC #&DF : STA mv_dur,X             ; E0-FF: 1-32 rows a note
+    JMP next
+.not_duration
+    CMP #&D0 : BCC not_instrument
+    AND #&0F : TAY                      ; D0-DF: an instrument
+    LDA mu_inst_lo,Y : STA mv_inst,X : STA mu_ptr2
+    LDA mu_inst_hi,Y : STA mv_inst+1,X : STA mu_ptr2+1
+    LDA mu_ptr2 : BNE step              ; its step time is the byte before
+    DEC mu_ptr2+1
+.step
+    DEC mu_ptr2
+    LDY #0 : LDA (mu_ptr2),Y : STA mv_estep,X
+    JMP next
+.not_instrument
+    CMP #&C0 : BCC speed
+    AND #&0F : TAY                      ; C0-CF: an arpeggio
+    LDA mu_arp_lo,Y : STA mv_arp0,X : STA mv_arp,X
+    LDA mu_arp_hi,Y : STA mv_arp0+1,X : STA mv_arp+1,X
+    JMP next
+.speed
+    SEC : SBC #&B7 : STA mu_speed       ; B8-BF: 1-8 frames a row
+    JMP next
+.numbered
+    \ &C366: 80-91, through a table (B7 and below otherwise: none in the songs)
+    ASL A : TAY
+    LDA mu_commands+1,Y : PHA
+    LDA mu_commands,Y : PHA
+    RTS
+
+.mu_commands
+    EQUW c_rest-1, c_vib_off-1, c_vib_on-1, c_vib_alt-1, c_porta-1
+    EQUW c_slide_down-1, c_slide_up-1, c_end-1, c_vib-1, c_transpose-1
+    EQUW c_tone-1, c_noise-1, c_both-1, c_drum-1, c_stop-1, c_tie-1
+    EQUW c_hihat_on-1, c_hihat_off-1
+
+.c_rest                             ; &80 (&C294)
+    LDA #0 : STA mv_vol,X
+    LDA mv_flags,X : AND #&DF : STA mv_flags,X
+    JMP row_end
+.c_vib_off                          ; &81
+    LDA #0 : BEQ set_vmode
+.c_vib_on                           ; &82
+    LDA #&40 : BNE set_vmode
+.c_vib_alt                          ; &83
+    LDA #&C0
+.set_vmode
+    STA mv_vmode,X
+    JMP next
+.c_porta                            ; &84 step, frames (&C247)
+    JSR mu_byte : STA mv_pstep,X
+    LDA #0 : STA mv_pacc,X : STA mv_pacc+1,X
+    LDA mv_flags,X : ORA #4 : STA mv_flags,X
+    JSR mu_byte : STA mv_pdelay,X
+    JMP next
+.c_slide_down                       ; &85
+    LDA #8 : BNE set_flags
+.c_slide_up                         ; &86
+    LDA #&88 : BNE set_flags
+.c_drum                             ; &8D: tone and noise on alternate frames
+    LDA #2
+.set_flags
+    ORA mv_flags,X : STA mv_flags,X
+    JMP next
+.c_end                              ; &87: the list's next pattern (&C1E1)
+    LDA mv_list,X : STA mu_ptr2
+    LDA mv_list+1,X : STA mu_ptr2+1
+    LDY mv_next,X
+    LDA (mu_ptr2),Y : STA mu_ptr
+    INY : LDA (mu_ptr2),Y : STA mu_ptr+1
+    INY
+    ORA mu_ptr : BNE pattern
+    LDY #0 : LDA (mu_ptr2),Y : STA mu_ptr   ; a 0: the list from its start
+    INY : LDA (mu_ptr2),Y : STA mu_ptr+1
+    INY
+.pattern
+    TYA : STA mv_next,X
+    JMP next
+.c_vib                              ; &88 step, depth (&C264)
+    JSR mu_byte : STA mv_vstep,X
+    JSR mu_byte : STA mv_vdepth,X : STA mv_vphase,X
+    JMP next
+.c_transpose                        ; &89 semitones (&C25D)
+    JSR mu_byte : STA mu_transpose
+    JMP next
+.c_tone                             ; &8A: tone only (&C223)
+    LDA mv_mask,X : AND #&38 : LDY #0
+    BEQ mix                         ; (always)
+.c_noise                            ; &8B: noise only, its period from the notes (&C20E)
+    LDA mv_mask,X : AND #&07 : LDY #1
+.mix
+    EOR mu_mix : AND mv_mask,X : EOR mu_mix : STA mu_mix
+    TYA : STA mv_noisep,X
+    JMP next
+.c_both                             ; &8C: tone and noise (&C237)
+    LDA mv_mask,X : EOR #&FF : AND mu_mix : STA mu_mix
+    LDA #1 : STA mv_noisep,X
+    JMP next
+.c_stop                             ; &8E: the song ends, and this frame with it (&C1DD)
+    JMP music_stop
+.c_tie                              ; &8F: the note carries on (&C29D)
+    LDA mv_flags,X : ORA #&20 : STA mv_flags,X
+    JMP row_end
+.c_hihat_on                         ; &90
+    LDA #&FF : BNE set_hihat
+.c_hihat_off                        ; &91
+    LDA #0
+.set_hihat
+    STA mv_hihat,X
+    JMP next
+}
+
+\ &C36E: voice X's frame. Returns its volume in A and its period in
+\ mu_per, and merges its tone and noise bits into mu_ay's register 7.
+.mu_render
+{
+    LDA mv_flags,X : STA mu_flags
+    AND #&20 : BEQ pitch
+    \ The envelope: a step every mv_estep + 1 frames, until one with bit 7
+    LDA mv_ecnt,X : SEC : SBC #1 : STA mv_ecnt,X
+    BCS held
+    LDA mv_estep,X : STA mv_ecnt,X
+    LDA mv_epos,X : CLC : ADC #1 : STA mu_ptr2
+    LDA mv_epos+1,X : ADC #0 : STA mu_ptr2+1
+    LDY #0 : LDA (mu_ptr2),Y : BMI held
+    STA mv_evol,X
+    LDA mu_ptr2 : STA mv_epos,X
+    LDA mu_ptr2+1 : STA mv_epos+1,X
+.held
+    LDA mv_evol,X : STA mv_vol,X
+.pitch
+    \ &C3A0: the note, transposed, and the arpeggio's next step
+    LDA mv_arp,X : STA mu_ptr2
+    LDA mv_arp+1,X : STA mu_ptr2+1
+    LDY #0 : LDA (mu_ptr2),Y : TAY
+    INC mv_arp,X : BNE stepped
+    INC mv_arp+1,X
+.stepped
+    TYA : BPL add_step
+    AND #&7F : TAY                      ; bit 7: the last step, then from the start
+    LDA mv_arp0,X : STA mv_arp,X
+    LDA mv_arp0+1,X : STA mv_arp+1,X
+    TYA
+.add_step
+    CLC : ADC mu_transpose
+    CLC : ADC mv_note,X
+    ASL A : STA mu_idx                  ; (&C3C6: the vibrato's scaling counts with this)
+    LSR A : TAY
+    LDA mu_periods_lo,Y : STA mu_per
+    LDA mu_periods_hi,Y : STA mu_per+1
+
+    \ &C3CC: the vibrato, a triangle wave
+    LDA mv_vmode,X : AND #&40 : BEQ parity
+    LDA mv_vdepth,X : ASL A : STA mu_span
+    LDA mv_vmode,X : BPL move
+    LDA mu_flags : LSR A : BCS have     ; (&C0: only on alternate frames)
+.move
+    LDA mv_vmode,X : AND #&20 : BNE rising
+    LDA mv_vphase,X : SEC : SBC mv_vstep,X : BCS store
+    LDA mv_vmode,X : ORA #&20 : STA mv_vmode,X
+    LDA #0 : BEQ store                  ; (always)
+.rising
+    LDA mv_vphase,X : CLC : ADC mv_vstep,X
+    CMP mu_span : BCC store
+    LDA mv_vmode,X : AND #&DF : STA mv_vmode,X
+    LDA mu_span
+.store
+    STA mv_vphase,X
+.have
+    \ &C402: the phase less half the span, signed, doubled once for each
+    \ octave the note is below the table's top
+    LDA mv_vphase,X
+    LSR mu_span
+    SEC : SBC mu_span : STA mu_off
+    LDA #0 : SBC #0 : STA mu_off+1      ; (a borrow: below the middle)
+    LDA mu_idx : CLC : ADC #&A0 : BCS bend
+.scale
+    ASL mu_off : ROL mu_off+1
+    CLC : ADC #&18 : BCC scale
+.bend
+    LDA mu_per : CLC : ADC mu_off : STA mu_per
+    LDA mu_per+1 : ADC mu_off+1 : STA mu_per+1
+
+.parity
+    LDA mu_flags : EOR #1 : STA mv_flags,X
+
+    \ &C421: the portamento, from its delay on, adding its step each frame
+    LDA mu_flags : AND #4 : BEQ mixer
+    LDA mv_pdelay,X : SEC : SBC #1 : BEQ slide
+    STA mv_pdelay,X
+    JMP mixer
+.slide
+    LDY #0 : LDA mv_pstep,X : BPL positive
+    DEY
+.positive
+    CLC : ADC mv_pacc,X : STA mv_pacc,X
+    TYA : ADC mv_pacc+1,X : STA mv_pacc+1,X
+    LDA mu_per : CLC : ADC mv_pacc,X : STA mu_per
+    LDA mu_per+1 : ADC mv_pacc+1,X : STA mu_per+1
+
+.mixer
+    \ &C446: the voice's bits of register 7 from the template, or a drum's
+    \ frame of noise only (every other frame), its period from the notes
+    \ with bit 3 flipped
+    LDA mu_flags : AND #3 : CMP #2 : BNE template
+    LDA mu_noise_note : EOR #8 : STA mu_noise
+    LDA #&07 : BNE merge                ; (always)
+.template
+    LDA mu_mix
+.merge
+    EOR mu_ay + 7 : AND mv_mask,X : EOR mu_ay + 7 : STA mu_ay + 7
+    \ &C460: the hi-hat, a frame of the shortest noise at a row's start
+    LDA mv_hihat,X : BPL done
+    AND #&7F : STA mv_hihat,X
+    LDA mv_mask,X : AND #&38 : EOR #&FF
+    AND mu_ay + 7 : STA mu_ay + 7
+    LDA #MU_HIHAT_NOISE : STA mu_noise
+.done
+    LDA mv_vol,X
+    RTS
+}
+
+\ ---------------------------------------------------------------------------
+\ The SN76489. Its bytes: a tone's period is a latch byte %1cc0 and its
+\ low four bits, then %00 and its high six; a volume %1cc1 and the
+\ attenuation (15 silent); the noise %11100 then white (1) and the rate.
+
+\ The AY's volume (0 silent, 15 loudest) as the SN's attenuation
+\ (decision 16): ym2sn.py's mapping (its default, which nm's disc used),
+\ each AY step a 2dB step of the SN's, an odd one rounded up.
+.mu_att
+FOR v = 0..15
+    IF v = 15
+        EQUB 0
+    ELSE
+        EQUB 15 - (v + (v AND 1))
+    ENDIF
+NEXT
+
+\ The noise (decision 17): the SN's white noise, at the faster of its two
+\ fixed rates for AY noise periods up to MU_NOISE_SLOW - 1, the slower
+\ from there. The AY's noise shifts at 1.7734MHz / (16 x the period); the
+\ SN's at 4MHz / 512 and 4MHz / 1024. Halfway between those (5859Hz) is
+\ an AY period of 18.9.
+MU_NOISE_WHITE = &E4            ; white, the rate N/512 (+ 1: N/1024)
+MU_NOISE_SLOW = 19
+MU_SILENT = 15
+
+.mu_tone_latch  EQUB &80, &A0, &C0
+.mu_vol_latch   EQUB &90, &B0, &D0, &F0
+.mu_tone_bit    EQUB 1, 2, 4        ; register 7: the tone off (bits set)
+.mu_noise_bit   EQUB 8, 16, 32      ; ... and the noise
+
+\ The chip as it should be after this frame, from mu_ay (or silent while
+\ mu_on is 0), writing what changed since mu_sn_* were written.
+.mu_output
+{
+    \ The System VIA's port A as the interrupted code had it, after.
+    LDA sysvia_ddra : PHA
+    LDA sysvia_ora_nh : PHA
+    LDA #&0B : STA sysvia_orb           ; the keyboard on auto-scan, off port A's bit 7
+    LDA #&FF : STA sysvia_ddra
+    LDX #0
+.channel
+    LDA #MU_SILENT
+    LDY mu_on : BEQ attenuation
+    JSR mu_period
+    LDA mu_s : CMP mu_sn_lo,X : BNE tone
+    LDA mu_s+1 : CMP mu_sn_hi,X : BEQ volume
+.tone
+    LDA mu_s : STA mu_sn_lo,X
+    AND #&0F : ORA mu_tone_latch,X : JSR mu_write
+    LDA mu_s+1 : STA mu_sn_hi,X
+    LDA mu_s
+    LSR mu_s+1 : ROR A : LSR mu_s+1 : ROR A
+    LSR A : LSR A                       ; (the period's top six bits)
+    JSR mu_write
+.volume
+    LDA mu_ay + 7 : AND mu_tone_bit,X : BEQ tone_on
+    LDA #MU_SILENT : BNE attenuation    ; (always)
+.tone_on
+    LDA mu_ay + 8,X : AND #&0F : TAY
+    LDA mu_att,Y
+.attenuation
+    CMP mu_sn_att,X : BEQ channel_done
+    STA mu_sn_att,X
+    ORA mu_vol_latch,X : JSR mu_write
+.channel_done
+    INX : CPX #3 : BNE channel
+
+    \ The noise: as loud as the loudest voice the mixer gives it to
+    LDA mu_on : BEQ noise_silent
+    LDA mu_ay + 6 : AND #&1F : BEQ noise_silent
+    STA mu_tmp                          ; the period, which the AY keeps 5 bits of
+    LDY #0
+    LDX #2
+.loudest
+    LDA mu_ay + 7 : AND mu_noise_bit,X : BNE quieter
+    LDA mu_ay + 8,X : AND #&0F
+    STY mu_s : CMP mu_s : BCC quieter
+    TAY
+.quieter
+    DEX : BPL loudest
+    LDA mu_att,Y
+    CMP #MU_SILENT : BEQ noise_volume   ; (no rate while it's silent)
+    PHA
+    LDA #MU_NOISE_WHITE
+    LDY mu_tmp : CPY #MU_NOISE_SLOW : BCC rate
+    ORA #1
+.rate
+    CMP mu_sn_noise : BEQ rate_done
+    STA mu_sn_noise : JSR mu_write
+.rate_done
+    PLA
+    JMP noise_volume
+.noise_silent
+    LDA #MU_SILENT
+.noise_volume
+    CMP mu_sn_att + 3 : BEQ out
+    STA mu_sn_att + 3
+    ORA mu_vol_latch + 3 : JSR mu_write
+.out
+    PLA : STA sysvia_ora_nh
+    PLA : STA sysvia_ddra
+    \ (Chuckie Egg 2's key reading leaves port A an input on bit 7 and
+    \ wants the keyboard back on it.)
+    CMP #&7F : BNE port_done
+    LDA #3 : STA sysvia_orb
+.port_done
+    RTS
+}
+
+\ Channel X's period for the SN in mu_s, from mu_ay's (decision 15). The
+\ AY's tone is 1.7734MHz / (16 x its period), the SN's 4MHz / (32 x its):
+\ the same note is the AY's period x 1.12778 on the SN. The port takes
+\ x 1155/1024 (1.12793), rounded: a quarter of a cent sharp, and only
+\ adds and shifts. A period the SN's ten bits can't hold goes up an
+\ octave, or two or three, until it fits (decision 18), counted in
+\ mu_bass,X: the hook for a bass that would play it at its pitch.
+.mu_period
+{
+    TXA : ASL A : TAY
+    LDA mu_ay,Y : STA mu_p
+    LDA mu_ay + 1,Y : AND #&0F : STA mu_p+1     ; (the AY keeps 12 bits)
+    \ mu_t = P x 3 + 512 ...
+    LDA mu_p : ASL A : STA mu_t
+    LDA mu_p+1 : ROL A : STA mu_t+1
+    LDA mu_t : CLC : ADC mu_p : STA mu_t
+    LDA mu_t+1 : ADC mu_p+1 : ADC #HI(MU_ROUND) : STA mu_t+1
+    \ ... + P x 128 = P x 131 + 512, 24 bits
+    LDA mu_p+1 : LSR A : STA mu_t+2
+    LDA mu_p : ROR A : PHA
+    LDA #0 : ROR A
+    CLC : ADC mu_t : STA mu_t
+    PLA : ADC mu_t+1 : STA mu_t+1
+    LDA mu_t+2 : ADC #0 : STA mu_t+2
+    \ S = P + (P x 131 + 512) / 1024
+    LSR mu_t+2 : ROR mu_t+1
+    LSR mu_t+2 : ROR mu_t+1
+    LDA mu_t+1 : CLC : ADC mu_p : STA mu_s
+    LDA mu_t+2 : ADC mu_p+1 : STA mu_s+1
+    ORA mu_s : BNE octaves
+    INC mu_s                            ; (period 0: the AY plays it as 1)
+.octaves
+    LDY #0
+.fit
+    LDA mu_s+1 : CMP #HI(MU_SN_PERIODS) : BCC fits
+    LSR mu_s+1 : ROR mu_s
+    INY : BNE fit                       ; (always)
+.fits
+    TYA : STA mu_bass,X
+    RTS
+}
+MU_ROUND = 512                  ; half of the 1024 that mu_period divides by
+ASSERT LO(MU_ROUND) = 0
+MU_SN_PERIODS = 1024            ; the SN's ten bits
+ASSERT LO(MU_SN_PERIODS) = 0
+
+\ A to the chip, from inside the interrupt or with mu_busy held: port A
+\ already an output, the keyboard off it. Keeps X.
+.mu_write
+{
+    STA sysvia_ora_nh
+    LDY #0 : STY sysvia_orb             ; the chip's write enable low
+    LDY #MU_WRITE_HOLD
+.hold
+    DEY : BNE hold
+    LDY #8 : STY sysvia_orb             ; ... and high
+    RTS
+}
+MU_WRITE_HOLD = 3               ; (a few microseconds of it: Chuckie Egg 2's)
+
+\ A to the chip, for the game's own sounds: mu_busy keeps the music's
+\ interrupt off the chip meanwhile. Keeps X.
+.sound_write
+{
+    INC mu_busy
+    LDY #&0B : STY sysvia_orb           ; the keyboard on auto-scan
+    LDY #&FF : STY sysvia_ddra
+    JSR mu_write
+    DEC mu_busy
+    RTS
+}
+
+\ Every chip register written again at the next frame: after the game's
+\ sounds have used the music's channels, and at start-up.
+.music_dirty
+{
+    LDA #&FF
+    LDX #3
+.each
+    STA mu_sn_att,X
+    DEX : BPL each
+    STA mu_sn_hi : STA mu_sn_hi+1 : STA mu_sn_hi+2
+    STA mu_sn_noise
+    RTS
+}

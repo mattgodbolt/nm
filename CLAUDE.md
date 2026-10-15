@@ -41,7 +41,8 @@ make fetch      # download the original into original/ (not committed)
 make zx         # load the tape into build/nm128.z80 and build/nm48.z80
 make disasm     # build/nm.skool from disasm/*.ctl
 make venv       # .venv (uv sync): SkoolKit, Pillow, the music's libraries
-make music      # the music conversion (tools/music/build.sh)
+make music      # the music driver against the original's, frame by frame
+make music-disc # nm's music disc, ninja_music.ssd (tools/music/build.sh)
 ```
 
 Baron 0.5.3 is expected at `../baron/build/src/baron` or on the PATH. CI
@@ -63,6 +64,13 @@ local one.
 - `python3 tools/grid.py out.png cols a.png b.png ...` tiles screenshots.
 - Run to a symbol after booting (`play.mjs --until`), never a guessed
   wait.
+- `make music` (`tools/musiccheck.mjs`): every song on the 6502 driver
+  against `tools/music/dw_decode.py`'s, frame by frame, and the SN76489's
+  bytes against `tools/musicmodel.py`'s model of the conversion: change
+  the conversion in both. `tools/mkmusic.py` makes `src/data/music.6502`
+  from bank 1; the build never runs it, and its output is committed.
+- The music plays from the VSync interrupt and writes the chip: a sound
+  the game writes goes through `sound_write`, which holds `mu_busy`.
 
 ## The screen
 

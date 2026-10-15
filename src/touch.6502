@@ -532,7 +532,7 @@ T_SWITCH_WALL = &06
     LDA Player1 + R_COL,Y : STA re
     JSR erase_at
     LDX pl : LDA exit_song,X
-    JSR music_start
+    JSR play_song
     LDX pass_sp : TXS
     RTS
 }

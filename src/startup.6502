@@ -16,6 +16,7 @@ ENDIF
     \ The data's bank (the loader left its number), paged in for good. The
     \ OS's copy too, which it puts back after paging ROMs itself.
     LDA DATA_BANK_ZP : STA romshad : STA romsel
+    JSR music_init                  ; (before the interrupt plays it)
     JSR init_system
     JSR cls
     JSR draw_panel
@@ -23,8 +24,16 @@ IF DEFINED(VIEWCHECK)
     JMP view_check
 ELSE
     LDA #1 : STA seed
+IF DEFINED(MUSICCHECK)
+    LDA #START_LEVEL
+    PHA : JSR level_colours : PLA
+    JSR level_load
+    JSR draw_view
+    JMP music_check
+ELSE
     LDA #1                      ; (one player, for now: the menu is to come)
     JMP new_game
+ENDIF
 ENDIF
 }
 
@@ -47,6 +56,45 @@ VIEW_SEED = 1
     CMP #LEVELS : BNE vc_level
     LDA #1                      ; (then a game, as the game's build starts one)
     JMP new_game
+ENDIF
+
+IF DEFINED(MUSICCHECK)
+\ The music check's build (tools/musiccheck.mjs): the driver's frames as
+\ fast as it goes, not from the interrupt. Each frame's shadow AY
+\ registers and mu_on go to a record in mc_buf; at mc_full the tool reads
+\ MC_FRAMES of them, and may set mc_next to start a song there.
+MC_FRAMES = 64
+MC_PLAY = &7F                       ; mc_next: on into a game
+MC_RECORD = MU_AY_REGS + 1
+mc_buf = map                        ; (no level in this build)
+ASSERT MC_FRAMES * MC_RECORD <= 32 * 32
+.music_check
+    LDA #&FF : STA mc_next
+    LDA #0 : JSR music_start
+.mc_chunk
+    LDA #LO(mc_buf) : STA mc_at
+    LDA #HI(mc_buf) : STA mc_at+1
+    LDA #MC_FRAMES : STA mc_left
+.mc_frame
+    JSR music_tick
+    LDY #0
+.mc_copy
+    LDA mu_ay,Y : STA (mc_at),Y
+    INY : CPY #MU_AY_REGS : BNE mc_copy
+    LDA mu_on : STA (mc_at),Y
+    LDA mc_at : CLC : ADC #MC_RECORD : STA mc_at
+    BCC mc_same
+    INC mc_at+1
+.mc_same
+    DEC mc_left : BNE mc_frame
+.mc_full
+    LDA mc_next : CMP #MC_PLAY : BNE mc_song
+    LDA #1 : JMP new_game       ; (a game, as the other test builds go on to)
+.mc_song
+    LDA mc_next : BMI mc_chunk
+    JSR music_start
+    LDA #&FF : STA mc_next
+    JMP mc_chunk
 ENDIF
 
 \ MODE 1's pixels on the narrowed CRTC, set in the hardware: an OS mode

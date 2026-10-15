@@ -1,6 +1,6 @@
 \ ***************************************************************************
-\ The interrupt: the game owns IRQ1V, and services VSync and the pass
-\ clock.
+\ The interrupt: the game owns IRQ1V, and services VSync, where it plays
+\ the music, and the pass clock.
 
 \ A pass's length (decision 12): the original's median, 1.22 frames of
 \ 70,908 T-states at 3.5469 MHz, in microseconds (docs/brief.md, D4).
@@ -32,6 +32,13 @@ PASS_TICK = 24400
     LDA sysvia_ifr : AND #2 : BEQ done
     STA sysvia_ifr                              ; acknowledge VSync
     INC vsyncs
+IF NOT(DEFINED(MUSICCHECK))
+    \ The music's frame (music.6502). (The music check's build plays it
+    \ itself, as fast as it goes.)
+    TXA : PHA : TYA : PHA
+    JSR music_tick
+    PLA : TAY : PLA : TAX
+ENDIF
 .done
     LDA &FC                                     ; the OS saved A here
     RTI

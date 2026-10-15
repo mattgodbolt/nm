@@ -5,6 +5,8 @@
 #   make check    every check (MODEL=Master to run them on a Master 128;
 #                 default B-DFS1.2)
 #   make views    every level's first view, against the original's
+#   make music    the music's 6502 driver against the original's, every
+#                 song frame by frame, and the sound chip's bytes
 #   make fetch    download the Spectrum original into original/
 #   make zx       load the original's tape into build/nm128.z80 and
 #                 build/nm48.z80 (SkoolKit)
@@ -12,7 +14,7 @@
 #                 build/nm.skool (from disasm/*.ctl)
 #   make venv     the Python tools' environment (.venv: SkoolKit, Pillow,
 #                 and the music tools' music21 and numpy)
-#   make music    the music conversion (tools/music/build.sh)
+#   make music-disc  nm's music disc, ninja_music.ssd (tools/music/build.sh)
 
 BARON   ?= $(firstword $(wildcard ../baron/build/src/baron) baron)
 # Baron, failing on a warning too.
@@ -32,7 +34,7 @@ BUILD   := $(shell date -u '+%Y-%m-%d %H:%M UTC') $(shell git rev-parse --short 
 # warning after baron has written the disc).
 .DELETE_ON_ERROR:
 
-.PHONY: all run check views fetch zx disasm venv music clean
+.PHONY: all run check views music fetch zx disasm venv music-disc clean
 
 all: $(TARGET)
 
@@ -55,10 +57,19 @@ views: build/viewcheck.ssd build/views/zx_50.scr
 build/views/zx_50.scr: build/nm128.z80 tools/zxviews.py tools/zx.py tools/mklevels.py
 	$(PYTHON) tools/zxviews.py
 
+# The music check's disc: every song on the driver, as fast as it goes
+# (MUSICCHECK).
+build/musiccheck.ssd: $(SOURCES) | build
+	$(ASM) -D MUSICCHECK=1 -D 'BUILD="$(BUILD) musiccheck"' -o $@ --title NINJA --opt 3 --warn 2 --symbols $(@:.ssd=.json) src/main.6502
+
+# The music against tools/music/dw_decode.py's driver (tools/musicmodel.py).
+music: $(TARGET) build/musiccheck.ssd build/nm128.z80
+	node tools/musiccheck.mjs
+
 run: $(TARGET)
 	node tools/play.mjs '1,!run' shots/ --disc $(TARGET)
 
-check: $(TARGET) views disasm
+check: $(TARGET) views disasm music
 
 fetch:
 	tools/fetch_original.sh
@@ -84,7 +95,7 @@ build/nm.skool: build/nm48.z80 $(wildcard disasm/*.ctl)
 venv:
 	uv sync
 
-music:
+music-disc:
 	tools/music/build.sh
 
 clean:

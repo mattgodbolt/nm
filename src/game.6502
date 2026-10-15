@@ -28,7 +28,7 @@ PASSWORDS    = 8
     JSR start_level
     \ &C00C: the view, and the opening jingle
     JSR draw_view
-    LDA #SONG_START : JSR music_start
+    LDA #SONG_START : JSR play_song
     JMP main_loop
 }
 

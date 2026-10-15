@@ -1,0 +1,19 @@
+\ ***************************************************************************
+\ The game's calls on the music: the 128K's hooks (&B8E1, &B907), which
+\ the 128K version, the specification, plays on the AY (decision 2).
+\ ***************************************************************************
+
+\ &B8E1: start song A, unless the music is off (EXTEND+T: music_off).
+.play_song
+    BIT music_off : BMI no_song
+    JMP music_start
+.no_song
+    RTS
+
+\ &B907: the main theme (song 0) again, if the music is on and nothing is
+\ playing. Every status tick (&D9F9).
+.music_restart
+    BIT music_off : BMI no_song
+    LDA mu_on : BNE no_song
+    LDA #0
+    JMP music_start
