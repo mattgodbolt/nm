@@ -35,8 +35,8 @@ mv_flags  = mu_voices + &00     ; b0 frame parity, b1 drum, b2 portamento,
                                 ; b3 slide, b5 envelope running, b7 slide up
 mv_ptr    = mu_voices + &01     ; the pattern's next byte (2)
 mv_list   = mu_voices + &03     ; the pattern list (2)
-mv_next   = mu_voices + &05     ; the list's next entry, a byte's offset
-                                ; (the original's is two: tools/mkmusic.py checks)
+mv_next   = mu_voices + &05     ; the list's next entry, its number in a
+                                ; byte (the original's is a two-byte offset)
 mv_pacc   = mu_voices + &07     ; the portamento's sum (2)
 mv_arp0   = mu_voices + &09     ; the arpeggio's start (2)
 mv_arp    = mu_voices + &0B     ; ... and its next step (2)
@@ -107,7 +107,7 @@ ASSERT MU_STATE <= &80
     STY mu_tmp
     LDA #1 : STA mv_rows,X
     LDA #0 : STA mv_flags,X : STA mv_vmode,X : STA mv_hihat,X
-    STA mv_next,X : JSR mu_pattern      ; the list's first pattern, and mv_next 2
+    STA mv_next,X : JSR mu_pattern      ; the list's first pattern, and mv_next 1
     LDA mu_ptr : STA mv_ptr,X
     LDA mu_ptr+1 : STA mv_ptr+1,X
     LDY mu_tmp
@@ -291,21 +291,23 @@ ASSERT MU_STATE <= &80
 }
 
 \ &C1E1 (command &87): voice X's next pattern from its list, at mu_ptr.
-\ A 0 in the list goes back to its start (music_start starts there, and
-\ tools/mkmusic.py checks that no list starts with a 0).
+\ A list's entries are patterns' numbers in mu_pat_lo and mu_pat_hi (the
+\ original's are their addresses: tools/mkmusic.py). A 0 goes back to
+\ the list's start (music_start starts there, and tools/mkmusic.py checks
+\ that no list starts with a 0).
 .mu_pattern
 {
     LDA mv_list,X : STA mu_ptr2
     LDA mv_list+1,X : STA mu_ptr2+1
     LDY mv_next,X
 .entry
-    LDA (mu_ptr2),Y : STA mu_ptr
-    INY : LDA (mu_ptr2),Y : STA mu_ptr+1
-    INY
-    ORA mu_ptr : BNE pattern
+    INY : TYA : STA mv_next,X           ; (the entry after)
+    DEY : LDA (mu_ptr2),Y : BNE pattern
     TAY : BEQ entry                     ; (always: a 0, so the list from its start)
 .pattern
-    TYA : STA mv_next,X
+    TAY
+    LDA mu_pat_lo - 1,Y : STA mu_ptr
+    LDA mu_pat_hi - 1,Y : STA mu_ptr+1
     RTS
 }
 

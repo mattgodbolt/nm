@@ -116,7 +116,10 @@ and keeping the bytes it reads, not by walking the bytes.
 the original's offsets (`mv_flags` is `mu_voices + 0`, and so on), the
 self-modified operands are variables in the workspace, and the shadow
 registers are `mu_ay`. The data's pointers are labels, so baron places
-it; the tables the driver indexes are split into low and high bytes.
+it; the tables the driver indexes are split into low and high bytes. A
+pattern list's entries are a byte each here, the pattern's number in a
+table of their addresses (`mu_pat_lo`, `mu_pat_hi`), and a voice's
+place in its list (`mv_next`) counts entries.
 
 The VSync interrupt calls `music_tick`. After the driver's frame,
 `mu_output` makes the SN76489's registers from `mu_ay` and writes those

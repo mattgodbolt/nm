@@ -25,8 +25,11 @@ others get there.
 
 It writes src/data/music.6502 as baron source, every pointer a label, so
 the assembler places it. The tables the driver indexes (notes,
-arpeggios, instruments) are split into low and high bytes for the 6502;
-the rest keeps the original's order and bytes.
+arpeggios, instruments) are split into low and high bytes for the 6502.
+The pattern lists' entries are a byte each, a pattern's number (from 1:
+0 is still the list's end) in a table of the patterns' addresses, also
+split, which most patterns' several entries make smaller. The rest
+keeps the original's order and bytes.
 """
 import os
 import sys
@@ -180,6 +183,11 @@ def emit(m, kinds, words, insts, arps, notes):
             raise SystemExit(f"instrument {i}'s step time &{m[at - 1]:02X} is past &7F")
     for i in arps:
         label(dw.ARP_TABLE + i + m[dw.ARP_TABLE + i], f"mu_arp_{i}")
+    # The patterns the lists name, numbered from 1 in address order.
+    patterns = sorted({t for at, t in words.items() if t and not dw.SONG_TABLE <= at < song_end})
+    number = {t: n + 1 for n, t in enumerate(patterns)}
+    if len(patterns) > 0xFF:
+        raise SystemExit(f"{len(patterns)} patterns: more than a byte numbers")
     for a, names in labels.items():
         if a not in kinds or kinds[a] == "w+":
             raise SystemExit(f"{names} at &{a:04X} isn't the start of something read")
@@ -211,9 +219,18 @@ def emit(m, kinds, words, insts, arps, notes):
             w("    EQUB " + ", ".join(f"{f}(mu_{name}_{i})" if i in used else "0" for i in range(top)))
         w(f"MU_{name.upper()}S = {top}")
         w("")
+    w("\\ Each pattern's address, for its number in a pattern list (from 1),")
+    w("\\ low then high bytes.")
+    for part, f in (("lo", "LO"), ("hi", "HI")):
+        w(f".mu_pat_{part}")
+        for i in range(0, len(patterns), 8):
+            w("    EQUB " + ", ".join(f"{f}(mu_pat_{t:04X})" for t in patterns[i:i + 8]))
+    w(f"MU_PATS = {len(patterns)}")
+    w("")
     w("\\ The rest as the original keeps it, in its order: the song table, the")
-    w("\\ pattern lists, the patterns, the instruments (each a step time, then")
-    w("\\ volumes) and the arpeggios; only the bytes the songs read.")
+    w("\\ pattern lists (a pattern's number for each address, 0 the list's")
+    w("\\ end), the patterns, the instruments (each a step time, then volumes)")
+    w("\\ and the arpeggios; only the bytes the songs read.")
 
     line = []
 
@@ -237,9 +254,14 @@ def emit(m, kinds, words, insts, arps, notes):
                 flush()
             line.append(f"&{m[a]:02X}")
         elif k == "w":
-            flush()
             t = words[a]
-            w(f"    EQUW {labels[t][0] if t else 0}")
+            if dw.SONG_TABLE <= a < song_end:
+                flush()
+                w(f"    EQUW {labels[t][0]}")
+            else:
+                if len(line) == 12:
+                    flush()
+                line.append(str(number[t]) if t else "0")
     flush()
     return "\n".join(out) + "\n", len(kinds)
 
@@ -263,9 +285,10 @@ def main():
     kinds, words, insts, arps, top, offset = play_all(b1)
     if top >= NOTES:
         raise SystemExit(f"note {top} is past the note table")
-    # src/music.6502 keeps a voice's place in its list in a byte.
-    if offset > 0xFF:
-        raise SystemExit(f"a pattern list is longer than a byte's offset: {offset}")
+    # src/music.6502 keeps a voice's place in its list in a byte, an
+    # entry's number (the original's offset is two bytes an entry).
+    if offset // 2 > 0xFF:
+        raise SystemExit(f"a pattern list is longer than a byte's count: {offset // 2} entries")
     text, nbytes = emit(m, kinds, words, insts, arps, top + 1)
     with open(OUT, "w") as f:
         f.write(text)
