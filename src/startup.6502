@@ -130,8 +130,7 @@ ENDIF
 .pal
     LDA palette,X : STA ula_pal
     DEX : BPL pal
-    LDA #0 : STA vsyncs
-    JSR install_irq
+    JSR install_irq                 ; (vsyncs is 0: start cleared the fixed zero page)
     LDA #8 : STA crtc_reg           ; the display on, once it's set up
     LDA #0 : STA crtc_data
     RTS
