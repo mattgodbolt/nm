@@ -66,7 +66,7 @@
 \ column in DE.)
 .print_at
 {
-    STX cursor_col : STY cursor_row
+    STX PrintPos : STY PrintPos+1
     \ (fall into print_inline)
 }
 .print_inline
@@ -100,17 +100,17 @@
     CLC : ADC #LO(font) : STA glyph
     LDA glyph+1 : ADC #HI(font) : STA glyph+1
     \ the cell's colours
-    LDA cursor_row : ASL A : ASL A : ASL A : ASL A : ASL A : STA cell
-    LDA cursor_row : LSR A : LSR A : LSR A : CLC : ADC #HI(attrs) : STA cell+1
-    LDA cell : ORA cursor_col : CLC : ADC #LO(attrs) : STA cell
+    LDA PrintPos+1 : ASL A : ASL A : ASL A : ASL A : ASL A : STA cell
+    LDA PrintPos+1 : LSR A : LSR A : LSR A : CLC : ADC #HI(attrs) : STA cell+1
+    LDA cell : ORA PrintPos : CLC : ADC #LO(attrs) : STA cell
     BCC c : INC cell+1
 .c
     LDY #0 : LDA (cell),Y
     JSR attr_colours
     \ the screen: screen + row * &200 + col * 16
-    LDA cursor_col : ASL A : ASL A : ASL A : ASL A : STA cell
-    LDA cursor_row : ASL A : ADC #HI(screen) : STA cell+1
-    LDA cursor_col : LSR A : LSR A : LSR A : LSR A : CLC : ADC cell+1 : STA cell+1
+    LDA PrintPos : ASL A : ASL A : ASL A : ASL A : STA cell
+    LDA PrintPos+1 : ASL A : ADC #HI(screen) : STA cell+1
+    LDA PrintPos : LSR A : LSR A : LSR A : LSR A : CLC : ADC cell+1 : STA cell+1
     LDY #0
 .line
     STY ptmp
@@ -120,12 +120,12 @@
     LDA lo_nibble,X : AND dt_mask : EOR dt_paper : STA (cell),Y
     LDY ptmp : INY : CPY #8 : BNE line
     \ the cursor
-    INC cursor_col
-    LDA cursor_col : CMP #SCREEN_COLS : BNE done
-    LDA #0 : STA cursor_col
-    INC cursor_row
-    LDA cursor_row : CMP #SCREEN_ROWS : BNE done
-    LDA #0 : STA cursor_row
+    INC PrintPos
+    LDA PrintPos : CMP #SCREEN_COLS : BNE done
+    LDA #0 : STA PrintPos
+    INC PrintPos+1
+    LDA PrintPos+1 : CMP #SCREEN_ROWS : BNE done
+    LDA #0 : STA PrintPos+1
 .done
     RTS
     ZA_AUTO1 ptmp

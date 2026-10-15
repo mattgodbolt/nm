@@ -47,16 +47,16 @@
     LDA #0 : STA (at),Y
     \ &D117: the cell's row and column, in characters (two to a tile)
     TYA : ASL A : AND #&3E
-    STA p1_col : STA p2_col
+    STA Player1 : STA Player2
     JSR view_from                   ; the view's column
-    STA view_col
+    STA ViewOrigin+1
     LDA at+1 : SEC : SBC #HI(map)
     STA tmp
     TYA : LSR tmp : ROR A : LSR tmp : ROR A : LSR tmp : ROR A : LSR tmp : ROR A
     AND #&3E
-    STA p1_row : STA p2_row
+    STA Player1+1 : STA Player2+1
     JSR view_from
-    STA view_row
+    STA ViewOrigin
     JMP next
     ZA_AUTO1 tmp
 }

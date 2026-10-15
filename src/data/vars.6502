@@ -1,0 +1,77 @@
+\ The original's variables (tools/mkvars.py, decision 10): each
+\ label from disasm/*.ctl, at its offset in the port's copy of the block.
+
+\ &BA29-&BA9F: vars_ba
+StarPattern = vars_ba + &00   ; &BA29
+Unused_BA31 = vars_ba + &08   ; &BA31
+FloorQuarter = vars_ba + &09   ; &BA32
+Unused_BA3A = vars_ba + &11   ; &BA3A
+Star1 = vars_ba + &12   ; &BA3B
+Star2 = vars_ba + &17   ; &BA40
+PrintPos = vars_ba + &1C   ; &BA45
+P1Facing = vars_ba + &1E   ; &BA47
+P2Facing = vars_ba + &1F   ; &BA48
+OldPos = vars_ba + &20   ; &BA49
+MapStamp = vars_ba + &22   ; &BA4B
+ViewOrigin = vars_ba + &23   ; &BA4C
+Player1 = vars_ba + &25   ; &BA4E
+P1Treasure = vars_ba + &27   ; &BA50
+P1Strength = vars_ba + &29   ; &BA52
+P1Power = vars_ba + &2B   ; &BA54
+P1Armour = vars_ba + &2D   ; &BA56
+P1Skull = vars_ba + &2E   ; &BA57
+P1Heart = vars_ba + &2F   ; &BA58
+P1Keys = vars_ba + &30   ; &BA59
+P1Magic = vars_ba + &31   ; &BA5A
+P1Bounces = vars_ba + &32   ; &BA5B
+P1Ring = vars_ba + &33   ; &BA5C
+Player2 = vars_ba + &34   ; &BA5D
+P2Treasure = vars_ba + &36   ; &BA5F
+P2Strength = vars_ba + &38   ; &BA61
+P2Power = vars_ba + &3A   ; &BA63
+P2Armour = vars_ba + &3C   ; &BA65
+P2Skull = vars_ba + &3D   ; &BA66
+P2Heart = vars_ba + &3E   ; &BA67
+P2Keys = vars_ba + &3F   ; &BA68
+P2Magic = vars_ba + &40   ; &BA69
+P2Bounces = vars_ba + &41   ; &BA6A
+P2Ring = vars_ba + &42   ; &BA6B
+FreezeTimer = vars_ba + &43   ; &BA6C
+CreeperHits = vars_ba + &44   ; &BA6D
+P1LastFacing = vars_ba + &47   ; &BA70
+P2LastFacing = vars_ba + &48   ; &BA71
+SparkleFrame = vars_ba + &49   ; &BA72
+InPlay = vars_ba + &4A   ; &BA73
+Level = vars_ba + &4B   ; &BA74
+ScanQuarter = vars_ba + &4C   ; &BA75
+MenuColour = vars_ba + &4D   ; &BA76
+MoveSweep = vars_ba + &4E   ; &BA77
+MonNewPos = vars_ba + &56   ; &BA7F
+MonOldPos = vars_ba + &58   ; &BA81
+MonCode = vars_ba + &5A   ; &BA83
+MonFacing = vars_ba + &5B   ; &BA84
+StepV = vars_ba + &5C   ; &BA85
+StepH = vars_ba + &5D   ; &BA86
+SpawnOffsets = vars_ba + &5E   ; &BA87
+TrapPos = vars_ba + &68   ; &BA91
+SpreadCursor = vars_ba + &6C   ; &BA95
+ScanPhase = vars_ba + &6E   ; &BA97
+HitFlag = vars_ba + &6F   ; &BA98
+
+\ &FF2A-&FF61: vars_ff
+PasswordTyped = vars_ff + &00   ; &FF2A
+TouchCount = vars_ff + &04   ; &FF2E
+TouchSpare = vars_ff + &06   ; &FF30
+TouchTreasure = vars_ff + &07   ; &FF31
+TouchStrength = vars_ff + &08   ; &FF32
+TouchCode = vars_ff + &09   ; &FF33
+StarDirs = vars_ff + &0A   ; &FF34
+Bounces = vars_ff + &1A   ; &FF44
+P1Frozen = vars_ff + &1B   ; &FF45
+P2Frozen = vars_ff + &1C   ; &FF46
+StarInk = vars_ff + &1D   ; &FF47
+IdleStage = vars_ff + &1E   ; &FF48
+IdleTicks = vars_ff + &1F   ; &FF49
+StatusPasses = vars_ff + &20   ; &FF4A
+LevelPtr = vars_ff + &34   ; &FF5E
+RepeatCount = vars_ff + &36   ; &FF60

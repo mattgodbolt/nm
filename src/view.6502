@@ -1,5 +1,5 @@
 \ ***************************************************************************
-\ The view: 12 x 12 tiles of the map, from (view_row, view_col), in
+\ The view: 12 x 12 tiles of the map, from (ViewOrigin, ViewOrigin+1), in
 \ characters, drawn in the screen's columns 8-31 (&C54C).
 \ ***************************************************************************
 
@@ -12,10 +12,10 @@ VIEW_LEFT = 8               ; the view's first screen column (the panel's left o
     ZA_AUTO1 col
     ZA_AUTO1 row
     \ &C574: the map's cell at the view's origin
-    LDA view_row : LSR A : STA cell+1
+    LDA ViewOrigin : LSR A : STA cell+1
     LDA #0 : LSR cell+1 : ROR A : LSR cell+1 : ROR A : LSR cell+1 : ROR A
     STA cell
-    LDA view_col : LSR A : AND #&1F : ORA cell : STA cell
+    LDA ViewOrigin+1 : LSR A : AND #&1F : ORA cell : STA cell
     LDA cell+1 : CLC : ADC #HI(map) : STA cell+1
     LDA #0 : STA row
 .rows

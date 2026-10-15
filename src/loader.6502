@@ -2,6 +2,7 @@
 \ The loader: NDATA into the highest free sideways RAM bank (no ROM found
 \ there at start-up, and a byte at &8000 can be flipped), as Chuckie Egg
 \ 2's MENU does, then NINJA. Its number is left at DATA_BANK_ZP.
+\ (Before NINJA loads: NDATA loads at &3000, which NINJA's file covers.)
 \ ***************************************************************************
 
 ld_ptr  = &70               ; the OS leaves &70-&8F to us
@@ -40,8 +41,21 @@ ld_ptr2 = &72
     LDA ld_ptr2+1 : CMP #&C0 : BNE copy_bank
     LDA romshad : STA romsel
     CLI
-    LDX #LO(run_game) : LDY #HI(run_game) : JMP oscli
+    \ NINJA, at CODE_LOAD (above the DFS's workspace), then down to
+    \ CODE_BASE, a page at a time from the bottom (the copy's source is
+    \ above its destination). Interrupts stay off: the game takes them.
+    LDX #LO(load_game) : LDY #HI(load_game) : JSR oscli
+    SEI
+    LDA #HI(CODE_LOAD) : STA ld_ptr+1 : LDA #HI(CODE_BASE) : STA ld_ptr2+1
+    LDY #0 : STY ld_ptr : STY ld_ptr2
+    LDX #HI(code_end - code_start + &FF)
+.copy_code
+    LDA (ld_ptr),Y : STA (ld_ptr2),Y
+    INY : BNE copy_code
+    INC ld_ptr+1 : INC ld_ptr2+1
+    DEX : BNE copy_code
+    JMP start
 .load_data EQUS "LOAD NDATA 3000", 13
-.run_game EQUS "RUN NINJA", 13
+.load_game EQUS "LOAD NINJA", 13
 .no_swr EQUS "NINJA MASSACRE needs 16K of sideways RAM", 13, 10, 0
 }

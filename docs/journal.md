@@ -102,3 +102,21 @@ the build after baron had written the disc, and the next run took that
 disc as up to date. Now the Makefile has `.DELETE_ON_ERROR`, the check's
 build runs each level's title too, and the check runs with its own exit
 status read.
+
+### The research, and the frame for the game
+
+The three parts of the disassembly came back: `docs/research/core.md`,
+`players.md` and `monsters.md`, with `disasm/*.ctl`, and `make disasm`
+builds a labelled skool file from them (it's in `make check` now). They
+corrected the brief in places: a run in the level data is one tile longer
+than its count; the "random decorations" don't show (they're the trap
+doors' hidden bits and the monsters' health); the slide's block moves are
+`ShiftUp`/`ShiftDown`/`ShiftLeft`/`ShiftRight`. Two more of the R reads
+only shape sounds (the hit noise and the burst), so they stay out of the
+shared stream (decision 7).
+
+The variables are all in &BA29-&BA9F and &FF2A-&FF61, with tables among
+them, so the port keeps both blocks in the original's layout, from the
+tape's bytes, named from the ctl files (`tools/mkvars.py`, decision 10).
+The code now loads at &1900 and the loader copies it down to &0E00, and
+the map and the attributes are in OS workspace (decision 11).

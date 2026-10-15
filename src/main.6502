@@ -45,32 +45,33 @@ SECTION Data, org = &8000, load = &FFFF3000, filename = "NDATA", guard = &C000
     PRINT "sideways data &8000-&", ~data_end, " (", &C000 - data_end, " bytes free)"
 ENDSECTION
 
-\ The game's state that lasts: fixed zero page (not baron's pool).
-SECTION ZeroPage, org = &00, guard = &70, virtual = TRUE
+\ The game's own state that lasts: fixed zero page (not baron's pool,
+\ which is the rest of zero page up to DATA_BANK_ZP). The original's
+\ variables are in vars_ba and vars_ff (decision 10).
+ZP_FIXED = &10
+SECTION ZeroPage, org = &00, guard = ZP_FIXED, virtual = TRUE
 .vsyncs     SKIP 1          ; counts VSyncs (irq.6502)
 .seed       SKIP 1          ; the random generator's state (level.6502)
-.view_row   SKIP 1          ; the view's origin, in characters (&BA4C)
-.view_col   SKIP 1          ; (&BA4D)
-.p1_col     SKIP 1          ; player 1's position, in characters (&BA4E)
-.p1_row     SKIP 1          ; (&BA4F)
-.p2_col     SKIP 1          ; player 2's (&BA5D)
-.p2_row     SKIP 1          ; (&BA5E)
 .floor_ink  SKIP 1          ; the level's floor colour, a Spectrum ink (colour.6502)
-.cursor_col SKIP 1          ; the print position (&BA45)
-.cursor_row SKIP 1          ; (&BA46)
 ENDSECTION
 
-\ Workspace below the code, which the DFS no longer needs once NINJA is
-\ loaded: the level being played, 32 x 32 tiles (the original's &BC00).
-SECTION Work, org = &1000, guard = &1900, virtual = TRUE
-.map        SKIP 32 * 32
-.ink_mask   SKIP 8          ; each Spectrum ink's MODE 1 byte (colour.6502)
-    ALIGN 32
+\ OS workspace the game takes once it owns the machine (decision 11): the
+\ language's pages, and the sound and buffer pages, whose interrupts are
+\ stopped (install_irq).
+SECTION Work, org = &0400, guard = &0D00, virtual = TRUE
+.map        SKIP 32 * 32    ; the level being played (the original's &BC00)
 .attrs      SKIP SCREEN_ROWS * SCREEN_COLS  ; the original's attributes (&5800, text.6502)
+.ink_mask   SKIP 8          ; each Spectrum ink's MODE 1 byte (colour.6502)
 ENDSECTION
+    ASSERT LO(map) = 0 AND LO(attrs) = 0
 
-SECTION Code, org = &1900, load = &FFFF1900, exec = &FFFF0000 + start, filename = "NINJA", guard = screen
-    ZA_POOL &70..&8F
+\ NINJA loads at &1900, above the DFS's workspace, and the loader copies
+\ it down to CODE_BASE (loader.6502).
+CODE_BASE = &0E00
+CODE_LOAD = &1900
+SECTION Code, org = CODE_BASE, load = &FFFF0000 OR CODE_LOAD, exec = &FFFF0000 + start, filename = "NINJA", guard = screen
+    ZA_POOL ZP_FIXED..DATA_BANK_ZP-1
+.code_start
     INCLUDE "startup.6502"
     INCLUDE "irq.6502"
     INCLUDE "screen.6502"
@@ -91,6 +92,12 @@ SECTION Code, org = &1900, load = &FFFF1900, exec = &FFFF0000 + start, filename 
     INCBIN "data/font.bin"
 .title_attr
     INCBIN "data/titleattr.bin"
+    \ The original's variables, as the tape leaves them (tools/mkvars.py)
+.vars_ba
+    INCBIN "data/vars_ba.bin"
+.vars_ff
+    INCBIN "data/vars_ff.bin"
+    INCLUDE "data/vars.6502"
 .code_end
-    PRINT "code &1900-&", ~code_end, " (", screen - code_end, " bytes free below the screen)"
+    PRINT "code &", ~code_start, "-&", ~code_end, " (", screen - code_end, " bytes free below the screen)"
 ENDSECTION
