@@ -7,6 +7,8 @@
 
 INCLUDE "defs.6502"
 
+DATA_MAGIC = "NDATA"
+
 \ The build stamp comes from the Makefile (-D BUILD="date time sha"), so a
 \ disc says what it is: *TYPE !BOOT shows it. A + after the sha means the
 \ tree had uncommitted changes.
@@ -18,11 +20,46 @@ ENDIF
 
 SECTION Boot, filename = "!BOOT", exec = &FFFFFFFF
     EQUS "*| NINJA MASSACRE ", build_stamp, 13
-    EQUS "*RUN NINJA", 13
+    EQUS "*RUN NLOAD", 13
 ENDSECTION
 
-SECTION ZeroPage, org = &00, guard = &90, virtual = TRUE
+\ The loader (loader.6502): NDATA into a sideways RAM bank, then NINJA. It
+\ runs from where MODE 7 leaves free, above anything it loads.
+SECTION Loader, org = &7000, load = &FFFF7000, exec = &FFFF0000 + loader, filename = "NLOAD", guard = &7C00
+    INCLUDE "loader.6502"
+ENDSECTION
+
+\ What goes in sideways RAM (decision 6): loaded at &3000 and copied to
+\ the bank, which the game pages in for good.
+SECTION Data, org = &8000, load = &FFFF3000, filename = "NDATA", guard = &C000
+.data_magic
+    EQUS DATA_MAGIC
+    \ The levels (tools/mklevels.py)
+.levels
+    INCBIN "data/levels.bin"
+    INCLUDE "data/levels.6502"
+.data_end
+    PRINT "sideways data &8000-&", ~data_end, " (", &C000 - data_end, " bytes free)"
+ENDSECTION
+
+\ The game's state that lasts: fixed zero page (not baron's pool).
+SECTION ZeroPage, org = &00, guard = &70, virtual = TRUE
 .vsyncs     SKIP 1          ; counts VSyncs (irq.6502)
+.seed       SKIP 1          ; the random generator's state (level.6502)
+.view_row   SKIP 1          ; the view's origin, in characters (&BA4C)
+.view_col   SKIP 1          ; (&BA4D)
+.p1_col     SKIP 1          ; player 1's position, in characters (&BA4E)
+.p1_row     SKIP 1          ; (&BA4F)
+.p2_col     SKIP 1          ; player 2's (&BA5D)
+.p2_row     SKIP 1          ; (&BA5E)
+.floor_ink  SKIP 1          ; the level's floor colour, a Spectrum ink (colour.6502)
+ENDSECTION
+
+\ Workspace below the code, which the DFS no longer needs once NINJA is
+\ loaded: the level being played, 32 x 32 tiles (the original's &BC00).
+SECTION Work, org = &1000, guard = &1900, virtual = TRUE
+.map        SKIP 32 * 32
+.ink_mask   SKIP 8          ; each Spectrum ink's MODE 1 byte (colour.6502)
 ENDSECTION
 
 SECTION Code, org = &1900, load = &FFFF1900, exec = &FFFF0000 + start, filename = "NINJA", guard = screen
@@ -30,6 +67,16 @@ SECTION Code, org = &1900, load = &FFFF1900, exec = &FFFF0000 + start, filename 
     INCLUDE "startup.6502"
     INCLUDE "irq.6502"
     INCLUDE "screen.6502"
+    INCLUDE "unpack.6502"
+    INCLUDE "level.6502"
+    INCLUDE "view.6502"
+    INCLUDE "colour.6502"
+    INCLUDE "tables.6502"
+    \ Data from the original (tools/mkgfx.py, tools/mklevels.py)
+.blocks
+    INCBIN "data/blocks.bin"
+.tileattr
+    INCBIN "data/tileattr.bin"
 .code_end
     PRINT "code &1900-&", ~code_end, " (", screen - code_end, " bytes free below the screen)"
 ENDSECTION

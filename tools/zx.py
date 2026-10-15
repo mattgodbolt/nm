@@ -53,6 +53,42 @@ PALETTE = [(0, 0, 0), (0, 0, N), (N, 0, 0), (N, 0, N), (0, N, 0), (0, N, N), (N,
            (0, 0, 0), (0, 0, B), (B, 0, 0), (B, 0, B), (0, B, 0), (0, B, B), (B, B, 0), (B, B, B)]
 
 
+# The original's random numbers come from the Z80's R register, at these
+# 13 places (LD A,R; docs/research.md). A 6502 has no R, so the port has a
+# generator of its own (src/level.6502's random, decision 7), and for the
+# checks the original is made to use it too: share_random() puts the
+# generator in the publisher's mastering code (&B942-&BA28, which never
+# runs), with its state at RNG_STATE, and turns each LD A,R into RST &10;
+# NOP, with a JP to it at &0010 (the ROM's PRINT-A restart, which the game
+# never uses).
+RNG_SITES = [0xC3AE, 0xC3C3, 0xC4B0, 0xC7AF, 0xC8C6, 0xC8CC, 0xCEF5, 0xD095,
+             0xD0D7, 0xD317, 0xD3AD, 0xDAB1, 0xDAFF]
+RNG_STATE = 0xB942
+RNG_CODE = [
+    0x3A, 0x42, 0xB9,   # LD A,(RNG_STATE)
+    0x87,               # ADD A,A
+    0x30, 0x02,         # JR NC,+2
+    0xEE, 0x1D,         # XOR &1D
+    0x32, 0x42, 0xB9,   # LD (RNG_STATE),A
+    0xC9,               # RET
+]
+
+
+def share_random(spec, seed=1):
+    """Make the original take its random numbers from the port's generator."""
+    mem = spec.mem
+    for a in RNG_SITES:
+        assert (mem[a], mem[a + 1]) in ((0xED, 0x5F), (0xD7, 0x00)), f"&{a:04X} isn't LD A,R"
+        mem[a], mem[a + 1] = 0xD7, 0x00
+    for i, b in enumerate(RNG_CODE):
+        mem[RNG_STATE + 1 + i] = b
+    mem[RNG_STATE] = seed
+    roms = getattr(spec.sim.memory, "roms", None)
+    for rom in roms or [None]:
+        target = rom if rom is not None else mem
+        target[0x10], target[0x11], target[0x12] = 0xC3, (RNG_STATE + 1) & 0xFF, (RNG_STATE + 1) >> 8
+
+
 def parse_num(s):
     s = s.strip()
     if s.startswith("&"):

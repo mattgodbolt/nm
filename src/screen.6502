@@ -14,27 +14,3 @@
     INC ptr+1 : BPL page
     RTS
 }
-
-\ A test pattern: each character row a band of one of the four colours,
-\ with a cell-sized checkerboard at the top left, to see the geometry.
-.test_pattern
-{
-    ZA_AUTO2 ptr
-    ZA_AUTO1 row
-    LDA #0 : STA row : STA ptr
-    LDA #HI(screen) : STA ptr+1
-.rows
-    LDA row : AND #3 : TAX
-    LDA colours,X
-    LDY #0
-.fill
-    STA (ptr),Y : INY : BNE fill
-    INC ptr+1
-.fill2
-    STA (ptr),Y : INY : BNE fill2
-    INC ptr+1
-    INC row : LDA row : CMP #SCREEN_ROWS : BNE rows
-    RTS
-.colours
-    EQUB cbyte(0), cbyte(1), cbyte(2), cbyte(3)
-}

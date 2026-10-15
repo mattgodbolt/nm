@@ -1,0 +1,52 @@
+\ ***************************************************************************
+\ Colour: the original's attributes give each tile one ink on black paper.
+\ The BBC has four colours; each level maps the Spectrum's inks to them
+\ (decision 5).
+\ ***************************************************************************
+
+\ The Spectrum's colours (0-7: black, blue, red, magenta, green, cyan,
+\ yellow, white) as the BBC's physical ones.
+.zx_to_bbc
+    EQUB 0, 4, 1, 5, 2, 6, 3, 7
+
+FLOOR_TILES = {&00, &16, &1E}  ; the tiles whose ink is the level's floor colour (&C357)
+
+\ Set up level A's colours (0-49): &C357 sets the floor's ink, ((A + 1)
+\ AND 3) + 1, in the floor tiles' attributes; the BBC's logical colours
+\ follow from it.
+.level_colours
+{
+    CLC : ADC #1 : AND #3 : ADC #1 : STA floor_ink
+    \ (&C357: tiles &00, &16 and &1E take it as their attribute)
+    STA tileattr + &00 : STA tileattr + &16 : STA tileattr + &1E
+    \ the inks: black, yellow (the walls), the floor, and the rest in 3
+    LDX #7
+.inks
+    LDA #cbyte(3)
+    CPX #6 : BNE not_yellow
+    LDA #cbyte(1)
+.not_yellow
+    CPX floor_ink : BNE not_floor
+    LDA #cbyte(2)
+.not_floor
+    STA ink_mask,X
+    DEX : BNE inks
+    LDA #cbyte(0) : STA ink_mask
+    \ the palette: black, yellow, the floor, cyan
+    LDX floor_ink : LDA zx_to_bbc,X : STA pal_phys + 2
+    LDX #15
+.pal
+    \ (MODE 1: a pixel's logical colour is index bits 3 and 1)
+    TXA : LSR A : AND #1 : STA tmp
+    TXA : LSR A : LSR A : AND #2 : ORA tmp : TAY
+    TXA : ASL A : ASL A : ASL A : ASL A
+    ORA pal_phys,Y : EOR #7     ; (the ULA takes the physical colour EOR 7)
+    STA ula_pal
+    DEX : BPL pal
+    RTS
+    ZA_AUTO1 tmp
+}
+
+\ The logical colours' physical ones: black, yellow, (the floor), cyan.
+.pal_phys
+    EQUB 0, 3, 0, 6

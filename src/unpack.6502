@@ -1,0 +1,109 @@
+\ ***************************************************************************
+\ ZX02, unpacked (decision 4): tools/zx02.py packs, and its decompress() is
+\ the reference this follows. The stream: a bit says literals or a match;
+\ lengths and offsets' high parts are interlaced Elias gamma codes; a new
+\ offset's low byte carries the first bit of the length after it in its bit
+\ 0. Lengths are 8-bit, 0 meaning 256; an offset whose gamma wraps to 0
+\ ends the stream.
+\ ***************************************************************************
+
+ZA_AUTO2 zsrc               ; the next byte of the stream
+ZA_AUTO2 zdst               ; where the next byte goes
+ZA_AUTO2 zcp                ; a match's source
+ZA_AUTO2 znoff              ; NOT(the offset - 1): zdst + znoff is the match
+ZA_AUTO1 zbits             ; the bit buffer: a 1 shifted in behind the bits
+
+\ Unpack the stream at zsrc to zdst.
+.unzx02
+{
+    LDA #&80 : STA zbits
+    LDA #&FF : STA znoff : STA znoff+1  ; the first offset is 1
+.literals
+    JSR gamma
+    LDA zsrc : STA zcp
+    LDA zsrc+1 : STA zcp+1
+    JSR copy
+    \ the source moves on by as many
+    TYA : CLC : ADC zsrc : STA zsrc
+    BCC lit_c : INC zsrc+1
+.lit_c
+    LDA zcount : BNE lit_n : INC zsrc+1
+.lit_n
+    JSR getbit : BCS new_offset
+    \ a match at the last offset
+    JSR gamma
+.match
+    CLC
+    LDA zdst : ADC znoff : STA zcp
+    LDA zdst+1 : ADC znoff+1 : STA zcp+1
+    JSR copy
+    JSR getbit : BCC literals
+.new_offset
+    JSR gamma                   ; the offset's high part, plus one
+    TXA : BEQ done              ; (256: the end)
+    \ offset - 1 = (high - 1) * 128 + (low >> 1); its bit 0 is the length's
+    \ first bit
+    DEX : TXA : LSR A
+    EOR #&FF : STA znoff+1
+    LDY #0 : LDA (zsrc),Y
+    INC zsrc : BNE ofs_c : INC zsrc+1
+.ofs_c
+    ROR A                       ; the high part's bit 0 in, low bit 0 out
+    EOR #&FF : STA znoff
+    \ (EOR leaves C: the length's first continuation bit)
+    JSR gamma_c
+    INX                         ; the length is one more
+    JMP match
+.done
+    RTS
+}
+
+ZA_AUTO1 zcount             ; the count copy was given (0: 256)
+
+\ Copy X bytes (0: 256) from zcp to zdst, and move zdst on. Y = X after.
+.copy
+{
+    STX zcount
+    LDY #0
+.loop
+    LDA (zcp),Y : STA (zdst),Y
+    INY : DEX : BNE loop
+    TYA : CLC : ADC zdst : STA zdst
+    BCC c : INC zdst+1
+.c
+    LDA zcount : BNE n : INC zdst+1
+.n
+    RTS
+}
+
+\ An interlaced Elias gamma value into X (8-bit: 0 is 256), its first
+\ continuation bit read (gamma) or in C (gamma_c).
+.gamma
+    JSR getbit
+.gamma_c
+{
+    LDX #1
+.loop
+    BCC done
+    JSR getbit
+    TXA : ROL A : TAX
+    JSR getbit
+    JMP loop
+.done
+    RTS
+}
+
+\ The stream's next bit, in C.
+.getbit
+{
+    ASL zbits : BNE done
+    STY ytmp
+    LDY #0 : LDA (zsrc),Y
+    INC zsrc : BNE c : INC zsrc+1
+.c
+    SEC : ROL A : STA zbits
+    LDY ytmp
+.done
+    RTS
+}
+ZA_AUTO1 ytmp

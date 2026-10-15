@@ -1,0 +1,115 @@
+\ ***************************************************************************
+\ The view: 12 x 12 tiles of the map, from (view_row, view_col), in
+\ characters, drawn in the screen's columns 8-31 (&C54C).
+\ ***************************************************************************
+
+VIEW_LEFT = 8               ; the view's first screen column (the panel's left of it)
+
+\ Draw the whole view (&C54C).
+.draw_view
+{
+    ZA_AUTO2 cell
+    ZA_AUTO1 col
+    ZA_AUTO1 row
+    \ &C574: the map's cell at the view's origin
+    LDA view_row : LSR A : STA cell+1
+    LDA #0 : LSR cell+1 : ROR A : LSR cell+1 : ROR A : LSR cell+1 : ROR A
+    STA cell
+    LDA view_col : LSR A : AND #&1F : ORA cell : STA cell
+    LDA cell+1 : CLC : ADC #HI(map) : STA cell+1
+    LDA #0 : STA row
+.rows
+    LDA #VIEW_LEFT : STA col
+.cols
+    LDY #0 : LDA (cell),Y
+    LDX row : LDY col
+    JSR draw_cell
+    INC cell : BNE c : INC cell+1
+.c
+    LDA col : CLC : ADC #2 : STA col
+    CMP #SCREEN_COLS : BCC cols
+    LDA cell : CLC : ADC #32 - 12 : STA cell
+    BCC c2 : INC cell+1
+.c2
+    LDA row : CLC : ADC #2 : STA row
+    CMP #SCREEN_ROWS : BCC rows
+    RTS
+}
+
+\ &C59A: draw the map's tile A at screen row X, column Y (characters).
+\ Players and monsters (&40 and up) are drawn as floor; the walls'
+\ variant bits (3 and 4) are dropped.
+.draw_cell
+{
+    CMP #&40 : BCC lo
+    LDA #0
+.lo
+    CMP #&20 : BCC draw
+    AND #&27
+.draw
+    \ (fall into draw_tile)
+}
+
+\ Draw tile or block A (its graphic at blocks + 32A, its colours from the
+\ original's attribute for it, &FF02) at screen row X, column Y. (Flash,
+\ which only tile &13 has, isn't shown yet.)
+.draw_tile
+{
+    STX dt_row : STY dt_col
+    PHA : TAX
+    LDA tileattr,X : PHA
+    LSR A : LSR A : LSR A : AND #7 : TAY
+    LDA ink_mask,Y : STA dt_paper
+    PLA : AND #7 : TAY
+    LDA ink_mask,Y : EOR dt_paper : STA dt_mask
+    PLA
+    JMP draw_block_at
+}
+
+\ Draw block A at (dt_row, dt_col): a set pixel in dt_mask EOR dt_paper,
+\ the rest in dt_paper (the colours' MODE 1 bytes; dt_mask is the ink's
+\ EOR the paper's, so (pixels AND dt_mask) EOR dt_paper is either).
+.draw_block_at
+{
+    \ the block: blocks + 32A
+    LDX #0 : STX bsrc+1
+    ASL A : ROL bsrc+1 : ASL A : ROL bsrc+1 : ASL A : ROL bsrc+1
+    ASL A : ROL bsrc+1 : ASL A : ROL bsrc+1
+    CLC : ADC #LO(blocks) : STA bsrc
+    LDA bsrc+1 : ADC #HI(blocks) : STA bsrc+1
+    \ the screen: screen + row * &200 + col * 16
+    LDA dt_col : ASL A : ASL A : ASL A : ASL A : STA scr
+    LDA dt_row : ASL A : ADC #HI(screen) : STA scr+1
+    LDA dt_col : LSR A : LSR A : LSR A : LSR A : CLC : ADC scr+1 : STA scr+1
+    JSR half                    ; the top 8 lines
+    INC scr+1 : INC scr+1       ; the next character row
+    \ (fall into half for the bottom 8)
+.half
+    LDX #0
+.line
+    STX bline
+    TXA : ASL A : TAY           ; this line's two source bytes
+    LDA (bsrc),Y : TAX
+    LDY bline
+    LDA hi_nibble,X : AND dt_mask : EOR dt_paper : STA (scr),Y
+    TYA : ORA #8 : TAY
+    LDA lo_nibble,X : AND dt_mask : EOR dt_paper : STA (scr),Y
+    LDA bline : ASL A : TAY : INY
+    LDA (bsrc),Y : TAX
+    LDA bline : ORA #16 : TAY
+    LDA hi_nibble,X : AND dt_mask : EOR dt_paper : STA (scr),Y
+    TYA : ORA #8 : TAY
+    LDA lo_nibble,X : AND dt_mask : EOR dt_paper : STA (scr),Y
+    LDX bline : INX : CPX #8 : BNE line
+    LDA bsrc : CLC : ADC #16 : STA bsrc
+    BCC done : INC bsrc+1
+.done
+    RTS
+}
+ZA_AUTO2 bsrc
+ZA_AUTO2 scr
+ZA_AUTO1 bline
+ZA_AUTO1 dt_row
+ZA_AUTO1 dt_col
+ZA_AUTO1 dt_mask
+ZA_AUTO1 dt_paper

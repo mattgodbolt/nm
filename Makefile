@@ -4,6 +4,7 @@
 #   make run      boot it in jsbeeb and grab a screenshot (shots/run.png)
 #   make check    every check (MODEL=Master to run them on a Master 128;
 #                 default B-DFS1.2)
+#   make views    every level's first view, against the original's
 #   make fetch    download the Spectrum original into original/
 #   make zx       load the original's tape into build/nm128.z80 and
 #                 build/nm48.z80 (SkoolKit)
@@ -27,7 +28,7 @@ TAPE     = original/Ninja Massacre (1989)(Code Masters)(48K-128K)[a].tzx
 # commit, with + if the tree had changes.
 BUILD   := $(shell date -u '+%Y-%m-%d %H:%M UTC') $(shell git rev-parse --short HEAD 2>/dev/null || echo NOGIT)$(shell git diff --quiet HEAD -- . 2>/dev/null || echo +)
 
-.PHONY: all run check fetch zx disasm venv music clean
+.PHONY: all run check views fetch zx disasm venv music clean
 
 all: $(TARGET)
 
@@ -38,10 +39,22 @@ $(TARGET): $(SOURCES) | build
 build:
 	mkdir -p build
 
+# The view check's disc: every level's first view in turn (VIEWCHECK).
+build/viewcheck.ssd: $(SOURCES) | build
+	$(ASM) -D VIEWCHECK=1 -D 'BUILD="$(BUILD) viewcheck"' -o $@ --title NINJA --opt 3 --warn 2 --symbols $(@:.ssd=.json) src/main.6502
+
+# Every level's first view, against the original's (tools/zxviews.py).
+views: build/viewcheck.ssd build/views/zx_50.scr
+	node tools/viewcheck.mjs
+	$(PYTHON) tools/viewcmp.py
+
+build/views/zx_50.scr: build/nm128.z80 tools/zxviews.py tools/zx.py tools/mklevels.py
+	$(PYTHON) tools/zxviews.py
+
 run: $(TARGET)
 	node tools/play.mjs '1,!run' shots/ --disc $(TARGET)
 
-check: $(TARGET)
+check: $(TARGET) views
 
 fetch:
 	tools/fetch_original.sh

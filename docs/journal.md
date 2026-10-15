@@ -43,3 +43,42 @@ harness (`zx.py`), and the Makefile's shape and CI.
 - The first layer, the screen: `src/main.6502` builds `build/nm.ssd`,
   whose `NINJA` sets MODE 1 on the narrowed CRTC in the hardware, takes
   IRQ1V for VSync and draws a test pattern (decision 1).
+
+### Disassembly, in three parts
+
+Three agents are taking the original apart in parallel, each with its own
+range of the code and its own control file and notes: the core (start-up,
+the main loop, levels, the view, printing, the menu), the players and
+stars, and the monsters and items (`disasm/*.ctl`, `docs/research/`).
+
+### The levels and the view
+
+- `tools/mkgfx.py` takes the graphics and tables from the 48K load: the
+  192 blocks, the font, the tiles' attributes, the passwords and the
+  status panel, all one bit a pixel as the original keeps them.
+- `tools/mklevels.py` transcribes the level decoder (&C418) in Python.
+  `tools/levelcheck.py` runs the original's own decoder for every level in
+  turn and compares: all 50 match, and the pointer ends in the same place.
+  (A run's count is one less than the tiles it makes, and a count of 0
+  makes 256, which the brief's script had one more of.) The maps it makes
+  are packed with ZX02 (decision 4) into NDATA, which a loader puts in
+  sideways RAM (decision 6).
+- The port's first layers: a ZX02 unpacker (`unpack.6502`), the level's
+  load and the original's pass over it (`level.6502`, &C39C), and the view
+  (`view.6502`, &C54C/&C574/&C59A): 12 x 12 tiles, each a one-bit block
+  coloured as it's drawn, its byte of pixels made two MODE 1 bytes by a
+  table and masked with the colour.
+- The random numbers: the original reads R in 13 places. The port has a
+  generator of its own, and for the checks `tools/zx.py`'s `share_random`
+  makes the original use the same one: each LD A,R becomes RST &10, which
+  jumps to the generator, put in the publisher's mastering code that
+  never runs (decision 7).
+- `make views`: the original draws each level's first view
+  (`tools/zxviews.py`: stop at the level's set-up, make it that level, run
+  until the view is drawn), the port does the same in a test build that
+  steps through the levels (`VIEWCHECK`, `tools/viewcheck.mjs`), and
+  `tools/viewcmp.py` compares every pixel of the playfield in the port's
+  colours (decision 5). At first 42 of the 50 matched. Tile &13, the
+  spreading one, is the only tile with a paper that isn't black (green on
+  magenta, flashing), so the drawing now takes a paper colour too, and the
+  check's floor colour for level 50 was wrong. Now all 50 match.

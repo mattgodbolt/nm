@@ -2,17 +2,53 @@
 \ Start-up: take the machine from the OS and set up the screen.
 \ ***************************************************************************
 
+IF DEFINED(LEVEL)
+    START_LEVEL = LEVEL         ; (-D LEVEL=n: start there, for the checks)
+ELSE
+    START_LEVEL = 0
+ENDIF
+
 .start
 {
     ZA_ENTRY
     SEI
     LDX #&FF : TXS
+    \ The data's bank (the loader left its number), paged in for good. The
+    \ OS's copy too, which it puts back after paging ROMs itself.
+    LDA DATA_BANK_ZP : STA romshad : STA romsel
     JSR init_system
     JSR cls
-    JSR test_pattern
+IF DEFINED(VIEWCHECK)
+    JMP view_check
+ENDIF
+    LDA #1 : STA seed
+    LDA #START_LEVEL
+    PHA : JSR level_colours : PLA
+    JSR level_load
+    JSR draw_view
 .idle
     JMP idle
 }
+
+IF DEFINED(VIEWCHECK)
+\ The view check's build (tools/viewcheck.mjs): every level's first view,
+\ one after another, the random generator seeded as tools/zxviews.py
+\ seeds the original's. The tool dumps the screen at view_done.
+VIEW_SEED = 1
+.view_check
+    LDA #0
+.vc_level
+    PHA
+    LDA #VIEW_SEED : STA seed
+    PLA : PHA : JSR level_colours
+    PLA : PHA : JSR level_load
+    JSR draw_view
+.view_done
+    PLA : CLC : ADC #1
+    CMP #LEVELS : BNE vc_level
+.vc_done
+    JMP vc_done
+ENDIF
 
 \ MODE 1's pixels on the narrowed CRTC, set in the hardware: an OS mode
 \ change would want the OS's workspace, which the game takes.

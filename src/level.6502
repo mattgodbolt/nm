@@ -1,0 +1,88 @@
+\ ***************************************************************************
+\ The level: unpacked into map, then the original's pass over it (&C39C),
+\ which gives walls their random variants and finds the start.
+\ ***************************************************************************
+
+\ Load level A (0-49) into map, and set the players' and the view's start.
+.level_load
+{
+    TAX
+    LDA level_lo,X : STA zsrc
+    LDA level_hi,X : STA zsrc+1
+    LDA #LO(map) : STA zdst
+    LDA #HI(map) : STA zdst+1
+    JSR unzx02
+    \ &C39C: every byte of the map
+    ZA_AUTO2 at
+    LDA #LO(map) : STA at
+    LDA #HI(map) : STA at+1
+    LDY #0
+.each
+    LDA (at),Y
+    CMP #&20 : BCC next             ; floor, walls and the like: as they are
+    CMP #&7F : BEQ found_start      ; the start
+    CMP #&27 : BEQ next
+    BCS swap                        ; &28 and up
+    \ &20-&26: a random variant in bits 3 and 4
+    STA tmp
+    JSR random : AND #&18 : ORA tmp
+    STA (at),Y
+    JMP next
+.swap
+    \ &28 and up: the nibbles swapped, then random bits 2 and 3 (bits 0
+    \ and 1 cleared)
+    CMP #&80 : ROL A                ; (rotate left: the top bit into bit 0)
+    CMP #&80 : ROL A
+    CMP #&80 : ROL A
+    CMP #&80 : ROL A
+    STA tmp
+    JSR random : AND #&0C : ORA tmp : AND #&FC
+    STA (at),Y
+.next
+    INY : BNE each
+    INC at+1
+    LDA at+1 : CMP #HI(map) + 4 : BNE each
+    RTS
+.found_start
+    LDA #0 : STA (at),Y
+    \ &D117: the cell's row and column, in characters (two to a tile)
+    TYA : ASL A : AND #&3E
+    STA p1_col : STA p2_col
+    JSR view_from                   ; the view's column
+    STA view_col
+    LDA at+1 : SEC : SBC #HI(map)
+    STA tmp
+    TYA : LSR tmp : ROR A : LSR tmp : ROR A : LSR tmp : ROR A : LSR tmp : ROR A
+    AND #&3E
+    STA p1_row : STA p2_row
+    JSR view_from
+    STA view_row
+    JMP next
+    ZA_AUTO1 tmp
+}
+
+\ &C3EA: the view's origin for a player at A (characters): ten
+\ characters before, within 0-40.
+.view_from
+{
+    SEC : SBC #10 : BCC zero
+    CMP #VIEW_MAX + 1 : BCC done
+    LDA #VIEW_MAX
+.done
+    RTS
+.zero
+    LDA #0
+    RTS
+}
+VIEW_MAX = 40
+LEVELS = 50                 ; (the original's &C352: level 50 is the end)               ; the view's furthest origin: 64 - 24 characters
+
+\ A random byte (for now a small generator: the original reads R, and the
+\ checks will want both machines to share one, docs/brief.md D5).
+.random
+{
+    LDA seed : ASL A : BCC n : EOR #&1D
+.n
+    STA seed
+    RTS
+}
