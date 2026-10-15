@@ -52,6 +52,7 @@ ZA_AUTO1 sh_i                   ; shift_by's next byte, from shift_progs
 FOR k = 0..CP_PAIRS - 1
     LDA &FFFF,Y : STA &FFFF,Y
 NEXT
+    ASSERT HI(cp_pairs) = HI(P% - 1)
 .cp_step
     INY                         ; (or DEY: shift_by)
 .cp_end
@@ -139,8 +140,7 @@ NEXT
 .cp_set
 {
     TAX
-    CLC : ADC #LO(cp_pairs) : STA cp_go + 1 : STA cp_loop + 1
-    LDA #HI(cp_pairs) : ADC #0 : STA cp_go + 2 : STA cp_loop + 2
+    CLC : ADC #LO(cp_pairs) : STA cp_go + 1 : STA cp_loop + 1   ; (cp_pairs is in a page)
 .pair
     LDA cp_par + CP_SRC : STA cp_pairs + 1,X : CLC : ADC cp_par + CP_STRIDE : STA cp_par + CP_SRC
     LDA cp_par + CP_SRC + 1 : STA cp_pairs + 2,X : ADC cp_par + CP_STRIDE + 1 : STA cp_par + CP_SRC + 1

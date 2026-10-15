@@ -135,6 +135,8 @@ SECTION Code, org = CODE_BASE, load = &FFFF0000 OR CODE_LOAD, exec = &FFFF0000 +
 .blocks
     INCBIN "data/blocks.bin"
     ASSERT LO(blocks) = 0
+    \ The shifts next, so the copier's rows start at a page's start
+    INCLUDE "shift.6502"
     INCLUDE "irq.6502"
     INCLUDE "view.6502"
     INCLUDE "sprite.6502"
@@ -145,7 +147,6 @@ SECTION Code, org = CODE_BASE, load = &FFFF0000 OR CODE_LOAD, exec = &FFFF0000 +
     INCLUDE "monsters.6502"
     INCLUDE "stars.6502"
     INCLUDE "status.6502"
-    INCLUDE "shift.6502"
     INCLUDE "spread.6502"
     INCLUDE "stubs.6502"
     INCLUDE "bomb.6502"
