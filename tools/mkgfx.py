@@ -11,15 +11,18 @@ attributes do (docs/research.md).
   two bytes a pixel line, top line first (the drawer at &C5FC: block n at
   &DD00 + 32n)
 - font.bin: the font at &F500, 8 bytes a character from code 32 (the
-  print routine indexes it from &F400, 8 bytes a code)
+  print routine indexes it from &F400, 8 bytes a code) to Z, the last the
+  game prints (the font's last two, [ and \\, are blank)
 - tileattr.bin: each tile type's attribute, &FF02 (40 bytes)
 - passwords.bin: the 8 passwords at &FF62 (5 bytes each: the word, then
   the level it starts)
 - titleattr.bin: the title's attributes, &FF8A: two rows of 10 (&C1A6)
 - panel.zx02: the status panel, the loading screen's left 8 columns, which
-  the game never draws but keeps: 192 pixel lines of 8 bytes, top first,
-  then the 24 rows of 8 attributes; packed with ZX02 (decision 20: the
-  game unpacks it once, at start-up)
+  the game never draws but keeps: the 24 rows of 8 attributes, then each
+  character cell's 8 pixel lines, top first, a row of cells at a time (as
+  panel.6502's draw_panel reads them; and ZX02 packs cells smaller than
+  pixel lines); packed with ZX02 (decision 20: the game unpacks it once,
+  at start-up)
 """
 import os
 import sys
@@ -43,16 +46,18 @@ def main():
         print(f"{OUT}/{name}: {len(data)} bytes")
 
     write("blocks.bin", m[0xDD00:0xF500])
-    write("font.bin", m[0xF500:0xF6EE - (0xF6EE - 0xF500) % 8])
+    write("font.bin", m[0xF500:0xF500 + 8 * (ord("Z") + 1 - 32)])
     write("tileattr.bin", m[0xFF02:0xFF2A])
     write("passwords.bin", m[0xFF62:0xFF8A])
     write("titleattr.bin", m[0xFF8A:0xFF9E])
     panel = bytearray()
-    for y in range(192):
-        row = 0x4000 + ((y & 0xC0) << 5) + ((y & 7) << 8) + ((y & 0x38) << 2)
-        panel += m[row:row + 8]
     for r in range(24):
         panel += m[0x5800 + 32 * r:0x5800 + 32 * r + 8]
+    for r in range(24):
+        for c in range(8):
+            for line in range(8):
+                y = r * 8 + line
+                panel.append(m[0x4000 + ((y & 0xC0) << 5) + ((y & 7) << 8) + ((y & 0x38) << 2) + c])
     write("panel.zx02", zx02.compress(bytes(panel)))
 
 
