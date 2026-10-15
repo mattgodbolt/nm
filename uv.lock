@@ -357,12 +357,16 @@ source = { virtual = "." }
 dependencies = [
     { name = "music21" },
     { name = "numpy" },
+    { name = "pillow" },
+    { name = "skoolkit" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "music21", specifier = ">=10.5.0" },
     { name = "numpy", specifier = ">=2.5.1" },
+    { name = "pillow", specifier = ">=12.3.0" },
+    { name = "skoolkit", specifier = ">=10.1" },
 ]
 
 [[package]]
@@ -519,6 +523,24 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
+]
+
+[[package]]
+name = "skoolkit"
+version = "10.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6d/57/48a13306f34681c8d495e3abf42f42b9a022e2bdd83f89ccfcc82e53ac95/skoolkit-10.1.tar.gz", hash = "sha256:e71f0bac2bd38de1eacbb58650e95d43082351a1e9ecb8edecb11da112d02383", size = 1296256, upload-time = "2026-08-14T11:31:37.445Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/37/b0/59b013f0dcc5e96d6fa940641856926c89cf5930b5ed85c75b3c29202eb2/skoolkit-10.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:c33013e9bfa07ecbda0810dc6a910a5f8ac5f558af7eaa16eb27d262879b6fa8", size = 465621, upload-time = "2026-08-14T11:34:47.637Z" },
+    { url = "https://files.pythonhosted.org/packages/20/42/ccc69925a6c4b8ca52513ca06bd498cbf613b3e4db87d0a6ce27cc11481a/skoolkit-10.1-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:4526a4e84ba78432c958d3336109215f91969d43faf1200aaa325323e695bea2", size = 694590, upload-time = "2026-08-14T11:34:49.844Z" },
+    { url = "https://files.pythonhosted.org/packages/2d/fe/b90f4728918132f612554d0d7e82c46f127f2a8423e84e6439f8aecfa26b/skoolkit-10.1-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:0cbc7230b370c6d7ba9c914d5da0cdd2389330184c035e78320d75647948b2ad", size = 693524, upload-time = "2026-08-14T11:34:51.544Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/56/346926d13ccb7002e518208fc22ee0d0bec161182de153ba8b684d596974/skoolkit-10.1-cp313-cp313-win32.whl", hash = "sha256:5d227b2df2027a0530eefe665b256b1d7a7b22dc23bf4ea14d6650d7319f162c", size = 457154, upload-time = "2026-08-14T11:34:53.129Z" },
+    { url = "https://files.pythonhosted.org/packages/a4/d4/8736259c6c55fe65acd96a73d6aee60ae9e4e4a7109126a4dc9397dda1f0/skoolkit-10.1-cp313-cp313-win_amd64.whl", hash = "sha256:01c2f4cf1251d9f20d7efcca91d7d3b8a3b4485bb96f19ee5f2f5f74a8bdbd76", size = 459529, upload-time = "2026-08-14T11:34:54.594Z" },
+    { url = "https://files.pythonhosted.org/packages/ae/de/498a7eb657cdf372cbd45800e18c91f451e7c99378d98ae0551a8de35791/skoolkit-10.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:983ec5c0c32744e4522e01e4db7ad34908f5116dfcf10c7a9d75d5dea203ada5", size = 465568, upload-time = "2026-08-14T11:34:56.228Z" },
+    { url = "https://files.pythonhosted.org/packages/70/8d/93f16e91302a89b74699f8202132a9c63a42295505cfe30e02b6bb553d96/skoolkit-10.1-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:8e2a316b0bd71c02b1bb51e6ca419cb9287920dcc625d0e309238b513e59785e", size = 694493, upload-time = "2026-08-14T11:34:58.437Z" },
+    { url = "https://files.pythonhosted.org/packages/45/b6/4e4bd927f77a8758fb7dc73e6b7df688331aeba0a203f503a101e324714c/skoolkit-10.1-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:1bc9c009a988928b69839fad5874cfa7ce581392c197333501ff56daca5efe61", size = 693575, upload-time = "2026-08-14T11:35:00.477Z" },
+    { url = "https://files.pythonhosted.org/packages/1c/01/9aa867cf5b96a3986aa119532e7b5e0ad38556739bf9f2bd8d3f32f8bca3/skoolkit-10.1-cp314-cp314-win32.whl", hash = "sha256:b661b1a911967c6d588cd296a8e66f5ede5e458c5ce351103b86000cfa0a5c0f", size = 461218, upload-time = "2026-08-14T11:35:02.355Z" },
+    { url = "https://files.pythonhosted.org/packages/8b/bd/c50b8773c583652f077938b5e1ef3ddf269358ca803ccdcc3186cea0e081/skoolkit-10.1-cp314-cp314-win_amd64.whl", hash = "sha256:71d498d5ec4d467790aafe03156f4cd96338b82c1bf9aa0b924cb4a1aa9780b5", size = 463620, upload-time = "2026-08-14T11:35:04.021Z" },
 ]
 
 [[package]]

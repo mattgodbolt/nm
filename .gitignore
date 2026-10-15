@@ -1,29 +1,27 @@
-# Python-generated files
+build/
+shots/
+node_modules/
+.venv/
+.claude/
 __pycache__/
 *.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
-
-# Virtual environments
-.venv
-
-# Intermediate/generated files
-*.raw
-*.bin
-*.wav
-*.txt
-music.psg
-*.ym
-*.vgm
-
-# Source snapshots (large)
+# The original's files are fetched by `make fetch` (tools/fetch_original.sh),
+# not committed: they are not ours to redistribute.
+original/*
+!original/README.md
+!original/SHA256SUMS
+# Any snapshot of the original, wherever it is.
 *.z80
-
-# Cloned game collections
-/CPC
-/Spectrum
-
-# Cloned tools (use git submodules in future)
-/tools/
+# The music conversion's intermediate files (tools/music/build.sh), and the
+# tools it clones (music/tools/).
+music/tools/
+music/page_*.bin
+music/*.ym
+music/*.vgm
+music/song_*.raw
+music/song_*.txt
+# Old copies of the music's memory banks from before the reorganisation.
+/page_*.bin
+# Rendered audio (tools/music/audio_render.py): large, and made from the snapshot.
+*.wav
+!music/music_raw.wav

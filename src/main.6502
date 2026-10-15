@@ -1,0 +1,35 @@
+\ ***************************************************************************
+\ NINJA MASSACRE for the BBC Micro - build file
+\
+\ !BOOT runs NINJA, which loads at &1900 and runs there. (This is the first
+\ layer: the screen. The layout grows as the game does: docs/journal.md.)
+\ ***************************************************************************
+
+INCLUDE "defs.6502"
+
+\ The build stamp comes from the Makefile (-D BUILD="date time sha"), so a
+\ disc says what it is: *TYPE !BOOT shows it. A + after the sha means the
+\ tree had uncommitted changes.
+IF DEFINED(BUILD)
+    build_stamp = BUILD
+ELSE
+    build_stamp = "DEV"
+ENDIF
+
+SECTION Boot, filename = "!BOOT", exec = &FFFFFFFF
+    EQUS "*| NINJA MASSACRE ", build_stamp, 13
+    EQUS "*RUN NINJA", 13
+ENDSECTION
+
+SECTION ZeroPage, org = &00, guard = &90, virtual = TRUE
+.vsyncs     SKIP 1          ; counts VSyncs (irq.6502)
+ENDSECTION
+
+SECTION Code, org = &1900, load = &FFFF1900, exec = &FFFF0000 + start, filename = "NINJA", guard = screen
+    ZA_POOL &70..&8F
+    INCLUDE "startup.6502"
+    INCLUDE "irq.6502"
+    INCLUDE "screen.6502"
+.code_end
+    PRINT "code &1900-&", ~code_end, " (", screen - code_end, " bytes free below the screen)"
+ENDSECTION

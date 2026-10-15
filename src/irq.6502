@@ -1,0 +1,33 @@
+\ ***************************************************************************
+\ The interrupt: the game owns IRQ1V, and services only VSync.
+\ ***************************************************************************
+
+.install_irq
+{
+    SEI
+    LDA #&7F : STA sysvia_ier : STA usrvia_ier  ; anything we don't service
+    LDA #&82 : STA sysvia_ier                   ; VSync (CA1)
+    LDA #LO(irq_handler) : STA irq1v
+    LDA #HI(irq_handler) : STA irq1v + 1
+    CLI
+    RTS
+}
+
+.irq_handler
+{
+    LDA sysvia_ifr : AND #2 : BEQ done
+    STA sysvia_ifr                              ; acknowledge VSync
+    INC vsyncs
+.done
+    LDA &FC                                     ; the OS saved A here
+    RTI
+}
+
+\ Wait for the next VSync.
+.wait_vsync
+{
+    LDA vsyncs
+.wait
+    CMP vsyncs : BEQ wait
+    RTS
+}

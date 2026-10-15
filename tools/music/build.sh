@@ -12,7 +12,11 @@
 # skip straight to the conversion step if you don't have the snapshot.
 
 set -euo pipefail
-cd "$(dirname "$0")"
+# The scripts work in music/, where their inputs and outputs live; the
+# cloned tools go in music/tools/ (not committed), which player.asm's
+# INCLUDEs name.
+HERE="$(cd "$(dirname "$0")" && pwd)"
+cd "$HERE/../../music"
 
 # --- Clone and patch tools if needed ---
 
@@ -25,7 +29,7 @@ if [ ! -d tools/vgm-packer ]; then
     echo "=== Cloning and patching vgm-packer ==="
     git clone https://github.com/simondotm/vgm-packer.git tools/vgm-packer
     cd tools/vgm-packer
-    git apply ../../vgm-packer-py3.patch
+    git apply "$HERE/vgm-packer-py3.patch"
     cd ../..
 fi
 
@@ -33,24 +37,27 @@ if [ ! -d tools/vgm-player-bbc ]; then
     echo "=== Cloning and patching vgm-player-bbc ==="
     git clone https://github.com/simondotm/vgm-player-bbc.git tools/vgm-player-bbc
     cd tools/vgm-player-bbc
-    git apply ../../vgm-player-bbc-lz4fix.patch
+    git apply "$HERE/vgm-player-bbc-lz4fix.patch"
     cd ../..
 fi
 
 # --- Step 1: Capture AY registers from .z80 snapshot (optional) ---
 # Only needed if you have the snapshot and want to regenerate the PSG files.
 
-Z80_FILE="Ninja Massacre (1989)(Codemasters)[a][128K].z80"
+Z80_FILE="${Z80_FILE:-../original/Ninja Massacre (1989)(Code Masters)(128K).z80}"
+if [ -f "$Z80_FILE" ] && [ ! -f page_4.bin ]; then
+    python3 "$HERE/extract_z80.py" "$Z80_FILE"
+fi
 if [ -f "$Z80_FILE" ] && [ ! -f song_0.psg ]; then
     echo "=== Extracting AY music from .z80 snapshot ==="
     # Lengths determined by finding where each song's active flag goes to 0
-    python3 ay_capture.py --song 0 --frames 3500 --output song_0.psg
-    python3 ay_capture.py --song 1 --frames 180  --output song_1.psg
-    python3 ay_capture.py --song 2 --frames 150  --output song_2.psg
-    python3 ay_capture.py --song 3 --frames 120  --output song_3.psg
-    python3 ay_capture.py --song 4 --frames 120  --output song_4.psg
-    python3 ay_capture.py --song 5 --frames 120  --output song_5.psg
-    python3 ay_capture.py --song 6 --frames 120  --output song_6.psg
+    python3 "$HERE/ay_capture.py" --song 0 --frames 3500 --output song_0.psg
+    python3 "$HERE/ay_capture.py" --song 1 --frames 180  --output song_1.psg
+    python3 "$HERE/ay_capture.py" --song 2 --frames 150  --output song_2.psg
+    python3 "$HERE/ay_capture.py" --song 3 --frames 120  --output song_3.psg
+    python3 "$HERE/ay_capture.py" --song 4 --frames 120  --output song_4.psg
+    python3 "$HERE/ay_capture.py" --song 5 --frames 120  --output song_5.psg
+    python3 "$HERE/ay_capture.py" --song 6 --frames 120  --output song_6.psg
 fi
 
 # --- Step 2: PSG -> raw -> YM6 ---
@@ -63,7 +70,7 @@ for song in 0 1 2 3 4 5 6; do
         echo "  song_${song}.raw missing - re-run ay_capture.py with the .z80 snapshot"
     fi
 done
-python3 raw_to_ym.py
+python3 "$HERE/raw_to_ym.py"
 
 # --- Step 3: YM6 -> SN76489 VGM ---
 
@@ -78,7 +85,7 @@ python3 tools/vgm-packer/vgmpacker.py song_0_sn.vgm
 # --- Step 5: Assemble BBC Micro disc image ---
 
 echo "=== Building BBC Micro disc image ==="
-beebasm -i player.asm -do ninja_music.ssd -boot NMMusic
+beebasm -i "$HERE/player.asm" -do ../ninja_music.ssd -boot NMMusic
 
 echo ""
 echo "Done! ninja_music.ssd is ready."
