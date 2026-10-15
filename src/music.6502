@@ -410,6 +410,7 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     LDA sysvia_ora_nh : PHA
     LDA #&0B : STA sysvia_orb           ; the keyboard on auto-scan, off port A's bit 7
     LDA #&FF : STA sysvia_ddra
+    LDA mu_ay + 7 : STA mu_tmp          ; (the mixer, a voice's bit at a time)
     LDX #0
 .channel
     LDA mu_on : BEQ silent
@@ -425,7 +426,7 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     LSR A : LSR A                       ; (the period's top six bits)
     JSR mu_write
 .volume
-    LDA mu_ay + 7 : AND mu_tone_bit,X : BNE silent
+    LSR mu_tmp : BCS silent             ; (its tone off)
     LDA mu_ay + 8,X : AND #&0F : TAY
     LDA mu_att,Y : BPL attenuation      ; (always)
 .silent
@@ -437,24 +438,25 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
 .channel_done
     INX : CPX #3 : BNE channel
 
-    \ The noise: as loud as the loudest voice the mixer gives it to
+    \ The noise: as loud as the loudest voice the mixer gives it to (the
+    \ channels shifted the tones' bits out of mu_tmp: the noise's are next)
     LDA mu_on : BEQ noise_silent
     LDA mu_ay + 6 : AND #&1F : BEQ noise_silent
-    STA mu_tmp                          ; the period, which the AY keeps 5 bits of
+    STA mu_p                            ; the period, which the AY keeps 5 bits of
     LDY #0
-    LDX #2
+    LDX #0
 .loudest
-    LDA mu_ay + 7 : AND mu_noise_bit,X : BNE quieter
+    LSR mu_tmp : BCS quieter            ; (its noise off)
     LDA mu_ay + 8,X : AND #&0F
     STY mu_s : CMP mu_s : BCC quieter
     TAY
 .quieter
-    DEX : BPL loudest
+    INX : CPX #3 : BNE loudest
     LDA mu_att,Y
     CMP #MU_SILENT : BEQ noise_volume   ; (no rate while it's silent)
     PHA
     LDA #MU_NOISE_WHITE
-    LDY mu_tmp : CPY #MU_NOISE_SLOW : BCC rate
+    LDY mu_p : CPY #MU_NOISE_SLOW : BCC rate
     ORA #1
 .rate
     CMP mu_sn_noise : BEQ rate_done
@@ -501,8 +503,6 @@ MU_SILENT = 15
 
 .mu_tone_latch  EQUB &80, &A0, &C0
 .mu_vol_latch   EQUB &90, &B0, &D0, &F0
-.mu_tone_bit    EQUB 1, 2, 4        ; register 7: the tone off (bits set)
-.mu_noise_bit   EQUB 8, 16, 32      ; ... and the noise
 
 \ Channel X's period for the SN in mu_s, from mu_ay's (decision 15). The
 \ AY's tone is 1.7734MHz / (16 x its period), the SN's 4MHz / (32 x its):
