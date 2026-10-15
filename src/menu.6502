@@ -182,22 +182,21 @@ MENU_SWAPS = MENU_SETTLE_FRAMES DIV FLASH_FRAMES
 \ in 2 is &F0 OR the lit pixels' low bits.)
 .menu_repaint
 {
-    LDA #LO(screen + MENU_FLASH_ROW * ROW_BYTES + PF_OFFSET) : STA rl
-    LDA #HI(screen + MENU_FLASH_ROW * ROW_BYTES + PF_OFFSET) : STA rh
-.row
+    \ every byte from the row to the top of RAM but each row's first
+    \ PF_OFFSET, the panel's: the first half of each even page
+    ASSERT ROW_BYTES = &200 AND PF_OFFSET = &80 AND (screen AND &1FF) = 0
+    LDA #LO(screen + MENU_FLASH_ROW * ROW_BYTES) : STA rl
+    LDA #HI(screen + MENU_FLASH_ROW * ROW_BYTES) : STA rh
     LDY #0
 .byte
+    LDA rh : LSR A : BCS playfield
+    TYA : BPL next
+.playfield
     LDA (rhl),Y : LSR A : LSR A : LSR A : LSR A : ORA (rhl),Y
     ORA #&F0 : STA (rhl),Y
+.next
     INY : BNE byte
-    INC rh
-    LDY #0
-.rest
-    LDA (rhl),Y : LSR A : LSR A : LSR A : LSR A : ORA (rhl),Y
-    ORA #&F0 : STA (rhl),Y
-    INY : CPY #LO(PF_BYTES - &100) : BNE rest
-    INC rh                          ; (the next row's playfield: 256 on)
-    LDA rh : BPL row
+    INC rh : BPL byte
     \ their attributes: the first colour (&0E)
     LDX #MENU_FLASH_ROW
 .arow
@@ -309,14 +308,16 @@ ASK_COL = &14
 .print_at_ask
 {
     LDA #ASK_COL : STA PrintPos : STY PrintPos + 1
-    LDA ask_word_lo,X : STA str : LDA ask_word_hi,X : STA str + 1
+    \ (word X, less one: print_str starts after str)
+    TXA : ASL A : ASL A : ASL A
+    ADC #LO(w_up - 1) : STA str             ; (C clear: X is small)
+    LDA #HI(w_up - 1) : ADC #0 : STA str + 1
     JMP print_str
 }
-\ (each word less one: print_str starts after str)
-.ask_word_lo
-    EQUB LO(w_up - 1), LO(w_down - 1), LO(w_left - 1), LO(w_right - 1), LO(w_fire - 1), LO(w_magic - 1)
-.ask_word_hi
-    EQUB HI(w_up - 1), HI(w_down - 1), HI(w_left - 1), HI(w_right - 1), HI(w_fire - 1), HI(w_magic - 1)
+\ The words, each ASK_WORD bytes.
+ASK_WORD = 8                    ; (print_at_ask shifts by three)
+    ASSERT w_down - w_up = ASK_WORD AND w_left - w_down = ASK_WORD AND w_right - w_left = ASK_WORD
+    ASSERT w_fire - w_right = ASK_WORD AND w_magic - w_fire = ASK_WORD
 .w_up    EQUS "UP.....", 0
 .w_down  EQUS "DOWN...", 0
 .w_left  EQUS "LEFT...", 0
