@@ -130,7 +130,7 @@ CLICK_US = 20
 \ the game's (decision 7).
 .hit_noise
     LDX #24
-    JMP noise
+    BNE noise                       ; (always)
 .noise_burst
     LDX #27
 .noise
@@ -141,14 +141,14 @@ CLICK_US = 20
 .next
     JSR noise_random : AND #&10 : BEQ off
     LDA #SN_VOLN OR SN_LOUD
-    JMP set
+    BNE set                         ; (always)
 .off
     LDA #SN_VOLN OR SN_OFF
 .set
     JSR mu_write
     \ held: count x unit T-states, as microseconds (x 256 / 907)
-    JSR noise_random : STA len
-    LDA unit : LDX len : JSR mul8          ; T-states, in t_hi:t_lo
+    JSR noise_random : TAX
+    LDA unit : JSR mul8                    ; T-states, in t_hi:t_lo
     \ microseconds: T-states x 1000 / 3547, about x 9/32
     LSR t_hi : ROR t_lo : LSR t_hi : ROR t_lo               ; /4
     LDA t_lo : LSR A : LSR A : LSR A : STA ra2               ; + /32
@@ -159,7 +159,6 @@ CLICK_US = 20
     JMP effect_end
     ZA_AUTO1 count
     ZA_AUTO1 unit
-    ZA_AUTO1 len
 }
 
 \ t_hi:t_lo = A x X (X = 0 meaning 256).

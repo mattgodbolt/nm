@@ -516,9 +516,9 @@ MU_SILENT = 15
     LDA mu_ay + 1,Y : AND #&0F : STA mu_p+1     ; (the AY keeps 12 bits)
     LDA mu_ay,Y : STA mu_p
     \ mu_t = P x 3 + 512 ... (no carries out: P is 12 bits)
-    ASL A : STA mu_t
+    ASL A : TAY
     LDA mu_p+1 : ROL A : STA mu_t+1
-    LDA mu_t : ADC mu_p : STA mu_t
+    TYA : ADC mu_p : STA mu_t
     LDA mu_t+1 : ADC mu_p+1 : ADC #HI(MU_ROUND) : STA mu_t+1
     \ ... + P x 128 = P x 131 + 512, 24 bits (of the low byte, only its carry)
     LDA mu_p+1 : LSR A : STA mu_t+2
