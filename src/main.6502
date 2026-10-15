@@ -48,8 +48,7 @@ SECTION ZeroPage, org = &00, guard = ZP_FIXED, virtual = TRUE
 .rl         SKIP 1
 .rh         SKIP 1
 rhl = rl
-.ra2        SKIP 1          ; spare places for what the Z80 keeps in AF' or on its stack
-.rx         SKIP 1
+.ra2        SKIP 1          ; a spare place for what the Z80 keeps in AF' or on its stack
 .pl         SKIP 1          ; the player a shared routine is for: 0 or 1 (player.6502)
 .prec       SKIP 1          ; ... and its record's offset from Player1 (0 or Player2 - Player1)
 .sp_attr    SKIP 1          ; draw_sprite's attribute (sprite.6502)

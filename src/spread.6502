@@ -32,13 +32,9 @@ T_SPREAD = &13
     DEC rl                          ; (the Z80's DEC L: within the page)
     JSR into
     INC rl : INC rl : JSR into      ; (INC L)
-    LDA rl : CLC : ADC #&1F : STA rl
-    BCC b : INC rh
-.b
+    LDA #&1F : JSR add_rhl          ; (the Z80's ADD HL: down a row, back one)
     JSR into
-    LDA rl : SEC : SBC #&40 : STA rl
-    BCS a : DEC rh
-.a
+    LDA #&100 - &40 : JSR add_rhl   ; (up two rows)
     JSR into
     PLA : STA rh : PLA : STA rl
 .done
