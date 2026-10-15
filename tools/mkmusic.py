@@ -248,6 +248,13 @@ def main():
     for vb in dw.VOICE_BASE:
         if any(m[vb:vb + 0x20]):
             raise SystemExit(f"voice at &{vb:04X} doesn't start as zeros")
+    # src/music.6502's mu_pattern goes back to a list's start on a 0
+    # without looking again: a list starting with one would never end.
+    for s in range(SONGS):
+        for v in range(3):
+            at = word(m, dw.SONG_TABLE + SONG_BYTES * s + 1 + 2 * v)
+            if word(m, at) == 0:
+                raise SystemExit(f"song {s}'s voice {v}: its list (&{at:04X}) starts with a 0")
     kinds, words, insts, arps, top, offset = play_all(b1)
     if top >= NOTES:
         raise SystemExit(f"note {top} is past the note table")

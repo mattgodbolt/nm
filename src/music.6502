@@ -104,16 +104,16 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     LDA mu_songs,Y : STA mu_speed
     INY
 .voice
-    LDA mu_songs,Y : STA mv_list,X : STA mu_ptr
+    LDA mu_songs,Y : STA mv_list,X
     INY
-    LDA mu_songs,Y : STA mv_list+1,X : STA mu_ptr+1
+    LDA mu_songs,Y : STA mv_list+1,X
     INY
+    STY mu_tmp
     LDA #1 : STA mv_rows,X
     LDA #0 : STA mv_flags,X : STA mv_vmode,X : STA mv_hihat,X
-    LDA #2 : STA mv_next,X
-    STY mu_tmp
-    LDY #0 : LDA (mu_ptr),Y : STA mv_ptr,X
-    INY : LDA (mu_ptr),Y : STA mv_ptr+1,X
+    STA mv_next,X : JSR mu_pattern      ; the list's first pattern, and mv_next 2
+    LDA mu_ptr : STA mv_ptr,X
+    LDA mu_ptr+1 : STA mv_ptr+1,X
     LDY mu_tmp
     TXA : CLC : ADC #MU_VOICE : TAX
     CPX #3 * MU_VOICE : BNE voice
@@ -192,7 +192,10 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     LDA mv_ptr+1,X : STA mu_ptr+1
 .next
     JSR mu_byte
-    CMP #&80 : BCS command
+    CMP #&80 : BCC note
+    JSR command                         ; (the commands that end the row don't
+    JMP next                            ; return here: c_rest, c_tie, c_stop)
+.note
     \ &C2C2: a note, and its instrument's envelope from the start
     STA mv_note,X
     LDA mv_noisep,X : LSR A : BCC envelope
@@ -203,7 +206,10 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     LDY #0 : LDA (mu_ptr2),Y
     STA mv_evol,X : STA mv_vol,X
     LDA mv_estep,X : STA mv_ecnt,X
-    LDA mv_flags,X : ORA #&20 : STA mv_flags,X
+.tied
+    LDA mv_flags,X : ORA #&20
+.flags_end
+    STA mv_flags,X
 .row_end
     \ &C2EB
     LDA mv_dur,X : STA mv_rows,X
@@ -215,11 +221,11 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     RTS
 
 .command
-    \ &C319
+    \ &C319: a command, returning to read on
     CMP #&B8 : BCC numbered
     CMP #&E0 : BCC not_duration
     SBC #&DF : STA mv_dur,X             ; E0-FF: 1-32 rows a note
-    JMP next
+    RTS
 .not_duration
     CMP #&D0 : BCC not_instrument
     AND #&0F : TAY                      ; D0-DF: an instrument
@@ -230,16 +236,16 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
 .step
     DEC mu_ptr2
     LDY #0 : LDA (mu_ptr2),Y : STA mv_estep,X
-    JMP next
+    RTS
 .not_instrument
     CMP #&C0 : BCC speed
     AND #&0F : TAY                      ; C0-CF: an arpeggio
     LDA mu_arp_lo,Y : STA mv_arp0,X : STA mv_arp,X
     LDA mu_arp_hi,Y : STA mv_arp0+1,X : STA mv_arp+1,X
-    JMP next
+    RTS
 .speed
     SEC : SBC #&B7 : STA mu_speed       ; B8-BF: 1-8 frames a row
-    JMP next
+    RTS
 .numbered
     \ &C366: 80-91, through a table (B7 and below otherwise: none in the songs)
     ASL A : TAY
@@ -249,14 +255,15 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
 
 .mu_commands
     EQUW c_rest-1, c_vib_off-1, c_vib_on-1, c_vib_alt-1, c_porta-1
-    EQUW c_slide_down-1, c_slide_up-1, c_end-1, c_vib-1, c_transpose-1
+    EQUW c_slide_down-1, c_slide_up-1, mu_pattern-1, c_vib-1, c_transpose-1
     EQUW c_tone-1, c_noise-1, c_both-1, c_drum-1, c_stop-1, c_tie-1
     EQUW c_hihat_on-1, c_hihat_off-1
 
 .c_rest                             ; &80 (&C294)
+    PLA : PLA                           ; (the row ends: not back to read on)
     LDA #0 : STA mv_vol,X
-    LDA mv_flags,X : AND #&DF : STA mv_flags,X
-    JMP row_end
+    LDA mv_flags,X : AND #&DF
+    JMP flags_end
 .c_vib_off                          ; &81
     LDA #0 : BEQ set_vmode
 .c_vib_on                           ; &82
@@ -265,13 +272,13 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     LDA #&C0
 .set_vmode
     STA mv_vmode,X
-    JMP next
+    RTS
 .c_porta                            ; &84 step, frames (&C247)
     JSR mu_byte : STA mv_pstep,X
     LDA #0 : STA mv_pacc,X : STA mv_pacc+1,X
     LDA mv_flags,X : ORA #4 : STA mv_flags,X
     JSR mu_byte : STA mv_pdelay,X
-    JMP next
+    RTS
 .c_slide_down                       ; &85
     LDA #8 : BNE set_flags
 .c_slide_up                         ; &86
@@ -280,53 +287,60 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     LDA #2
 .set_flags
     ORA mv_flags,X : STA mv_flags,X
-    JMP next
-.c_end                              ; &87: the list's next pattern (&C1E1)
-    LDA mv_list,X : STA mu_ptr2
-    LDA mv_list+1,X : STA mu_ptr2+1
-    LDY mv_next,X
-    LDA (mu_ptr2),Y : STA mu_ptr
-    INY : LDA (mu_ptr2),Y : STA mu_ptr+1
-    INY
-    ORA mu_ptr : BNE pattern
-    LDY #0 : LDA (mu_ptr2),Y : STA mu_ptr   ; a 0: the list from its start
-    INY : LDA (mu_ptr2),Y : STA mu_ptr+1
-    INY
-.pattern
-    TYA : STA mv_next,X
-    JMP next
+    RTS
 .c_vib                              ; &88 step, depth (&C264)
     JSR mu_byte : STA mv_vstep,X
     JSR mu_byte : STA mv_vdepth,X : STA mv_vphase,X
-    JMP next
+    RTS
 .c_transpose                        ; &89 semitones (&C25D)
     JSR mu_byte : STA mu_transpose
-    JMP next
+    RTS
 .c_tone                             ; &8A: tone only (&C223)
     LDA mv_mask,X : AND #&38 : LDY #0
     BEQ mix                         ; (always)
 .c_noise                            ; &8B: noise only, its period from the notes (&C20E)
     LDA mv_mask,X : AND #&07 : LDY #1
 .mix
-    EOR mu_mix : AND mv_mask,X : EOR mu_mix : STA mu_mix
+    EOR mu_mix : AND mv_mask,X : EOR mu_mix
+.noise_from
+    STA mu_mix
     TYA : STA mv_noisep,X
-    JMP next
+    RTS
 .c_both                             ; &8C: tone and noise (&C237)
-    LDA mv_mask,X : EOR #&FF : AND mu_mix : STA mu_mix
-    LDA #1 : STA mv_noisep,X
-    JMP next
+    LDA mv_mask,X : EOR #&FF : AND mu_mix
+    LDY #1 : BNE noise_from             ; (always)
 .c_stop                             ; &8E: the song ends, and this frame with it (&C1DD)
+    PLA : PLA                           ; (not back to read on, nor to row_end)
     JMP music_stop
 .c_tie                              ; &8F: the note carries on (&C29D)
-    LDA mv_flags,X : ORA #&20 : STA mv_flags,X
-    JMP row_end
+    PLA : PLA                           ; (the row ends)
+    JMP tied
 .c_hihat_on                         ; &90
     LDA #&FF : BNE set_hihat
 .c_hihat_off                        ; &91
     LDA #0
 .set_hihat
     STA mv_hihat,X
-    JMP next
+    RTS
+}
+
+\ &C1E1 (command &87): voice X's next pattern from its list, at mu_ptr.
+\ A 0 in the list goes back to its start (music_start starts there, and
+\ tools/mkmusic.py checks that no list starts with a 0).
+.mu_pattern
+{
+    LDA mv_list,X : STA mu_ptr2
+    LDA mv_list+1,X : STA mu_ptr2+1
+    LDY mv_next,X
+.entry
+    LDA (mu_ptr2),Y : STA mu_ptr
+    INY : LDA (mu_ptr2),Y : STA mu_ptr+1
+    INY
+    ORA mu_ptr : BNE pattern
+    TAY : BEQ entry                     ; (always: a 0, so the list from its start)
+.pattern
+    TYA : STA mv_next,X
+    RTS
 }
 
 \ &C36E: voice X's frame. Returns its volume in A and its period in
