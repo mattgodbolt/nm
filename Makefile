@@ -58,7 +58,7 @@ build/views/zx_50.scr: build/nm128.z80 tools/zxviews.py tools/zx.py tools/mkleve
 run: $(TARGET)
 	node tools/play.mjs '1,!run' shots/ --disc $(TARGET)
 
-check: $(TARGET) views
+check: $(TARGET) views disasm
 
 fetch:
 	tools/fetch_original.sh

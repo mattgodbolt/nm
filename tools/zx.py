@@ -61,10 +61,11 @@ PALETTE = [(0, 0, 0), (0, 0, N), (N, 0, 0), (N, 0, N), (0, N, 0), (0, N, N), (N,
 # runs), with its state at RNG_STATE, and turns each LD A,R into RST &10;
 # NOP, with a JP to it at &0010 (the ROM's PRINT-A restart, which the game
 # never uses).
-# The hit noise's two (&C8C6, &C8CC) are left reading R: they only shape
-# the sound, a hundred numbers a hit, and the port's noise has its own
-# source, so the shared stream doesn't depend on the sound (decision 7).
-RNG_SITES = [0xC3AE, 0xC3C3, 0xC4B0, 0xC7AF, 0xCEF5, 0xD095,
+# The noises' three (the hit noise's &C8C6 and &C8CC, the burst's &CEF5)
+# are left reading R: they only shape the sound, a hundred numbers a hit,
+# and the port's noise has its own source, so the shared stream doesn't
+# depend on the sound (decision 7).
+RNG_SITES = [0xC3AE, 0xC3C3, 0xC4B0, 0xC7AF, 0xD095,
              0xD0D7, 0xD317, 0xD3AD, 0xDAB1, 0xDAFF]
 RNG_STATE = 0xB942
 RNG_CODE = [

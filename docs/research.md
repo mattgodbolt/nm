@@ -9,6 +9,12 @@ Tags: **[measured]** = run or read from the bytes, with the tool named;
 evidence, to check before relying on it. Addresses are the Spectrum's, in
 `&` hex. Bank 1 is the 128K music bank; everything else is the 48K map.
 
+The details, routine by routine, are in `docs/research/`:
+`core.md` (start-up, the main loop, levels, the view, printing, the menu
+and the status), `players.md` (the players, their controls and the stars)
+and `monsters.md` (the monsters, trap doors, touching and items), with
+`disasm/*.ctl` labelling the same routines for `make disasm`.
+
 ## What the original is
 
 ### Facts
@@ -145,21 +151,25 @@ can't happen. It's the easiest kind of Spectrum game to port.
 #### Levels
 
 - **Each level is a 32 x 32 tile map**, packed as runs (`&C418`):
-  - a byte with bit 7 set is a run of `byte & &7F`, and the next byte is
-    the count;
+  - a byte with bit 7 set is a run of tile `byte & &7F`, and the next
+    byte, n, makes it n + 1 tiles long (256 if n is 0) [measured:
+    `tools/levelcheck.py` against the original's decoder; the brief had
+    it one short];
   - otherwise the byte is a single tile.
 - **The decoder supplies the border.** The packed data holds the 30 x 30
   inside, and the decoder adds the walls around it.
-- **The decorations are random.** After decoding, wall and decoration
-  tiles get random variants from the Z80's refresh register, `LD A,R`
-  (`&C3AE`, `&C3C3`).
+- **Random bits that don't show.** After decoding, `&C3AE` sets random
+  bits 3-4 on trap doors (`&20-&26`), which the drawing masks off, and
+  `&C3C3` swaps the nibbles of monsters (`&28-&2F` in the data, becoming
+  `&8x-&Fx`) and gives them random bits 2-3: their health
+  (docs/research/core.md, docs/research/monsters.md).
 - **The start is marked.** `&7F` marks the start. It sets the players'
   position and the view (`&C3CD`).
 - **The sizes** [measured]:
   - 44 to 786 bytes a level, mean 479
   - 49 tile codes in use
-  - ZX02 (CE2's `tools/zx02.py`) packs all 50 decoded maps into 9,837
-    bytes, or 9,617 as one stream, against the original's 23,998
+  - ZX02 packs the 50 decoded maps, each on its own, into about 10.7K,
+    against the original's 23,998 (decision 4)
 - **The floor colour cycles** red, magenta, green, blue by level:
   `((level + 1) AND 3) + 1`, also used for tiles `&16` and `&1E` (`&C357`).
 - **Tile `&13` flashes.** Its attribute is `&9C`: green on magenta, with
@@ -176,8 +186,9 @@ takes 2-3 frames, about 20 frames in all, and play stops while it slides.
 - It all happens inside one main-loop pass: one pass measured 19.7-20
   frames.
 - The view's origin is `&BA4C` and `&BA4D`, in characters (0-40).
-- The slide moves the screen with block copies (`&DC86-&DCB6`, `LDIR` and
-  `LDDR`), then draws the new strip.
+- The slide moves the screen with block copies (`ShiftUp`/`ShiftDown`/
+  `ShiftLeft`/`ShiftRight`, `&DBE8-&DCB6`, about 1.8 frames each), then
+  draws the new strip.
 - The whole view is redrawn by `&C54C`: 144 tiles from the map.
 
 #### The main loop
