@@ -1,5 +1,5 @@
 \ ***************************************************************************
-\ Drawing a 16 x 16 picture (a block: blocks + 32 x its number) at a
+\ Drawing a 16 x 16 picture (a block, by its number: draw_block_at) at a
 \ screen character (row, column), opaque, in the colours of an attribute,
 \ which its cells take: the original's DrawSprite (&C8D8) and DrawSpriteA
 \ (&C8E8), with BlockAddr (&C5EE). Those clip by the Spectrum's memory map
@@ -49,28 +49,28 @@
 \ Draw block A at (dt_row, dt_col): a set pixel in dt_mask EOR dt_paper,
 \ the rest in dt_paper (the colours' MODE 1 bytes; dt_mask is the ink's
 \ EOR the paper's, so (pixels AND dt_mask) EOR dt_paper is either). The
-\ block is four quarters of eight lines (tools/mkgfx.py), so one loop
+\ blocks are four planes of 8 x 8 quarters (tools/mkgfx.py), so one loop
 \ draws a line of each, its addresses written into the loop: each
 \ quarter's source, and the two screen bytes each of its lines makes. A
 \ quarter that doesn't show (sp_top and the rest) has its stores made
 \ CMPs, which leave the screen alone.
+BLOCKS = 192
+PLANE = BLOCKS * 8              ; a plane of quarters: a whole number of pages
+    ASSERT LO(PLANE) = 0
 OP_STA_ABSY = &99
 OP_CMP_ABSY = &D9
     ASSERT (OP_STA_ABSY EOR OP_CMP_ABSY) = &40
 .draw_block_at
 {
-    \ the quarters: blocks + 32A, then 8 on each
+    \ the quarters: blocks + 8A in each plane
     TAY
-    LSR A : LSR A : LSR A : STA bsrc+1
-    TYA : ASL A : ASL A : ASL A : ASL A : ASL A
-    CLC : ADC #LO(blocks) : STA src0+1
-    LDA bsrc+1 : ADC #HI(blocks) : STA src0+2
-    LDX #0
-.srcs
-    LDA src0+1,X : CLC : ADC #8 : STA src1+1,X
-    LDA src0+2,X : ADC #0 : STA src1+2,X
-    TXA : CLC : ADC #src1 - src0 : TAX
-    CPX #3 * (src1 - src0) : BNE srcs
+    LSR A : LSR A : LSR A : LSR A : LSR A : STA bhi
+    TYA : ASL A : ASL A : ASL A
+    CLC : ADC #LO(blocks) : STA src0+1 : STA src1+1 : STA src2+1 : STA src3+1
+    LDA bhi : ADC #HI(blocks) : STA src0+2
+    ADC #HI(PLANE) : STA src1+2                         ; (C clear: blocks is below &8000)
+    ADC #HI(PLANE) : STA src2+2
+    ADC #HI(PLANE) : STA src3+2
     \ the screen: screen + row * &200 + col * 16, the right quarters 16
     \ on, the bottom a character row (&200) on; each line's second byte 8
     \ on from its first (col * 16 is a multiple of 16: no carry)
@@ -80,8 +80,8 @@ OP_CMP_ABSY = &D9
     AND #&F0 : CLC : ADC #16
     STA dst1+1 : STA dst3+1
     ORA #8 : STA dst1b+1 : STA dst3b+1
-    LDA dt_col : LSR A : LSR A : LSR A : LSR A : STA bsrc+1
-    LDA dt_row : ASL A : CLC : ADC bsrc+1
+    LDA dt_col : LSR A : LSR A : LSR A : LSR A : STA bhi
+    LDA dt_row : ASL A : CLC : ADC bhi
     ADC #HI(screen)                                     ; (C clear: the ADC above made at most &FF)
     STA dst0+2 : STA dst0b+2
     CLC : ADC #2 : STA dst2+2 : STA dst2b+2             ; (row -1 wraps below the screen: only its bottom half shows)
@@ -129,9 +129,8 @@ OP_CMP_ABSY = &D9
     STA &FFFF,Y
     DEY : BPL line
     RTS
-    ASSERT src2 - src1 = src1 - src0 AND src3 - src2 = src1 - src0
 }
-ZA_AUTO2 bsrc
+ZA_AUTO1 bhi
 ZA_AUTO1 dt_row
 ZA_AUTO1 dt_col
 ZA_AUTO1 dt_mask

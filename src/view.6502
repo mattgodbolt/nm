@@ -50,7 +50,7 @@ VIEW_LEFT = 8               ; the view's first screen column (the panel's left o
     \ (fall into draw_tile)
 }
 
-\ Draw tile or block A (its graphic at blocks + 32A, its colours from the
+\ Draw tile or block A (the block of that number, in the colours of the
 \ original's attribute for it, &FF02, which its 2 x 2 cells take) at
 \ screen row X, column Y. (Flash, which only tile &13 has, isn't shown
 \ yet.)
