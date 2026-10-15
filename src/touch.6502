@@ -70,8 +70,7 @@ TOUCH_EVERY = 10                ; the touch gate: one contact in this many acts 
     LDX #TOUCH_EVERY : STX TouchCount
     LDX prec
     CMP #T_MARKER : BCC item
-    BNE head
-    JMP hit_marker
+    BEQ hit_marker
 .head
     \ a monster's head: punched, 5 treasure
     JSR hit_monster
@@ -82,11 +81,8 @@ TOUCH_EVERY = 10                ; the touch gate: one contact in this many acts 
 .done
     RTS
 .item
-    CMP #T_P1 : BEQ player
-    CMP #T_P2 : BNE not_player
-.player
-    JMP shove
-.not_player
+    CMP #T_P1 : BEQ shove
+    CMP #T_P2 : BEQ shove
     CMP #T_WALL_END : BCC done
     \ &D204-&D25B: by code, &08-&1D
     CMP #T_EXIT : BCS above
@@ -128,6 +124,101 @@ TOUCH_EVERY = 10                ; the touch gate: one contact in this many acts 
     LDA #&FF : STA Player1 + R_STRENGTH + 1,X
     RTS
 }
+
+\ &C8A4 HitMarker: a monster's other cell (&7F) was touched at (rb, rc):
+\ the monster is to the left, up-left or up of its tile; hit it.
+.hit_marker
+{
+    LSR rc : ASL rc : LSR rb : ASL rb   ; (the tile's first cell: bit 0 clear)
+    DEC rc : JSR map_cell : BMI hit_monster
+    DEC rb : JSR map_cell : BMI hit_monster
+    INC rc : JSR map_cell : BMI hit_monster
+    RTS
+}
+
+\ &D4AB ShoveP2, &D4E1 ShoveP1: the mover touched the other player (A,
+\ its code): shove it one step along the mover's step, if its four cells
+\ there are free. Its old place is drawn over (&CC79, with the click); it's
+\ drawn at the new in its own pass.
+.shove
+{
+    SEC : SBC #T_P1 : STA shoved : TAX
+    LDA rb : PHA : LDA rc : PHA
+    LDY player_rec,X
+    LDA Player1 + R_ROW,Y : STA rb
+    LDA Player1 + R_COL,Y : STA rc
+    LDA #0 : JSR put_player
+    LDA rb : CLC : ADC StepV : STA rb
+    LDA rc : CLC : ADC StepH : STA rc
+    JSR cells_free : BNE stays
+    LDX shoved : LDY player_rec,X
+    LDA Player1 + R_ROW,Y : STA rd
+    LDA Player1 + R_COL,Y : STA re
+    LDA rb : STA Player1 + R_ROW,Y
+    LDA rc : STA Player1 + R_COL,Y
+    JSR erase_at
+.stays
+    LDX shoved : LDY player_rec,X
+    LDA Player1 + R_ROW,Y : STA rb
+    LDA Player1 + R_COL,Y : STA rc
+    LDA player_code,X : JSR put_player
+    JSR clear_step
+    PLA : STA rc : PLA : STA rb
+    RTS
+    ZA_AUTO1 shoved
+}
+
+\ &C86C HitMonster: the monster at rhl takes a hit (its code's bits 2-3,
+\ its health, wrap from 0 to 3 when it dies), with the hit noise. Kind 7
+\ (bits 4-6) can't be hurt. Dead, its four cells are cleared and floor is
+\ drawn there. (rb, rc) is a cell it covers. Z when it died or can't be
+\ hurt, NZ when it lives on.
+.hit_monster
+{
+    LDA #HIT_NOISE : JSR hit_noise
+    LDY #0 : LDA (rhl),Y
+    AND #&70 : CMP #&70 : BEQ done
+    LDA (rhl),Y : SBC #4 - 1 : STA (rhl),Y  ; (C clear: not kind 7)
+    AND #&0C : CMP #&0C : BNE lives
+    \ dead: its position from its code's bits 0-1 (which of its tile's
+    \ cells it starts at)
+    LSR rb : ASL rb : LSR rc : ASL rc
+    JSR code_offset
+    LDA rb : STA rd : LDA rc : STA re
+    LDA #0 : STA MapStamp
+    JSR fill_cells
+    JSR draw_floor_at
+    \ The original leaves BC as the drawing left it, and a touch carries
+    \ on from there (&D1BA's INC B, INC C, DEC B): (0, &40 less the
+    \ bytes drawn, two a line, one at the playfield's edge, 16 lines or 8
+    \ at the bottom); or, off the view, (the floor's attribute, 0).
+    \ Kept, as the cells the rest of the touch reaches depend on it.
+    BCC drawn
+    LDA TileAttrs : STA rb
+    LDA #0 : STA rc
+    BEQ done                        ; (always)
+.drawn
+    LDA #&40 : STA rc
+    LDA #0 : STA rb
+    LDX #16
+    BIT sp_bottom : BMI lines
+    LDX #8
+.lines
+    BIT sp_left : BPL right
+    DEC rc
+.right
+    BIT sp_right : BPL next
+    DEC rc
+.next
+    DEX : BNE lines
+.done
+    LDA #0
+    RTS
+.lives
+    LDA #&FF
+    RTS
+}
+HIT_NOISE = 50                      ; the hit noise's segments (&C86C)
 
 \ The handlers for &08-&1D, as RTS addresses.
 MACRO HANDLER h
@@ -281,11 +372,11 @@ ZA_AUTO1 door_step
 \ registers (EXX), so the caller's are as they were.
 .teleport
 {
-    LDA rb : PHA : LDA rc : PHA : LDA rl : PHA : LDA rh : PHA
+    LDA rb : PHA : LDA rc : PHA     ; (the touch's: its rhl isn't read again)
     JSR pick_teleporter : BNE done
     JSR teleport_land
 .done
-    PLA : STA rh : PLA : STA rl : PLA : STA rc : PLA : STA rb
+    PLA : STA rc : PLA : STA rb
     RTS
 }
 
@@ -429,38 +520,6 @@ T_SWITCH_WALL = &06
     LDA #&FF : STA FreezeTimer
     JMP take_away
 
-\ &D4AB ShoveP2, &D4E1 ShoveP1: the mover touched the other player (A,
-\ its code): shove it one step along the mover's step, if its four cells
-\ there are free. Its old place is drawn over (&CC79, with the click); it's
-\ drawn at the new in its own pass.
-.shove
-{
-    SEC : SBC #T_P1 : STA shoved : TAX
-    LDA rb : PHA : LDA rc : PHA
-    LDY player_rec,X
-    LDA Player1 + R_ROW,Y : STA rb
-    LDA Player1 + R_COL,Y : STA rc
-    LDA #0 : JSR put_player
-    LDA rb : CLC : ADC StepV : STA rb
-    LDA rc : CLC : ADC StepH : STA rc
-    JSR cells_free : BNE stays
-    LDX shoved : LDY player_rec,X
-    LDA Player1 + R_ROW,Y : STA rd
-    LDA Player1 + R_COL,Y : STA re
-    LDA rb : STA Player1 + R_ROW,Y
-    LDA rc : STA Player1 + R_COL,Y
-    JSR erase_at
-.stays
-    LDX shoved : LDY player_rec,X
-    LDA Player1 + R_ROW,Y : STA rb
-    LDA Player1 + R_COL,Y : STA rc
-    LDA player_code,X : JSR put_player
-    JSR clear_step
-    PLA : STA rc : PLA : STA rb
-    RTS
-    ZA_AUTO1 shoved
-}
-
 \ Each player's record's offset from Player1, and its code in the map.
 .player_rec
     EQUB 0, R_SIZE
@@ -498,69 +557,6 @@ T_SWITCH_WALL = &06
     EQUB 4, 8
 .exit_song
     EQUB 6, 5
-
-\ &C8A4 HitMarker: a monster's other cell (&7F) was touched at (rb, rc):
-\ the monster is to the left, up-left or up of its tile; hit it.
-.hit_marker
-{
-    LSR rc : ASL rc : LSR rb : ASL rb   ; (the tile's first cell: bit 0 clear)
-    DEC rc : JSR map_cell : BMI hit_monster
-    DEC rb : JSR map_cell : BMI hit_monster
-    INC rc : JSR map_cell : BMI hit_monster
-    RTS
-}
-
-\ &C86C HitMonster: the monster at rhl takes a hit (its code's bits 2-3,
-\ its health, wrap from 0 to 3 when it dies), with the hit noise. Kind 7
-\ (bits 4-6) can't be hurt. Dead, its four cells are cleared and floor is
-\ drawn there. (rb, rc) is a cell it covers. Z when it died or can't be
-\ hurt, NZ when it lives on.
-.hit_monster
-{
-    LDA #HIT_NOISE : JSR hit_noise
-    LDY #0 : LDA (rhl),Y
-    AND #&70 : CMP #&70 : BEQ done
-    LDA (rhl),Y : SBC #4 - 1 : STA (rhl),Y  ; (C clear: not kind 7)
-    AND #&0C : CMP #&0C : BNE lives
-    \ dead: its position from its code's bits 0-1 (which of its tile's
-    \ cells it starts at)
-    LSR rb : ASL rb : LSR rc : ASL rc
-    JSR code_offset
-    LDA rb : STA rd : LDA rc : STA re
-    LDA #0 : STA MapStamp
-    JSR fill_cells
-    JSR draw_floor_at
-    \ The original leaves BC as the drawing left it, and a touch carries
-    \ on from there (&D1BA's INC B, INC C, DEC B): (0, &40 less the
-    \ bytes drawn, two a line, one at the playfield's edge, 16 lines or 8
-    \ at the bottom); or, off the view, (the floor's attribute, 0).
-    \ Kept, as the cells the rest of the touch reaches depend on it.
-    BCC drawn
-    LDA TileAttrs : STA rb
-    LDA #0 : STA rc
-    BEQ done                        ; (always)
-.drawn
-    LDA #&40 : STA rc
-    LDA #0 : STA rb
-    LDX #16
-    BIT sp_bottom : BMI lines
-    LDX #8
-.lines
-    BIT sp_left : BPL right
-    DEC rc
-.right
-    BIT sp_right : BPL next
-    DEC rc
-.next
-    DEX : BNE lines
-.done
-    LDA #0
-    RTS
-.lives
-    LDA #&FF
-    RTS
-}
-HIT_NOISE = 50                      ; the hit noise's segments (&C86C)
 
 \ Floor at map position (rd, re), as draw_at.
 .draw_floor_at

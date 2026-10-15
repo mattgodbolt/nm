@@ -106,8 +106,8 @@ CONTROLS = 6
     \ magic: a smart bomb a pass while held, while there are any (the
     \ bomb and the view leave DE 0, as the original's alternate set does)
     LDA #C_MAGIC : JSR control : BEQ up
-    LDY prec : LDA Player1 + R_MAGIC,Y : BEQ up
-    SEC : SBC #1 : STA Player1 + R_MAGIC,Y
+    LDX prec : LDA Player1 + R_MAGIC,X : BEQ up
+    DEC Player1 + R_MAGIC,X
     JSR smart_bomb
     JSR draw_view
 .up
@@ -154,18 +154,16 @@ CONTROLS = 6
     LDA rd : ORA re : BEQ stay
     LDA re : STA StepV              ; the vertical step
     LDA rd : STA StepH              ; ... and the horizontal
-    \ lift the player out of the map (its cells at the start of the pass)
-    LDA OldPos + 1 : STA rb
-    LDA OldPos : STA rc
+    \ lift the player out of the map (its cells at the start of the pass,
+    \ where it is)
+    LDA OldPos + 1 : STA rb : STA rd
+    LDA OldPos : STA rc : STA re
     LDA #0 : STA MapStamp
     JSR fill_cells
-    LDY prec
-    LDA Player1 + R_ROW,Y : STA rd
-    LDA Player1 + R_COL,Y : STA re
     \ a new facing clears the step bit: a turn takes a pass
     LDX pl
     LDA P1LastFacing,X : EOR P1Facing,X : AND #&FE : BEQ same
-    LDA P1Facing,X : AND #&FE : STA P1Facing,X
+    LSR P1Facing,X : ASL P1Facing,X     ; (bit 0 cleared)
 .same
     LDA P1Facing,X : STA P1LastFacing,X
     \ step when the step bit was set, and toggle it
@@ -203,6 +201,7 @@ CONTROLS = 6
 \ picture if it moved, and draw. NZ when drawn.
 .player_place
 {
+    ZA_AUTO1 column
     \ the other player's position, for the scroll (H its row, L its column)
     LDA prec : EOR #R_SIZE : TAY
     LDA Player1 + R_ROW,Y : STA rh
@@ -219,24 +218,22 @@ CONTROLS = 6
     CMP #PLACE_MIN : BCS not_left
     JMP scroll_left
 .not_left
-    ADC #VIEW_LEFT - 1 : STA ra2    ; the screen column (C set: from PLACE_MIN)
+    ADC #VIEW_LEFT - 1 : STA column ; the screen column (C set: from PLACE_MIN)
     LDY prec
-    LDA rd : STA Player1 + R_ROW,Y
     LDA re : STA Player1 + R_COL,Y
+    LDA rd : STA Player1 + R_ROW,Y
     \ moved: erase the old picture
-    LDA rd : CMP OldPos + 1 : BNE moved
+    CMP OldPos + 1 : BNE moved
     LDA re : CMP OldPos : BEQ same
 .moved
-    LDA rc : PHA : LDA ra2 : PHA
-    JSR erase_old
-    PLA : STA ra2 : PLA : STA rc
+    JSR erase_old                   ; (which keeps rc)
 .same
     LDA rc : STA rd                 ; the view row
-    LDA ra2 : STA re                ; the screen column
+    LDA column : STA re             ; the screen column
     \ its heart: it blinks (drawn as floor on even counts)
     LDX pl : LDY prec
     LDA Player1 + R_HEART,Y : BEQ draw
-    AND #1 : BNE draw
+    LSR A : BCS draw
     JMP draw_floor_frame
 .draw
     LDA player_colour,X : STA sp_attr
