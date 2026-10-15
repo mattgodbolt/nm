@@ -1,15 +1,24 @@
 \ ***************************************************************************
 \ The status panel: the screen's left 8 columns. The original never draws
 \ it: it keeps the loading screen's (docs/research.md). The port draws it
-\ once, from panel.bin (tools/mkgfx.py), in colours that don't change with
+\ once, from panel.zx02 (tools/mkgfx.py), unpacked into the map's room
+\ before there's a level (decision 20), in colours that don't change with
 \ the level (decision 5): yellow as yellow, black as black, any other in
 \ logical 3.
+
+panel = map                         ; (unpacked here first)
+PANEL_BYTES = PANEL_COLS * (192 + SCREEN_ROWS)
+    ASSERT PANEL_BYTES <= 32 * 32 + SCREEN_ROWS * SCREEN_COLS
 \ ***************************************************************************
 
 PANEL_COLS = 8
 
 .draw_panel
 {
+    LDA #LO(attrs) : STA attr_dst : LDA #HI(attrs) : STA attr_dst + 1
+    LDA #LO(panel_packed) : STA zsrc : LDA #HI(panel_packed) : STA zsrc + 1
+    LDA #LO(panel) : STA zdst : LDA #HI(panel) : STA zdst + 1
+    JSR unzx02
     ZA_AUTO2 src
     ZA_AUTO2 dst
     ZA_AUTO2 attr
@@ -56,9 +65,23 @@ PANEL_COLS = 8
     BMI done                    ; (past the top of RAM: the last row done)
     JMP row
 .done
+    \ the panel's attributes into attrs, where print finds them (from
+    \ the front: the copy's source, the unpacked panel's attributes,
+    \ overlaps attrs' later rows, which it reaches only once read)
+    LDX #0
+.arow
+    LDY #0
+.acol
+    LDA panel + PANEL_COLS * 192,X : STA (attr_dst),Y
+    INX : INY : CPY #PANEL_COLS : BNE acol
+    LDA attr_dst : CLC : ADC #SCREEN_COLS : STA attr_dst
+    BCC n : INC attr_dst + 1
+.n
+    CPX #PANEL_COLS * SCREEN_ROWS : BNE arow
     RTS
     ZA_AUTO1 tmp
     ZA_AUTO1 off
+    ZA_AUTO2 attr_dst
 }
 
 \ Each Spectrum colour's MODE 1 byte in the panel.

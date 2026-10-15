@@ -16,12 +16,16 @@ attributes do (docs/research.md).
 - passwords.bin: the 8 passwords at &FF62 (5 bytes each: the word, then
   the level it starts)
 - titleattr.bin: the title's attributes, &FF8A: two rows of 10 (&C1A6)
-- panel.bin: the status panel, the loading screen's left 8 columns, which
+- panel.zx02: the status panel, the loading screen's left 8 columns, which
   the game never draws but keeps: 192 pixel lines of 8 bytes, top first,
-  then the 24 rows of 8 attributes
+  then the 24 rows of 8 attributes; packed with ZX02 (decision 20: the
+  game unpacks it once, at start-up)
 """
 import os
 import sys
+
+sys.path.insert(0, os.path.dirname(__file__))
+import zx02
 
 sys.path.insert(0, os.path.dirname(__file__))
 from nmsnap import mem48
@@ -49,7 +53,7 @@ def main():
         panel += m[row:row + 8]
     for r in range(24):
         panel += m[0x5800 + 32 * r:0x5800 + 32 * r + 8]
-    write("panel.bin", panel)
+    write("panel.zx02", zx02.compress(bytes(panel)))
 
 
 if __name__ == "__main__":

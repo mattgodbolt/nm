@@ -170,8 +170,8 @@ SECTION Data, org = &8000, load = &FFFF3000, filename = "NDATA", guard = &C000
     INCBIN "data/levels.bin"
     INCLUDE "data/levels.6502"
     \ The status panel, drawn once (panel.6502)
-.panel
-    INCBIN "data/panel.bin"
+.panel_packed
+    INCBIN "data/panel.zx02"
     \ The music's songs (music.6502, tools/mkmusic.py)
 .music_data
     INCLUDE "data/music.6502"

@@ -22,6 +22,9 @@ const args = process.argv.slice(2);
 const option = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? args.splice(i, 2)[1] : dflt; };
 const out = option("--out", "build/bbc_passes.json");
 const disc = option("--disc", "build/nm.ssd");
+// --screens N: every N passes (and the last), the screen (12K) and the
+// attributes the port keeps, for tools/passcmp.py.
+const screens = parseInt(option("--screens", "0"));
 const inputs = (args[0] ?? "").split(",").filter(Boolean).map((part) => {
     const [name, rng] = part.split(":");
     const [a, b] = rng.split("-").map(Number);
@@ -51,6 +54,10 @@ try {
             ff: hex(await beeb.read("vars_ff", 0xFF62 - 0xFF2A)),
             map: hex(await beeb.read("map", 1024)),
         });
+        if (screens && (n % screens === 0 || n === passes - 1)) {
+            log[log.length - 1].scr = hex(await beeb.read(0x5000, 0x3000));
+            log[log.length - 1].attrs = hex(await beeb.read("attrs", 768));
+        }
     }
 } finally {
     await beeb.close();

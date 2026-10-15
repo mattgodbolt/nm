@@ -202,3 +202,25 @@ level 1 match pass for pass: standing, walking into walls, walking right
 and up across the view's scroll, and up then right into the monsters (33
 hits, a chest taken). The menu's flashing colour is the one thing not
 compared yet.
+
+### Stars, sounds, the smart bomb, and room
+
+- The stars are transcribed (`stars.6502`): the throw, the flight, the
+  bounce off walls (one shared count), and every hit, with the original's
+  quirks kept (a star's hits on a monster or a trap door use player 1's
+  power whoever threw it; the trap door's 50 points are never paid). Three
+  throwing scenarios match pass for pass.
+- The beeper's effects play on the SN76489 (`sound.6502`, decision 19),
+  each as long as the original's, holding `mu_busy` so the music stays
+  off the chip. The smart bomb is transcribed (`bomb.6502`).
+- Main RAM filled, so code that isn't in the inner loops runs from the
+  sideways RAM bank, which is paged in for good, and the drawing's tables
+  are made at start-up in OS workspace (decision 20). The panel's picture
+  is packed with ZX02 and unpacked into the map's room at start-up.
+- The pass logs now carry the screen every 50 passes, and `passcmp.py`
+  compares them: the playfield in the port's colours, the panel by shape.
+  That's because a bug only the screen showed got past the pass
+  comparison: moving `print_char`'s glyph pointer into rl/rh broke
+  `print_grid`, which counts in rl, and `draw_glyph` took the screen
+  column from Y after `attr_colours` had used it. Both are fixed, and every
+  scenario's screens now match.

@@ -93,10 +93,10 @@
 {
     \ the glyph: font + 8 * (A - FONT_FIRST)
     SEC : SBC #FONT_FIRST
-    LDX #0 : STX rh
-    ASL A : ROL rh : ASL A : ROL rh : ASL A : ROL rh
-    CLC : ADC #LO(font) : STA rl
-    LDA rh : ADC #HI(font) : STA rh
+    LDX #0 : STX gl_src + 1
+    ASL A : ROL gl_src + 1 : ASL A : ROL gl_src + 1 : ASL A : ROL gl_src + 1
+    CLC : ADC #LO(font) : STA gl_src
+    LDA gl_src + 1 : ADC #HI(font) : STA gl_src + 1
     \ in the cell's colours
     LDX PrintPos + 1 : LDY PrintPos
     LDA attr_row_lo,X : STA gl_at
@@ -114,24 +114,25 @@
     RTS
 }
 
-\ Draw the 8 x 8 pattern at rhl in character cell (X, Y), whose
+\ Draw the 8 x 8 pattern at gl_src in character cell (X, Y), whose
 \ attribute becomes A (the original's StarCell writes the attribute;
 \ print writes the one the cell has, as it leaves it).
 .draw_glyph
 {
+    STX gl_row : STY gl_col
     PHA
     LDA attr_row_lo,X : STA gl_at
     LDA attr_row_hi,X : STA gl_at + 1
     PLA : STA (gl_at),Y
-    JSR attr_colours
+    JSR attr_colours                ; (which uses X and Y)
     \ the screen: screen + row * &200 + col * 16
-    TYA : ASL A : ASL A : ASL A : ASL A : STA gl_at
-    TXA : ASL A : CLC : ADC #HI(screen) : STA gl_at + 1
-    TYA : LSR A : LSR A : LSR A : LSR A : CLC : ADC gl_at + 1 : STA gl_at + 1
+    LDA gl_col : ASL A : ASL A : ASL A : ASL A : STA gl_at
+    LDA gl_row : ASL A : CLC : ADC #HI(screen) : STA gl_at + 1
+    LDA gl_col : LSR A : LSR A : LSR A : LSR A : CLC : ADC gl_at + 1 : STA gl_at + 1
     LDY #0
 .line
     STY gl_tmp
-    LDA (rhl),Y : TAX
+    LDA (gl_src),Y : TAX
     LDA hi_nibble,X : AND dt_mask : EOR dt_paper : STA (gl_at),Y
     TYA : ORA #8 : TAY
     LDA lo_nibble,X : AND dt_mask : EOR dt_paper : STA (gl_at),Y
@@ -139,5 +140,8 @@
     RTS
 }
 ZA_AUTO2 gl_at
+ZA_AUTO2 gl_src
 ZA_AUTO1 gl_tmp
+ZA_AUTO1 gl_row
+ZA_AUTO1 gl_col
 FONT_FIRST = &20            ; font.bin's first code (the original's font is indexed from &F400)

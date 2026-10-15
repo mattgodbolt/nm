@@ -301,6 +301,7 @@ STAR_VIEW_MAX = &17             ; a star lives in the view's rows and columns 1-
 .floor
     LDA TileAttrs
 .attr
+    LDX rl : STX gl_src : LDX rh : STX gl_src + 1
     LDX cell_row : LDY cell_col
     JSR draw_glyph
     LDA #0

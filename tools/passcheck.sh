@@ -8,14 +8,17 @@ out=${PASSDIR:-build/passcheck}
 export PASSDIR="$out"
 # Not transcribed yet, so not compared (docs/journal.md): the menu's colour.
 IGNORE=${IGNORE:-MenuColour}
+# The screens compared too, every this many passes and on the last.
+SCREENS=${SCREENS:-50}
+export SCREENS
 export IGNORE
 scenarios() { grep -v '^#' tests/scenarios.txt | grep -v '^[[:space:]]*$'; }
 
 if [ "$1" = "--one" ]; then
     scenarios | sed -n "$2p" | while IFS='|' read -r name inputs passes flags; do
         name=$(echo $name); inputs=$(echo $inputs); passes=$(echo $passes)
-        .venv/bin/python tools/passlog.py "$inputs" "$passes" --out "$out/zx_$name.json" $flags > /dev/null || exit 1
-        node tools/passlog.mjs "$inputs" "$passes" --out "$out/bbc_$name.json" $flags > /dev/null || exit 1
+        .venv/bin/python tools/passlog.py "$inputs" "$passes" --out "$out/zx_$name.json" --screens $SCREENS $flags > /dev/null || exit 1
+        node tools/passlog.mjs "$inputs" "$passes" --out "$out/bbc_$name.json" --screens $SCREENS $flags > /dev/null || exit 1
         if result=$(python3 tools/passcmp.py "$out/zx_$name.json" "$out/bbc_$name.json" --ignore "$IGNORE"); then
             echo "$name: $result"
         else

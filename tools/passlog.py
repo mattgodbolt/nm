@@ -15,6 +15,9 @@ The game starts as the menu's 1 (or 2 with --two) starts it, at level 1
 tools/zxviews.py does), with the random generator shared and seeded
 (tools/zx.py's share_random, decision 7).
 
+--screens N also logs the screen (6,912 bytes) every N passes and on the
+last, for tools/passcmp.py to compare with the port's.
+
 Each pass logs the original's variables (&BA29-&BA9F and &FF2A-&FF61, the
 blocks the port keeps in the same layout: decision 10) and the map
 (&BC00, 1K), as hex.
@@ -69,6 +72,8 @@ def main():
     ap.add_argument("--out", default="build/zx_passes.json")
     ap.add_argument("--level", type=int, default=1)
     ap.add_argument("--two", action="store_true")
+    ap.add_argument("--screens", type=int, default=0,
+                    help="every N passes (and the last), log the screen too")
     args = ap.parse_args()
     inputs = parse_inputs(args.inputs)
 
@@ -95,6 +100,8 @@ def main():
             if a <= n <= b:
                 spec.key(key, True)
         log.append(state(spec.mem, n))
+        if args.screens and (n % args.screens == 0 or n == args.passes - 1):
+            log[-1]["scr"] = "".join(f"{spec.mem[a]:02x}" for a in range(0x4000, 0x5B00))
         spec.run_tstates(1)          # off the breakpoint
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     with open(args.out, "w") as f:
