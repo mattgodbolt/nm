@@ -68,13 +68,13 @@ OP_CMP_ABSY = &D9
 {
     \ the quarters: blocks + 8A in each plane
     TAY
-    LSR A : LSR A : LSR A : LSR A : LSR A : STA bhi
-    TYA : ASL A : ASL A : ASL A                         ; (blocks is on a page)
-    STA src0+1 : STA src1+1 : STA src2+1 : STA src3+1
-    LDA bhi : CLC : ADC #HI(blocks) : STA src0+2
+    LSR A : LSR A : LSR A : LSR A : LSR A
+    CLC : ADC #HI(blocks) : STA src0+2
     ADC #HI(PLANE) : STA src1+2                         ; (C clear: blocks is below &8000)
     ADC #HI(PLANE) : STA src2+2
     ADC #HI(PLANE) : STA src3+2
+    TYA : ASL A : ASL A : ASL A                         ; (blocks is on a page)
+    STA src0+1 : STA src1+1 : STA src2+1 : STA src3+1
     \ the screen: screen + row * &200 + col * 16, the right quarters 16
     \ on, the bottom a character row (&200) on; each line's second byte 8
     \ on from its first (col * 16 is a multiple of 16: no carry)
@@ -139,7 +139,6 @@ OP_CMP_ABSY = &D9
     DEY : BPL line
     RTS
 }
-ZA_AUTO1 bhi
 ZA_AUTO1 dt_row
 ZA_AUTO1 dt_col
 ZA_AUTO1 dt_mask
