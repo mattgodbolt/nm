@@ -10,6 +10,9 @@
 \   music_stop   (&C006, stop)
 \   music_tick   each VSync, from the interrupt (&C003, tick)
 \
+\ music_init, music_start, music_stop and music_dirty are in
+\ musicentry.6502, in the bank; the rest is here, in main RAM.
+\
 \ The driver works on shadow AY registers, mu_ay, as the original does
 \ (&C47F-&C48A, registers 0-11). Where the original then copies them to
 \ the AY, mu_output converts them to the SN76489 (decisions 15-18): the
@@ -64,71 +67,6 @@ mv_mask   = mu_voices + &20     ; the voice's tone and noise bits in register 7
 
 MU_MIX_INIT = &38               ; the mixer template's start (&C44A): tones on, noise off
 MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
-
-\ The driver's starting state, silent (the bank as the tape loads it).
-\ (mu_on and mu_busy are 0 already: start clears the fixed zero page.)
-.music_init
-{
-    \ The voices, the driver's variables and the shadow AY registers, 0:
-    \ the bank's self-modified operands as the tape has them (&C0D8,
-    \ &C125, &C3A1, &C0CC), and the AY registers (the original's are 0
-    \ but for register 7 and the volumes, which a song's first frame sets)
-    LDA #0
-    LDX #MU_STATE - 1
-.clear
-    STA mu_voices,X
-    DEX : BPL clear
-    \ but each voice's mv_mask, its tone and noise bits in register 7 (the
-    \ original's &C089, &C0AA, &C0CB), the mixer's template and &C0F9
-    LDA #&09 : STA mv_mask
-    LDA #&12 : STA mv_mask + MU_VOICE
-    LDA #&24 : STA mv_mask + 2 * MU_VOICE
-    LDA #MU_MIX_INIT : STA mu_mix
-    LDA #1 : STA mu_speed
-    JMP music_dirty
-}
-MU_STATE = mu_ay + MU_AY_REGS - mu_voices   ; (main.6502 keeps them together)
-ASSERT MU_STATE <= &80
-
-\ &C00E: play song A (0-6) from its start.
-.music_start
-{
-    PHP : SEI                   ; (the interrupt uses mu_ptr too)
-    LDX #0 : STX mu_on          ; (the original's first step too)
-    STA mu_tmp
-    ASL A : ASL A : ASL A : SEC : SBC mu_tmp
-    TAY                         ; the song's 7 bytes in mu_songs: its speed,
-                                ; then its voices' lists
-    LDA mu_songs,Y : STA mu_speed
-    INY
-.voice
-    LDA mu_songs,Y : STA mv_list,X
-    INY
-    LDA mu_songs,Y : STA mv_list+1,X
-    INY
-    STY mu_tmp
-    LDA #1 : STA mv_rows,X
-    LDA #0 : STA mv_flags,X : STA mv_vmode,X : STA mv_hihat,X
-    STA mv_next,X : JSR mu_pattern      ; the list's first pattern, and mv_next 1
-    LDA mu_ptr : STA mv_ptr,X
-    LDA mu_ptr+1 : STA mv_ptr+1,X
-    LDY mu_tmp
-    TXA : CLC : ADC #MU_VOICE : TAX
-    CPX #3 * MU_VOICE : BNE voice
-    LDA #0 : STA mu_transpose
-    LDA #1 : STA mu_rows
-    STA mu_on
-    PLP
-    RTS
-}
-\ &C19D: the song stops. The original silences the AY there and then; here
-\ the next mu_output does (it writes silence while mu_on is 0).
-.music_stop
-{
-    LDA #0 : STA mu_on
-    STA mu_ay + 8 : STA mu_ay + 9 : STA mu_ay + 10
-    RTS
-}
 
 \ The next byte of the pattern at mu_ptr. Keeps X.
 .mu_byte
@@ -626,16 +564,3 @@ ASSERT LO(MU_SN_PERIODS) = 0
     RTS
 }
 MU_WRITE_HOLD = 3               ; (a few microseconds of it: Chuckie Egg 2's)
-
-\ Every chip register written again at the next frame: after the game's
-\ sounds have used the music's channels, and at start-up.
-.music_dirty
-{
-    LDA #&FF                            ; (no register's: a tone's high byte
-    LDX #MU_SN_REGS - 1                 ; is 0-3, an attenuation 0-15)
-.each
-    STA mu_sn_lo,X
-    DEX : BPL each
-    RTS
-}
-MU_SN_REGS = mu_sn_noise + 1 - mu_sn_lo     ; (main.6502 keeps them together)
