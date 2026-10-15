@@ -319,16 +319,17 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
 {
     LDA mv_flags,X : STA mu_flags
     AND #&20 : BEQ pitch
-    \ The envelope: a step every mv_estep + 1 frames, until one with bit 7
-    LDA mv_ecnt,X : SEC : SBC #1 : STA mv_ecnt,X
-    BCS held
+    \ The envelope: a step every mv_estep + 1 frames, until one with bit 7.
+    \ (The count runs down from mv_estep, which tools/mkmusic.py checks is
+    \ below &80, so it's negative only once it has passed 0.)
+    DEC mv_ecnt,X : BPL held
     LDA mv_estep,X : STA mv_ecnt,X
-    LDA mv_epos,X : CLC : ADC #1 : STA mu_ptr2
-    LDA mv_epos+1,X : ADC #0 : STA mu_ptr2+1
-    LDY #0 : LDA (mu_ptr2),Y : BMI held
+    LDA mv_epos,X : STA mu_ptr2
+    LDA mv_epos+1,X : STA mu_ptr2+1
+    LDY #1 : LDA (mu_ptr2),Y : BMI held ; (the next step)
     STA mv_evol,X
-    LDA mu_ptr2 : STA mv_epos,X
-    LDA mu_ptr2+1 : STA mv_epos+1,X
+    INC mv_epos,X : BNE held
+    INC mv_epos+1,X
 .held
     LDA mv_evol,X : STA mv_vol,X
 .pitch
@@ -353,7 +354,7 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     LDA mu_periods_hi,Y : STA mu_per+1
 
     \ &C3CC: the vibrato, a triangle wave
-    LDA mv_vmode,X : AND #&40 : BEQ parity
+    LDA mv_vmode,X : ASL A : BPL parity ; (bit 6: on)
     LDA mv_vdepth,X : ASL A : STA mu_span
     LDA mv_vmode,X : BPL move
     LDA mu_flags : LSR A : BCS have     ; (&C0: only on alternate frames)
@@ -389,10 +390,8 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
 
     \ &C421: the portamento, from its delay on, adding its step each frame
     LDA mu_flags : AND #4 : BEQ mixer
-    LDA mv_pdelay,X : SEC : SBC #1 : BEQ slide
-    STA mv_pdelay,X
-    JMP mixer
-.slide
+    DEC mv_pdelay,X : BNE mixer
+    INC mv_pdelay,X                     ; (at 1 the original slides, and keeps the 1)
     LDY #0 : LDA mv_pstep,X : BPL positive
     DEY
 .positive

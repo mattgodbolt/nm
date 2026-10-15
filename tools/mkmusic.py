@@ -172,7 +172,12 @@ def emit(m, kinds, words, insts, arps, notes):
                 raise SystemExit(f"&{a:04X} is both a byte and part of a pointer")
             kinds[a] = k
     for i in insts:
-        label(word(m, dw.INST_TABLE + 2 * i), f"mu_inst_{i}")
+        at = word(m, dw.INST_TABLE + 2 * i)
+        label(at, f"mu_inst_{i}")
+        # src/music.6502's mu_render counts an envelope's frames down from
+        # its step time and takes a negative count as past 0.
+        if m[at - 1] >= 0x80:
+            raise SystemExit(f"instrument {i}'s step time &{m[at - 1]:02X} is past &7F")
     for i in arps:
         label(dw.ARP_TABLE + i + m[dw.ARP_TABLE + i], f"mu_arp_{i}")
     for a, names in labels.items():
