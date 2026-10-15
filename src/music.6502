@@ -60,37 +60,33 @@ mv_noisep = mu_voices + &1E     ; b0: the notes set the noise's period
 mv_hihat  = mu_voices + &1F     ; non-zero: a frame of noise each row
 mv_mask   = mu_voices + &20     ; the voice's tone and noise bits in register 7
 
-\ Each voice's mv_mask, as the original's start (&C089, &C0AA, &C0CB):
-\ its tone bit and its noise bit in AY register 7.
-.mu_masks       EQUB &09, &12, &24
 MU_MIX_INIT = &38               ; the mixer template's start (&C44A): tones on, noise off
 MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
 
 \ The driver's starting state, silent (the bank as the tape loads it).
+\ (mu_on and mu_busy are 0 already: start clears the fixed zero page.)
 .music_init
 {
-    LDA #0 : STA mu_on : STA mu_busy
-    LDX #3 * MU_VOICE - 1
+    \ The voices, the driver's variables and the shadow AY registers, 0:
+    \ the bank's self-modified operands as the tape has them (&C0D8,
+    \ &C125, &C3A1, &C0CC), and the AY registers (the original's are 0
+    \ but for register 7 and the volumes, which a song's first frame sets)
+    LDA #0
+    LDX #MU_STATE - 1
 .clear
     STA mu_voices,X
     DEX : BPL clear
-    LDX #MU_AY_REGS - 1
-.ay
-    STA mu_ay,X                 ; (the original's are 0 but for register 7 and the
-    DEX : BPL ay                ; volumes, which a song's first frame sets)
-    LDX #2
-.masks
-    LDY mu_voice_at,X
-    LDA mu_masks,X : STA mv_mask,Y
-    DEX : BPL masks
+    \ but each voice's mv_mask, its tone and noise bits in register 7 (the
+    \ original's &C089, &C0AA, &C0CB), the mixer's template and &C0F9
+    LDA #&09 : STA mv_mask
+    LDA #&12 : STA mv_mask + MU_VOICE
+    LDA #&24 : STA mv_mask + 2 * MU_VOICE
     LDA #MU_MIX_INIT : STA mu_mix
-    \ the bank's self-modified operands, as the tape has them (&C0D8,
-    \ &C125, &C3A1, &C0CC 0; &C0F9 1): the workspace isn't cleared
-    LDA #0
-    STA mu_noise_note : STA mu_noise : STA mu_transpose : STA mu_rows
     LDA #1 : STA mu_speed
     JMP music_dirty
 }
+MU_STATE = mu_ay + MU_AY_REGS - mu_voices   ; (main.6502 keeps them together)
+ASSERT MU_STATE <= &80
 
 \ &C00E: play song A (0-6) from its start.
 .music_start
@@ -471,8 +467,7 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     LDA #&FF : STA sysvia_ddra
     LDX #0
 .channel
-    LDA #MU_SILENT
-    LDY mu_on : BEQ attenuation
+    LDA mu_on : BEQ silent
     JSR mu_period
     LDA mu_s : CMP mu_sn_lo,X : BNE tone
     LDA mu_s+1 : CMP mu_sn_hi,X : BEQ volume
@@ -485,11 +480,11 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     LSR A : LSR A                       ; (the period's top six bits)
     JSR mu_write
 .volume
-    LDA mu_ay + 7 : AND mu_tone_bit,X : BEQ tone_on
-    LDA #MU_SILENT : BNE attenuation    ; (always)
-.tone_on
+    LDA mu_ay + 7 : AND mu_tone_bit,X : BNE silent
     LDA mu_ay + 8,X : AND #&0F : TAY
-    LDA mu_att,Y
+    LDA mu_att,Y : BPL attenuation      ; (always)
+.silent
+    LDA #MU_SILENT
 .attenuation
     CMP mu_sn_att,X : BEQ channel_done
     STA mu_sn_att,X
@@ -520,8 +515,7 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     CMP mu_sn_noise : BEQ rate_done
     STA mu_sn_noise : JSR mu_write
 .rate_done
-    PLA
-    JMP noise_volume
+    PLA : BPL noise_volume              ; (always)
 .noise_silent
     LDA #MU_SILENT
 .noise_volume
@@ -575,24 +569,26 @@ MU_SILENT = 15
 .mu_period
 {
     TXA : ASL A : TAY
-    LDA mu_ay,Y : STA mu_p
     LDA mu_ay + 1,Y : AND #&0F : STA mu_p+1     ; (the AY keeps 12 bits)
-    \ mu_t = P x 3 + 512 ...
-    LDA mu_p : ASL A : STA mu_t
+    LDA mu_ay,Y : STA mu_p
+    \ mu_t = P x 3 + 512 ... (no carries out: P is 12 bits)
+    ASL A : STA mu_t
     LDA mu_p+1 : ROL A : STA mu_t+1
-    LDA mu_t : CLC : ADC mu_p : STA mu_t
+    LDA mu_t : ADC mu_p : STA mu_t
     LDA mu_t+1 : ADC mu_p+1 : ADC #HI(MU_ROUND) : STA mu_t+1
-    \ ... + P x 128 = P x 131 + 512, 24 bits
+    \ ... + P x 128 = P x 131 + 512, 24 bits (of the low byte, only its carry)
     LDA mu_p+1 : LSR A : STA mu_t+2
     LDA mu_p : ROR A : PHA
-    LDA #0 : ROR A
-    CLC : ADC mu_t : STA mu_t
-    PLA : ADC mu_t+1 : STA mu_t+1
-    LDA mu_t+2 : ADC #0 : STA mu_t+2
+    LDA #0 : ROR A                      ; (and the carry clear)
+    ADC mu_t
+    PLA : ADC mu_t+1
+    BCC high
+    INC mu_t+2
+.high
     \ S = P + (P x 131 + 512) / 1024
-    LSR mu_t+2 : ROR mu_t+1
-    LSR mu_t+2 : ROR mu_t+1
-    LDA mu_t+1 : CLC : ADC mu_p : STA mu_s
+    LSR mu_t+2 : ROR A
+    LSR mu_t+2 : ROR A
+    CLC : ADC mu_p : STA mu_s
     LDA mu_t+2 : ADC mu_p+1 : STA mu_s+1
     ORA mu_s : BNE octaves
     INC mu_s                            ; (period 0: the AY plays it as 1)
@@ -629,12 +625,11 @@ MU_WRITE_HOLD = 3               ; (a few microseconds of it: Chuckie Egg 2's)
 \ sounds have used the music's channels, and at start-up.
 .music_dirty
 {
-    LDA #&FF
-    LDX #3
+    LDA #&FF                            ; (no register's: a tone's high byte
+    LDX #MU_SN_REGS - 1                 ; is 0-3, an attenuation 0-15)
 .each
-    STA mu_sn_att,X
+    STA mu_sn_lo,X
     DEX : BPL each
-    STA mu_sn_hi : STA mu_sn_hi+1 : STA mu_sn_hi+2
-    STA mu_sn_noise
     RTS
 }
+MU_SN_REGS = mu_sn_noise + 1 - mu_sn_lo     ; (main.6502 keeps them together)
