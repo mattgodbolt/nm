@@ -10,69 +10,53 @@
 ZA_AUTO2 zsrc               ; the next byte of the stream
 ZA_AUTO2 zdst               ; where the next byte goes
 ZA_AUTO2 zcp                ; a match's source
-ZA_AUTO2 znoff              ; NOT(the offset - 1): zdst + znoff is the match
-ZA_AUTO1 zbits             ; the bit buffer: a 1 shifted in behind the bits
+ZA_AUTO2 zoff               ; the offset - 1: zdst - zoff - 1 is the match
+ZA_AUTO1 zbits              ; the bit buffer: a 1 shifted in behind the bits
 
-\ Unpack the stream at zsrc to zdst.
+\ Unpack the stream at zsrc to zdst. Y stays 0 throughout, so (zp),Y
+\ reads and writes at the pointer itself.
 .unzx02
 {
+    LDY #0
     LDA #&80 : STA zbits
-    LDA #&FF : STA znoff : STA znoff+1  ; the first offset is 1
+    STY zoff : STY zoff+1           ; the first offset is 1
 .literals
     JSR gamma
-    LDA zsrc : STA zcp
-    LDA zsrc+1 : STA zcp+1
-    JSR copy
-    \ the source moves on by as many
-    TYA : CLC : ADC zsrc : STA zsrc
-    BCC lit_c : INC zsrc+1
-.lit_c
-    LDA zcount : BNE lit_n : INC zsrc+1
-.lit_n
+.literal
+    JSR next_byte
+    STA (zdst),Y
+    INC zdst : BNE l : INC zdst+1
+.l
+    DEX : BNE literal
     JSR getbit : BCS new_offset
     \ a match at the last offset
     JSR gamma
-.match
-    CLC
-    LDA zdst : ADC znoff : STA zcp
-    LDA zdst+1 : ADC znoff+1 : STA zcp+1
-    JSR copy
-    JSR getbit : BCC literals
+    JMP match
 .new_offset
-    JSR gamma                   ; the offset's high part, plus one
-    TXA : BEQ done              ; (256: the end)
+    JSR gamma                       ; the offset's high part, plus one
+    TXA : BEQ done                  ; (256: the end)
     \ offset - 1 = (high - 1) * 128 + (low >> 1); its bit 0 is the length's
     \ first bit
-    DEX : TXA : LSR A
-    EOR #&FF : STA znoff+1
-    LDY #0 : LDA (zsrc),Y
-    INC zsrc : BNE ofs_c : INC zsrc+1
-.ofs_c
-    ROR A                       ; the high part's bit 0 in, low bit 0 out
-    EOR #&FF : STA znoff
-    \ (EOR leaves C: the length's first continuation bit)
+    DEX : TXA : LSR A : STA zoff+1
+    JSR next_byte                   ; (which keeps C: the high part's bit 0)
+    ROR A : STA zoff                ; (... in, and low bit 0 out to C)
     JSR gamma_c
-    INX                         ; the length is one more
-    JMP match
-.done
-    RTS
-}
-
-ZA_AUTO1 zcount             ; the count copy was given (0: 256)
-
-\ Copy X bytes (0: 256) from zcp to zdst, and move zdst on. Y = X after.
+    INX                             ; the length is one more
+.match
+    CLC                             ; (zdst - zoff - 1)
+    LDA zdst : SBC zoff : STA zcp
+    LDA zdst+1 : SBC zoff+1 : STA zcp+1
 .copy
-{
-    STX zcount
-    LDY #0
-.loop
-    LDA (zcp),Y : STA (zdst),Y
-    INY : DEX : BNE loop
-    TYA : CLC : ADC zdst : STA zdst
-    BCC c : INC zdst+1
+    LDA (zcp),Y
+    INC zcp : BNE c : INC zcp+1
 .c
-    LDA zcount : BNE n : INC zdst+1
-.n
+    STA (zdst),Y
+    INC zdst : BNE d : INC zdst+1
+.d
+    DEX : BNE copy
+    JSR getbit : BCC literals
+    BCS new_offset                  ; (always)
+.done
     RTS
 }
 
@@ -83,12 +67,11 @@ ZA_AUTO1 zcount             ; the count copy was given (0: 256)
 .gamma_c
 {
     LDX #1
-.loop
     BCC done
+.more
     JSR getbit
     TXA : ROL A : TAX
-    JSR getbit
-    JMP loop
+    JSR getbit : BCS more
 .done
     RTS
 }
@@ -97,13 +80,17 @@ ZA_AUTO1 zcount             ; the count copy was given (0: 256)
 .getbit
 {
     ASL zbits : BNE done
-    STY ytmp
-    LDY #0 : LDA (zsrc),Y
-    INC zsrc : BNE c : INC zsrc+1
-.c
+    JSR next_byte
     SEC : ROL A : STA zbits
-    LDY ytmp
 .done
     RTS
 }
-ZA_AUTO1 ytmp
+
+\ The stream's next byte, in A (Y = 0), keeping C.
+.next_byte
+{
+    LDA (zsrc),Y
+    INC zsrc : BNE done : INC zsrc+1
+.done
+    RTS
+}
