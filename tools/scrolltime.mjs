@@ -2,9 +2,9 @@
 // The scroll's time, and its screens step by step. Plays a slide in each
 // direction (keys held over main-loop passes, as tests/scenarios.txt's)
 // and times each scroll from its entry (scroll_up and the rest) to its
-// end (erase_old, or the next pass when it stops at the map's edge), and
-// the pass it's in (pass_top to pass_top, the wait for the pass clock
-// included). Frames are the BBC's: 40,000 cycles.
+// end (erase_old, or the pass's end when it stops at the map's edge), and
+// the pass it's in (pass_top to main_loop's wait for the pass clock).
+// Frames are the BBC's: 40,000 cycles.
 //
 //   node tools/scrolltime.mjs [--disc build/test.ssd] [--against old.ssd] [cases...]
 //
@@ -53,7 +53,7 @@ async function run(path, name) {
     const last = Math.max(...inputs.map((i) => i.b), ...pokes.map((p) => p[0]));
     const beeb = await startBeeb({ disc: path, symbols: path.replace(/\.ssd$/, ".json"), bootUntil: "start" });
     const at = (s) => beeb.addr(s);
-    const kinds = new Map([[at("pass_top"), "pass"], [at("erase_old"), "erase"]]);
+    const kinds = new Map([[at("pass_top"), "pass"], [at("main_loop"), "done"], [at("erase_old"), "erase"]]);
     for (const s of SCROLLS) kinds.set(at(s), "scroll");
     const names = new Map(SCROLLS.map((s) => [at(s), s]));
     for (const s of SHIFTS) kinds.set(at(s), "shift");
@@ -68,12 +68,13 @@ async function run(path, name) {
             const r = await beeb.cycles(40e6);
             if (r.stopped_reason !== "breakpoint" && r.stopped_reason !== "pending_breakpoint") throw new Error(`${name}: no pass for 20s`);
             const kind = kinds.get(r.registers.pc), t = r.registers.elapsed_cycles;
-            if (kind === "pass") {
+            if (kind === "done") {
                 if (cur) {
                     if (cur.end === undefined) { cur.end = t; cur.steps.push(await screen()); }
                     cur.pass = t - passStart;
                     scrolls.push(cur); cur = null;
                 }
+            } else if (kind === "pass") {
                 pass++; passStart = t;
                 for (const [when, sym, value] of pokes) if (when === pass) await beeb.write(sym, [value]);
                 for (const { key } of inputs) {
