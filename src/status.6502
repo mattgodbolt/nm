@@ -103,6 +103,16 @@ ICON_SCROLL  = &23
     RTS
 }
 
+\ Player pl's icons for the count at field Y of its record: icon X, from
+\ column A of its icon row (&CB0C's).
+.print_icons
+    STA re
+    TYA : CLC : ADC prec : TAY
+    LDA Player1,Y : STA rl
+    LDY pl : LDA icon_row,Y : STA rd
+    TXA
+    \ (fall into print_grid)
+
 \ &DA7E PrintGrid: the panel's icons, a 3 x 3 grid from row rd, column re:
 \ A's character as many times as the count (rl), then spaces.
 .print_grid

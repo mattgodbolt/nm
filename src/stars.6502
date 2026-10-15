@@ -33,23 +33,27 @@ STAR_VIEW_MAX = &17             ; a star lives in the view's rows and columns 1-
     RTS
 }
 
-\ &C60E LaunchStar: player pl's star from its position (rd, re), facing
-\ A, thrower code X: it starts two cells out (the doubling is RLCA, so
-\ -1 stays -1: one cell out going up or left), and looks at that cell.
+\ &C60E LaunchStar: player X's (pl's) star from its position (rb, rc),
+\ facing A: it starts two cells out, and looks at that cell.
 .launch_star
 {
-    STX ra2 : STA rx
-    LDX pl : LDY star_offset,X : STY st
-    LDA ra2 : STA Star1 + S_THROWER,Y
-    LDA rx : AND #&0E : TAX
+    AND #&0E : PHA
+    LDY star_offset,X : STY st
+    LDA player_code,X : STA Star1 + S_THROWER,Y
+    PLA : TAX
     LDA StarDirs,X : STA Star1 + S_DROW,Y
-    CMP #&80 : ROL A                ; (RLCA)
-    CLC : ADC rd : STA rb : STA Star1 + S_ROW,Y
     LDA StarDirs + 1,X : STA Star1 + S_DCOL,Y
-    CMP #&80 : ROL A
-    CLC : ADC re : STA rc : STA Star1 + S_COL,Y
-    \ (fall into star_look)
+    \ (fall into star_from)
 }
+
+\ The star (Y = st) to two cells on from (rb, rc) along its direction (the
+\ doubling is RLCA, so -1 stays -1: one cell on going up or left).
+.star_from
+    LDA Star1 + S_DROW,Y : CMP #&80 : ROL A
+    CLC : ADC rb : STA rb : STA Star1 + S_ROW,Y
+    LDA Star1 + S_DCOL,Y : CMP #&80 : ROL A
+    CLC : ADC rc : STA rc : STA Star1 + S_COL,Y
+    \ (fall into star_look)
 
 \ &C659 StarLook: the star's next cell, (rb, rc): empty, or the
 \ thrower's own, it moves there; anything else is a hit.
@@ -253,9 +257,7 @@ STAR_VIEW_MAX = &17             ; a star lives in the view's rows and columns 1-
     JSR pick_teleporter
     JSR cell_pos
     LDY st
-    LDA Star1 + S_DROW,Y : CMP #&80 : ROL A : CLC : ADC rb : STA Star1 + S_ROW,Y : STA rb
-    LDA Star1 + S_DCOL,Y : CMP #&80 : ROL A : CLC : ADC rc : STA Star1 + S_COL,Y : STA rc
-    JMP star_look
+    JMP star_from
 }
 
 \ &C7DB StarHitPlayer: if the other player holds the freeze ring, the
