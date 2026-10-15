@@ -85,13 +85,34 @@ NEXT
 {
     STX sh_i
     STX sh_prog
-    INC sh_steps
     LDA #SP_PIXELS : STA sp_mode
-    JSR load : JSR go_rows
+    JSR load
+    LDA sh_steps : BNE again
+    LDA cp_par + CP_FIRST : JSR cp_set
+    BEQ first                   ; (always: cp_set ends on Z)
+.again
+    \ the slide's last step left the copier on these rows' second page:
+    \ back to the first, cheaper than setting the rows again
+    LDY sh_i : LDA shift_progs,Y : EOR #OP_INC_ABSX EOR OP_DEC_ABSX
+    JSR page_by
+.first
+    JSR go_run
+    INC sh_steps
     \ the second page's run, after its INC or DEC abs,X (read where the
     \ first row's offset was, which cp_set has used)
     LDX #CP_FIRST : JSR load_x
-    LDA cp_par + CP_FIRST : STA inc1 : STA inc2
+    LDA cp_par + CP_FIRST : JSR page_by
+    \ (fall into go_run)
+\ cp_par's run: Y from its start, stepping until it's the end.
+.go_run
+    LDA cp_par + CP_OP : STA cp_step
+    LDA cp_par + CP_END : STA cp_end + 1
+    LDY cp_par + CP_FROM
+    JMP cp_go
+\ Every row's addresses in the copier a page on or back: A is INC or DEC
+\ abs,X.
+.page_by
+    STA inc1 : STA inc2
     LDX #6 * (CP_PAIRS - 1)
 .page
 .inc1
@@ -100,17 +121,7 @@ NEXT
     INC cp_pairs + 5,X
     TXA : SEC : SBC #6 : TAX
     BCS page
-    \ (fall into go_run)
-\ cp_par's run: Y from its start, stepping until it's the end.
-.go_run
-    LDA cp_par + CP_OP : STA cp_step
-    LDA cp_par + CP_END : STA cp_end + 1
-    LDY cp_par + CP_FROM
-    JMP cp_go
-\ cp_par's rows, then its run.
-.go_rows
-    LDA cp_par + CP_FIRST : JSR cp_set
-    JMP go_run
+    RTS
 \ The program's rows and run, from sh_i, into cp_par (or from its X'th
 \ byte on).
 .load
@@ -180,7 +191,8 @@ NEXT
     DEY : BNE stride
     BEQ stretch                 ; (always)
 .go
-    JSR shift_by.go_rows
+    LDA cp_par + CP_FIRST : JSR cp_set
+    JSR shift_by.go_run
     \ the strips' attributes alone (sp_mode), each from the map as the
     \ slide drew it: a tile (2 characters) a step back from its last
     LDA #SP_ATTRS : STA sp_mode
