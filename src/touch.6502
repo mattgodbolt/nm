@@ -540,9 +540,7 @@ T_SWITCH_WALL = &06
 {
     LDX pl
     LDA InPlay : AND exit_keep,X : ORA exit_through,X : STA InPlay
-    LDY prec
-    LDA Player1 + R_ROW,Y : STA rd
-    LDA Player1 + R_COL,Y : STA re
+    JSR rec_pos
     JSR erase_at
     LDX pl : LDA exit_song,X
     JSR play_song

@@ -43,10 +43,8 @@ CONTROLS = 6
     \ not drawn (the view couldn't scroll): the step bit, so it tries again
     LDX pl : LDA P1Facing,X : ORA pass_step_bit,X : STA P1Facing,X
 .drawn
-    LDX pl : LDY prec
-    LDA Player1 + R_ROW,Y : STA rb
-    LDA Player1 + R_COL,Y : STA rc
-    LDA player_code,X : STA MapStamp
+    JSR rec_pos
+    LDX pl : LDA player_code,X : STA MapStamp
     JMP fill_cells
 }
 .in_play_bit
@@ -142,8 +140,7 @@ CONTROLS = 6
     DEC Player1 + R_POWER,X
 .no_power
     LDA Player1 + R_BOUNCES,X : STA Bounces
-    LDA Player1 + R_ROW,X : STA rb
-    LDA Player1 + R_COL,X : STA rc
+    JSR rec_pos                     ; (launch_star's rb, rc)
     LDX pl : LDA P1Facing,X
     JSR launch_star
     LDA #THROW_CHIRP : JSR chirp
@@ -176,25 +173,19 @@ CONTROLS = 6
     \ blocked: the step bit set, and slide: the horizontal step alone,
     \ then the vertical (a touch leaves the facing alone)
     LDX pl : LDA P1Facing,X : ORA #1 : STA P1Facing,X
-    LDY prec
-    LDA Player1 + R_ROW,Y : STA rd
-    LDA Player1 + R_COL,Y : CLC : ADC StepH : STA re
+    JSR rec_pos
+    LDA re : CLC : ADC StepH : STA re
     JSR player_touch : BEQ player_place
-    LDY prec
-    LDA Player1 + R_ROW,Y : CLC : ADC StepV : STA rd
-    LDA Player1 + R_COL,Y : STA re
+    JSR rec_pos
+    LDA rd : CLC : ADC StepV : STA rd
     JSR player_touch : BEQ player_place
     \ (fall into player_stay)
 }
 
 \ &CAA6 P1Stay: not moving: its position as it was.
 .player_stay
-{
-    LDY prec
-    LDA Player1 + R_ROW,Y : STA rd
-    LDA Player1 + R_COL,Y : STA re
+    JSR rec_pos
     \ (fall into player_place)
-}
 
 \ &CAAA P1Place, &CDCE: player pl to (rd, re): scroll the view if that's
 \ outside the view's rows and columns 2-20, else store it, erase the old
@@ -247,6 +238,13 @@ CONTROLS = 6
 }
 .player_colour
     EQUB P1_COLOUR, P2_COLOUR
+
+\ Player pl's position from its record, in (rb, rc) and (rd, re). Y = prec.
+.rec_pos
+    LDY prec
+    LDA Player1 + R_ROW,Y : STA rb : STA rd
+    LDA Player1 + R_COL,Y : STA rc : STA re
+    RTS
 
 \ &CB4C ScrollUp, &CB93 ScrollDown, &CBD5 ScrollLeft, &CC23 ScrollRight:
 \ slide the view 8 tiles, a tile a step (each a block move of the screen
