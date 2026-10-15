@@ -54,14 +54,17 @@ PALETTE = [(0, 0, 0), (0, 0, N), (N, 0, 0), (N, 0, N), (0, N, 0), (0, N, N), (N,
 
 
 # The original's random numbers come from the Z80's R register, at these
-# 13 places (LD A,R; docs/research.md). A 6502 has no R, so the port has a
+# 13 places (LD A,R; docs/research/). A 6502 has no R, so the port has a
 # generator of its own (src/level.6502's random, decision 7), and for the
 # checks the original is made to use it too: share_random() puts the
 # generator in the publisher's mastering code (&B942-&BA28, which never
 # runs), with its state at RNG_STATE, and turns each LD A,R into RST &10;
 # NOP, with a JP to it at &0010 (the ROM's PRINT-A restart, which the game
 # never uses).
-RNG_SITES = [0xC3AE, 0xC3C3, 0xC4B0, 0xC7AF, 0xC8C6, 0xC8CC, 0xCEF5, 0xD095,
+# The hit noise's two (&C8C6, &C8CC) are left reading R: they only shape
+# the sound, a hundred numbers a hit, and the port's noise has its own
+# source, so the shared stream doesn't depend on the sound (decision 7).
+RNG_SITES = [0xC3AE, 0xC3C3, 0xC4B0, 0xC7AF, 0xCEF5, 0xD095,
              0xD0D7, 0xD317, 0xD3AD, 0xDAB1, 0xDAFF]
 RNG_STATE = 0xB942
 RNG_CODE = [
