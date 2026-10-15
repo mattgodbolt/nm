@@ -48,7 +48,7 @@ T_P2        = &72
 TOUCH_EVERY = 10                ; the touch gate: one contact in this many acts (&D290)
 
 \ &D1BA TouchAll: the four cells of a player's new position (rb, rc):
-\ (rb, rc), (rb+1, rc), (rb+1, rc+1), (rb, rc+1). X = prec.
+\ (rb, rc), (rb+1, rc), (rb+1, rc+1), (rb, rc+1).
 .touch_all
 {
     LDA #0
@@ -60,49 +60,73 @@ TOUCH_EVERY = 10                ; the touch gate: one contact in this many acts 
     \ (fall into touch)
 }
 
-\ &D1D7 Touch: one cell, (rb, rc).
+\ &D1D7 Touch: one cell, (rb, rc). The handlers have X = prec, Y = 0.
 .touch
 {
     JSR map_cell : BEQ done
     STA TouchCode
     \ &D287 TouchGate: only every tenth contact acts
     DEC TouchCount : BNE done
-    LDY #TOUCH_EVERY : STY TouchCount
-    LDY #0
+    LDX #TOUCH_EVERY : STX TouchCount
+    LDX prec
     CMP #T_MARKER : BCC item
     BNE head
     JMP hit_marker
 .head
     \ a monster's head: punched, 5 treasure
     JSR hit_monster
-    LDX prec
-    LDA TouchTreasure : CLC : ADC #5 : STA TouchTreasure
+.treasure5
+    LDA #5
+.treasure                    ; A more treasure from this touch
+    CLC : ADC TouchTreasure : STA TouchTreasure
 .done
     RTS
 .item
-    CMP #T_P1 : BNE not_p1
-    JMP shove_p1
-.not_p1
-    CMP #T_P2 : BNE not_p2
-    JMP shove_p2
-.not_p2
+    CMP #T_P1 : BEQ player
+    CMP #T_P2 : BNE not_player
+.player
+    JMP shove
+.not_player
     CMP #T_WALL_END : BCC done
     \ &D204-&D25B: by code, &08-&1D
     CMP #T_EXIT : BCS above
-    SEC : SBC #T_KEY : ASL A : TAY
-    LDA touch_table + 1,Y : PHA
-    LDA touch_table,Y : PHA
+    ASL A : TAY
+    LDA touch_table - 2 * T_KEY + 1,Y : PHA
+    LDA touch_table - 2 * T_KEY,Y : PHA
     LDY #0 : LDA (rhl),Y            ; (the code again, for the handlers that want it)
     RTS                             ; (to the handler)
     ZA_CANJUMP take_key, open_door_v, open_door_h, open_chest, take_chest, take_food, take_scroll, touch_nothing, take_ring, push_rock, teleport, take_one_way, take_switch, take_death_star, take_shield, take_idol, take_heart, take_ball, take_clock
 .above
     CMP #T_TRAP : BCC done          ; &1E (the exit: the caller's) and &1F
-    CMP #&40 : BCS clear
-    JMP touch_trap_door
-.clear
+    CMP #&40 : BCC touch_trap_door
     \ &D265: &40 and up (apart from the players) just go
+    \ (fall into take_away)
+}
+
+\ Take the item at rhl (Y = 0): it goes, and its tile is redrawn.
+.take_away
     LDA #0 : STA (rhl),Y
     JMP redraw_tile
+
+\ &D297 TouchTrapDoor: one hit, 8 off its code (gone below &20), 5
+\ treasure, and the step cleared. Kind 7 (a hell hole) kills: &D2B9 sets
+\ the strength to &FF00, so the strength change this touch makes finds it
+\ negative.
+.touch_trap_door
+{
+    AND #7 : CMP #7 : BEQ hell_hole
+    LDA (rhl),Y : SBC #8 - 1        ; (C clear: the kind is below 7)
+    CMP #T_TRAP : BCS keep
+    LDA #0
+.keep
+    STA (rhl),Y
+    JSR touch.treasure5
+    JSR clear_step
+    JMP redraw_tile
+.hell_hole
+    LDA #0 : STA Player1 + R_STRENGTH,X
+    LDA #&FF : STA Player1 + R_STRENGTH + 1,X
+    RTS
 }
 
 \ The handlers for &08-&1D, as RTS addresses.
@@ -137,65 +161,36 @@ ENDMACRO
 .touch_nothing
     RTS
 
-\ Take the item at rhl: it goes, and its tile is redrawn.
-.take_away
-    LDA #0 : STA (rhl),Y
-    JMP redraw_tile
-
-\ &D297 TouchTrapDoor: one hit, 8 off its code (gone below &20), 5
-\ treasure, and the step cleared. Kind 7 (a hell hole) kills: &D2B9 sets
-\ the strength to &FF00, so the strength change this touch makes finds it
-\ negative.
-.touch_trap_door
-{
-    TAY : AND #7 : CMP #7 : BEQ hell_hole
-    TYA : SEC : SBC #8
-    CMP #T_TRAP : BCS keep
-    LDA #0
-.keep
-    LDY #0 : STA (rhl),Y
-    LDA TouchTreasure : CLC : ADC #5 : STA TouchTreasure
-    LDA #0 : STA StepV : STA StepH
-    JMP redraw_tile
-.hell_hole
-    LDX prec
-    LDA #0 : STA Player1 + R_STRENGTH,X
-    LDA #&FF : STA Player1 + R_STRENGTH + 1,X
-    RTS
-}
-
-\ &D2C2 TakeKey: one more key, up to 9.
+\ &D334 TakeScroll: one more scroll (a smart bomb), up to 9. &D2C2
+\ TakeKey: one more key, up to 9.
+.take_scroll
+    INX                             ; (R_MAGIC is R_KEYS + 1)
 .take_key
 {
-    LDX prec
     LDA Player1 + R_KEYS,X : CMP #9 : BCS done
     INC Player1 + R_KEYS,X
     JMP take_away
 .done
     RTS
 }
+    ASSERT R_MAGIC = R_KEYS + 1
 
 \ &D2D0, &D2EF: a door, vertical or horizontal: spend a key, and the
 \ door and its run of the same code go, up and down (or left and right).
 .open_door_v
-    LDA #32 : STA door_step
-    JMP open_door
+    LDA #32 : BNE open_door         ; (always)
 .open_door_h
-    LDA #1 : STA door_step
+    LDA #1
 .open_door
 {
-    LDX prec
+    STA door_step
     LDA Player1 + R_KEYS,X : BEQ done
     DEC Player1 + R_KEYS,X
-    LDY #0 : LDA (rhl),Y : STA door_code
+    LDA (rhl),Y : STA door_code
     TYA : STA (rhl),Y
-    LDA rl : PHA : LDA rh : PHA
     JSR door_run                    ; forwards
-    PLA : STA rh : PLA : STA rl
-    LDA rl : PHA : LDA rh : PHA
-    LDA door_step : EOR #&FF : CLC : ADC #1 : STA door_step  ; backwards
+    LDA #0 : SEC : SBC door_step : STA door_step  ; backwards
     JSR door_run
-    PLA : STA rh : PLA : STA rl
     JMP redraw_tile
 .done
     RTS
@@ -203,22 +198,22 @@ ENDMACRO
 
 \ &D499 DoorRun: from rhl, step by door_step (1 or 32, or -1 or -32)
 \ while the cells hold the door's code (door_code), clearing and
-\ redrawing them.
+\ redrawing them. rhl is kept.
 .door_run
 {
-    LDA door_step : BMI back
+    LDA rl : PHA : LDA rh : PHA
+.next
+    LDX #0 : LDA door_step : BPL forwards
+    DEX                             ; (backwards: the high byte -1)
+.forwards
     CLC : ADC rl : STA rl
-    BCC c : INC rh
-    BCS c
-.back
-    CLC : ADC rl : STA rl
-    BCS c : DEC rh
-.c
+    TXA : ADC rh : STA rh
     LDY #0 : LDA (rhl),Y : CMP door_code : BNE done
     TYA : STA (rhl),Y
     JSR redraw_cell
-    JMP door_run
+    JMP next
 .done
+    PLA : STA rh : PLA : STA rl
     RTS
 }
 
@@ -230,14 +225,13 @@ ZA_AUTO1 door_step
 \ &F0).
 .open_chest
 {
-    LDX prec
     LDA Player1 + R_KEYS,X : BEQ done
     DEC Player1 + R_KEYS,X
     JSR random : AND #6 : CLC : ADC #T_CHEST
     CMP #T_RING : BNE keep
     LDA #&F0
 .keep
-    LDY #0 : STA (rhl),Y
+    STA (rhl),Y                     ; (random keeps Y)
     JMP redraw_tile
 .done
     RTS
@@ -245,23 +239,11 @@ ZA_AUTO1 door_step
 
 \ &D327 TakeChest: 10 treasure.
 .take_chest
-    LDA TouchTreasure : CLC : ADC #10 : STA TouchTreasure
+    LDA #10 : JSR touch.treasure
     JMP take_away
-
-\ &D334 TakeScroll: one more scroll (a smart bomb), up to 9.
-.take_scroll
-{
-    LDX prec
-    LDA Player1 + R_MAGIC,X : CMP #9 : BCS done
-    INC Player1 + R_MAGIC,X
-    JMP take_away
-.done
-    RTS
-}
 
 \ &D342 TakeRing: the freeze ring (its code, nonzero, in the record).
 .take_ring
-    LDX prec
     STA Player1 + R_RING,X
     JMP take_away
 
@@ -270,35 +252,26 @@ ZA_AUTO1 door_step
 .push_rock
 {
     LDA rl : STA rock : LDA rh : STA rock + 1   ; the rock's cell
-    LDA StepV
-    CMP #&FF : BNE not_up
-    LDA rl : SEC : SBC #32 : STA rl
-    BCS h : DEC rh
-    JMP h
-.not_up
-    CMP #1 : BNE h
-    LDA rl : CLC : ADC #32 : STA rl
-    BCC h : INC rh
-.h
-    LDA StepH
-    CMP #&FF : BNE not_left
-    LDA rl : BNE l : DEC rh
-.l
-    DEC rl
-    JMP moved
-.not_left
-    CMP #1 : BNE moved
-    INC rl : BNE moved : INC rh
-.moved
+    \ the step as an offset in the map, -33 to 33: StepV rows of 32, StepH
+    \ columns (each -1, 0 or 1)
+    LDX #0
+    LDA StepV : ASL A : ASL A : ASL A : ASL A : ASL A
+    CLC : ADC StepH : BPL ahead
+    DEX                             ; (back: the high byte -1)
+.ahead
+    CLC : ADC rl : STA rl
+    TXA : ADC rh : STA rh
     \ rhl: where it would go
     LDY #0 : LDA (rhl),Y : BNE stays
     LDA #T_ROCK : STA (rhl),Y
     JSR redraw_cell
-    LDA rock : STA rl : LDA rock + 1 : STA rh
-    LDA #0 : TAY : STA (rhl),Y
-    JMP redraw_tile
+    LDY #0 : TYA                    ; (A = 0: the rock's old cell is cleared)
 .stays
-    LDA rock : STA rl : LDA rock + 1 : STA rh
+    PHA
+    LDX rock : STX rl : LDX rock + 1 : STX rh
+    PLA : BNE redraw
+    STA (rhl),Y
+.redraw
     JMP redraw_tile
     ZA_AUTO2 rock
 }
@@ -320,11 +293,9 @@ ZA_AUTO1 door_step
 \ the (random mod count) + 1'th in reading order. Z, rhl at it, if found.
 .pick_teleporter
 {
-    LDA ViewOrigin : STA rb
-    LDA ViewOrigin + 1 : STA rc
-    JSR map_cell
+    LDA #0 : STA rb : STA rc : STA count : STA counting
+    JSR view_cell
     LDA rl : STA ra2 : LDA rh : STA rx  ; the view's first tile
-    LDA #0 : STA count : STA counting
     JSR scan
     \ the pick: random mod count, plus 1 (&D3AD-&D3B3)
     JSR random
@@ -343,7 +314,7 @@ ZA_AUTO1 door_step
     LDA (rhl),Y : CMP #T_TELEPORT : BNE next
     BIT counting : BPL up
     DEC count : BEQ found
-    JMP next
+    BNE next                        ; (always)
 .up
     INC count
 .next
@@ -383,10 +354,15 @@ VIEW_TILES = 12                     ; the view is 12 x 12 tiles
     LDX prec
     LDA rc : STA Player1 + R_COL,X
     LDA rb : STA Player1 + R_ROW,X
-    LDA #0 : STA StepV : STA StepH
+    JMP clear_step
 .done
     RTS
 }
+
+\ Clear the step (StepV, StepH): a trap door, a teleport and a shove do.
+.clear_step
+    LDA #0 : STA StepV : STA StepH
+    RTS
 PLACE_MIN = 2                       ; a player is kept in the view's rows and columns 2-20 (&CAB4-&CAC9)
 PLACE_MAX = 20
 
@@ -425,66 +401,42 @@ ZX_MAP_HI = &BC                     ; the original's map's page
 
 \ &D441 TakeSwitch: it goes, and so does every &06 wall in the map.
 .take_switch
-{
-    LDA #0 : STA (rhl),Y
-    JSR redraw_tile
-    LDA rb : PHA : LDA rc : PHA
-    LDA #LO(map) : STA rl : LDA #HI(map) : STA rh
-.next
-    \ (from the map's second cell, as the original's INC HL comes first)
-    INC rl : BNE c : INC rh
-.c
-    LDA rh : CMP #HI(map) + 4 : BEQ done
-    LDY #0 : LDA (rhl),Y : CMP #T_SWITCH_WALL : BNE next
-    TYA : STA (rhl),Y
-    JSR redraw_cell
-    JMP next
-.done
-    PLA : STA rc : PLA : STA rb
-    RTS
-}
+    JSR take_away
+    \ (as replace_codes, though the original starts at the map's second
+    \ cell: the first is a top wall, &04 or &05, and nothing makes a &06)
+    LDA #T_SWITCH_WALL : LDX #T_SWITCH_WALL + 1 : LDY #0
+    JMP replace_codes
 T_SWITCH_WALL = &06
 
 \ &D460-&D496: the things a player keeps in its record.
 .take_death_star
-    LDX prec
     LDA #&FF : STA Player1 + R_POWER,X
     INC Player1 + R_POWER + 1,X
     JMP take_away
 .take_shield
-    LDX prec
     LDA #1 : STA Player1 + R_ARMOUR,X
     JMP take_away
+.take_heart
+    INX                             ; (R_HEART is R_SKULL + 1)
 .take_idol
-    LDX prec
     LDA #&FF : STA Player1 + R_SKULL,X
     JMP take_away
-.take_heart
-    LDX prec
-    LDA #&FF : STA Player1 + R_HEART,X
-    JMP take_away
+    ASSERT R_HEART = R_SKULL + 1
 .take_ball
-    LDX prec
     INC Player1 + R_BOUNCES,X
     JMP take_away
 .take_clock
     LDA #&FF : STA FreezeTimer
     JMP take_away
 
-\ &D4AB ShoveP2, &D4E1 ShoveP1: the mover touched the other player:
-\ shove it one step along the mover's step, if its four cells there are
-\ free. Its old place is drawn over (&CC79, with the click); it's drawn at
-\ the new in its own pass.
-.shove_p2
-    LDX #1
-    JMP shove
-.shove_p1
-    LDX #0
+\ &D4AB ShoveP2, &D4E1 ShoveP1: the mover touched the other player (A,
+\ its code): shove it one step along the mover's step, if its four cells
+\ there are free. Its old place is drawn over (&CC79, with the click); it's
+\ drawn at the new in its own pass.
 .shove
 {
-    STX shoved
+    SEC : SBC #T_P1 : STA shoved : TAX
     LDA rb : PHA : LDA rc : PHA
-    LDA rl : PHA : LDA rh : PHA
     LDY player_rec,X
     LDA Player1 + R_ROW,Y : STA rb
     LDA Player1 + R_COL,Y : STA rc
@@ -503,8 +455,7 @@ T_SWITCH_WALL = &06
     LDA Player1 + R_ROW,Y : STA rb
     LDA Player1 + R_COL,Y : STA rc
     LDA player_code,X : JSR put_player
-    LDA #0 : STA StepV : STA StepH
-    PLA : STA rh : PLA : STA rl
+    JSR clear_step
     PLA : STA rc : PLA : STA rb
     RTS
     ZA_AUTO1 shoved
@@ -548,6 +499,17 @@ T_SWITCH_WALL = &06
 .exit_song
     EQUB 6, 5
 
+\ &C8A4 HitMarker: a monster's other cell (&7F) was touched at (rb, rc):
+\ the monster is to the left, up-left or up of its tile; hit it.
+.hit_marker
+{
+    LSR rc : ASL rc : LSR rb : ASL rb   ; (the tile's first cell: bit 0 clear)
+    DEC rc : JSR map_cell : BMI hit_monster
+    DEC rb : JSR map_cell : BMI hit_monster
+    INC rc : JSR map_cell : BMI hit_monster
+    RTS
+}
+
 \ &C86C HitMonster: the monster at rhl takes a hit (its code's bits 2-3,
 \ its health, wrap from 0 to 3 when it dies), with the hit noise. Kind 7
 \ (bits 4-6) can't be hurt. Dead, its four cells are cleared and floor is
@@ -558,23 +520,16 @@ T_SWITCH_WALL = &06
     LDA #HIT_NOISE : JSR hit_noise
     LDY #0 : LDA (rhl),Y
     AND #&70 : CMP #&70 : BEQ done
-    LDA (rhl),Y : SEC : SBC #4 : STA (rhl),Y
+    LDA (rhl),Y : SBC #4 - 1 : STA (rhl),Y  ; (C clear: not kind 7)
     AND #&0C : CMP #&0C : BNE lives
     \ dead: its position from its code's bits 0-1 (which of its tile's
     \ cells it starts at)
-    LDA rb : AND #&FE : STA rb
-    LDA rc : AND #&FE : STA rc
-    LDA (rhl),Y : AND #2 : BEQ r : INC rb
-.r
-    LDA (rhl),Y : AND #1 : BEQ c : INC rc
-.c
+    LSR rb : ASL rb : LSR rc : ASL rc
+    JSR code_offset
+    LDA rb : STA rd : LDA rc : STA re
     LDA #0 : STA MapStamp
-    LDA rb : PHA : LDA rc : PHA
     JSR fill_cells
-    PLA : STA re : PLA : STA rd
-    LDA TileAttrs : STA sp_attr
-    LDA #0
-    JSR draw_at
+    JSR draw_floor_at
     \ The original leaves BC as the drawing left it, and a touch carries
     \ on from there (&D1BA's INC B, INC C, DEC B): (0, &40 less the
     \ bytes drawn, two a line, one at the playfield's edge, 16 lines or 8
@@ -583,7 +538,7 @@ T_SWITCH_WALL = &06
     BCC drawn
     LDA TileAttrs : STA rb
     LDA #0 : STA rc
-    JMP done
+    BEQ done                        ; (always)
 .drawn
     LDA #&40 : STA rc
     LDA #0 : STA rb
@@ -607,19 +562,11 @@ T_SWITCH_WALL = &06
 }
 HIT_NOISE = 50                      ; the hit noise's segments (&C86C)
 
-\ &C8A4 HitMarker: a monster's other cell (&7F) was touched at (rb, rc):
-\ the monster is to the left, up-left or up of its tile; hit it.
-.hit_marker
-{
-    LDA rc : AND #&FE : STA rc
-    LDA rb : AND #&FE : STA rb
-    DEC rc : JSR map_cell : BMI hit
-    DEC rb : JSR map_cell : BMI hit
-    INC rc : JSR map_cell : BMI hit
-    RTS
-.hit
-    JMP hit_monster
-}
+\ Floor at map position (rd, re), as draw_at.
+.draw_floor_at
+    LDA TileAttrs : STA sp_attr
+    LDA #0
+    \ (fall into draw_at)
 
 \ &CFB9 DrawAt: picture A at map position (rd, re) in attribute sp_attr,
 \ if it's in the view (or a row or column above or left of it, clipped).
@@ -628,21 +575,16 @@ HIT_NOISE = 50                      ; the hit noise's segments (&C86C)
 {
     PHA
     LDA rd : SEC : SBC ViewOrigin
-    CMP #&FF : BEQ row_ok
-    CMP #SCREEN_ROWS : BCS off
-.row_ok
-    TAX
+    TAX : INX : CPX #SCREEN_ROWS + 1 : BCS off  ; (rows -1 to 23)
+    DEX
     LDA re : SEC : SBC ViewOrigin + 1
-    CMP #&FF : BEQ col_ok
-    CMP #SCREEN_ROWS : BCS off
-.col_ok
-    CLC : ADC #VIEW_LEFT : TAY
+    CLC : ADC #1 : CMP #SCREEN_ROWS + 1 : BCS off   ; (the view's columns -1 to 23)
+    ADC #VIEW_LEFT - 1 : TAY        ; (C clear)
     PLA
     JSR draw_sprite
     CLC                             ; (C clear: drawn)
     RTS
 .off
-    PLA
-    SEC                             ; (C set: off the view)
+    PLA                             ; (C set: off the view)
     RTS
 }

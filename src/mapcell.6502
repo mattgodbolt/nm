@@ -31,6 +31,21 @@
     RTS
 }
 
+\ The position (rb, rc) of the monster whose head is at rhl: its tile's,
+\ and code_offset. code_offset: from its tile's position, the cell its
+\ code's bits 0-1 say it starts at (bit 1 down, bit 0 right). Y = 0.
+.head_pos
+    JSR cell_pos
+.code_offset
+{
+    LDY #0 : LDA (rhl),Y
+    LSR A : BCC down : INC rc
+.down
+    LSR A : BCC done : INC rb
+.done
+    RTS
+}
+
 \ &D1A2 FillCells: MapStamp into the four cells at (rb, rc): (rb, rc),
 \ (rb+1, rc), (rb+1, rc+1), (rb, rc+1). rc comes back one more.
 .fill_cells
