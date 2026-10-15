@@ -1,0 +1,133 @@
+\ ***************************************************************************
+\ Text, and the attributes. The original's print (&D9AA) writes a glyph's
+\ pixels and leaves the cell's attribute as it is, so the cell's colours
+\ come from whatever set that attribute last. The port keeps the
+\ attributes the original would have (attrs: 24 rows of 32, as &5800), and
+\ draws each cell's pixels in the colours its attribute gives (decision 8).
+\ ***************************************************************************
+
+\ The colours of attribute A as MODE 1 bytes: dt_paper, and dt_mask (the
+\ ink's EOR the paper's), as the block drawer wants them.
+.attr_colours
+{
+    PHA
+    LSR A : LSR A : LSR A : AND #7 : TAY
+    LDA ink_mask,Y : STA dt_paper
+    PLA : AND #7 : TAY
+    LDA ink_mask,Y : EOR dt_paper : STA dt_mask
+    RTS
+}
+
+\ &C487: clear the playfield (columns 8-31), its attributes to A.
+.clear_view
+{
+    ZA_AUTO2 at
+    STA fill
+    JSR attr_colours
+    \ the attributes
+    LDA #LO(attrs) : STA at
+    LDA #HI(attrs) : STA at+1
+    LDX #SCREEN_ROWS
+.arow
+    LDY #VIEW_LEFT
+    LDA fill
+.acol
+    STA (at),Y
+    INY : CPY #SCREEN_COLS : BNE acol
+    LDA at : CLC : ADC #SCREEN_COLS : STA at
+    BCC ac : INC at+1
+.ac
+    DEX : BNE arow
+    \ the pixels, all paper: each row's playfield is 256 bytes, then the
+    \ rest of it before the next row's panel
+    ASSERT ROW_BYTES - VIEW_LEFT * 16 > &100
+    LDA #LO(screen + VIEW_LEFT * 16) : STA at
+    LDA #HI(screen + VIEW_LEFT * 16) : STA at+1
+    LDX #SCREEN_ROWS
+.prow
+    LDY #0
+    LDA dt_paper
+.pcol
+    STA (at),Y
+    INY : BNE pcol
+    INC at+1
+    LDY #0
+.pcol2
+    STA (at),Y
+    INY : CPY #LO(ROW_BYTES - VIEW_LEFT * 16 - &100) : BNE pcol2
+    INC at+1                    ; (the next row's playfield: 256 on)
+    DEX : BNE prow
+    RTS
+    ZA_AUTO1 fill
+}
+
+\ &D995: print the string after the JSR (ending with 0) at row Y,
+\ column X; it returns after the string. (The original passes the row and
+\ column in DE.)
+.print_at
+{
+    STX cursor_col : STY cursor_row
+    \ (fall into print_inline)
+}
+.print_inline
+{
+    ZA_AUTO2 str
+    PLA : STA str
+    PLA : STA str+1
+.next
+    INC str : BNE c : INC str+1
+.c
+    LDY #0 : LDA (str),Y : BEQ done
+    JSR print_char
+    JMP next
+.done
+    LDA str+1 : PHA
+    LDA str : PHA
+    RTS
+}
+
+\ &D9AA: print character A at the cursor, in the cell's colours, and move
+\ the cursor on (to the next row after column 31, and to the top after the
+\ last row).
+.print_char
+{
+    ZA_AUTO2 glyph
+    ZA_AUTO2 cell
+    \ the glyph: font + 8 * (A - FONT_FIRST)
+    SEC : SBC #FONT_FIRST
+    LDX #0 : STX glyph+1
+    ASL A : ROL glyph+1 : ASL A : ROL glyph+1 : ASL A : ROL glyph+1
+    CLC : ADC #LO(font) : STA glyph
+    LDA glyph+1 : ADC #HI(font) : STA glyph+1
+    \ the cell's colours
+    LDA cursor_row : ASL A : ASL A : ASL A : ASL A : ASL A : STA cell
+    LDA cursor_row : LSR A : LSR A : LSR A : CLC : ADC #HI(attrs) : STA cell+1
+    LDA cell : ORA cursor_col : CLC : ADC #LO(attrs) : STA cell
+    BCC c : INC cell+1
+.c
+    LDY #0 : LDA (cell),Y
+    JSR attr_colours
+    \ the screen: screen + row * &200 + col * 16
+    LDA cursor_col : ASL A : ASL A : ASL A : ASL A : STA cell
+    LDA cursor_row : ASL A : ADC #HI(screen) : STA cell+1
+    LDA cursor_col : LSR A : LSR A : LSR A : LSR A : CLC : ADC cell+1 : STA cell+1
+    LDY #0
+.line
+    STY ptmp
+    LDA (glyph),Y : TAX
+    LDA hi_nibble,X : AND dt_mask : EOR dt_paper : STA (cell),Y
+    TYA : ORA #8 : TAY
+    LDA lo_nibble,X : AND dt_mask : EOR dt_paper : STA (cell),Y
+    LDY ptmp : INY : CPY #8 : BNE line
+    \ the cursor
+    INC cursor_col
+    LDA cursor_col : CMP #SCREEN_COLS : BNE done
+    LDA #0 : STA cursor_col
+    INC cursor_row
+    LDA cursor_row : CMP #SCREEN_ROWS : BNE done
+    LDA #0 : STA cursor_row
+.done
+    RTS
+    ZA_AUTO1 ptmp
+}
+FONT_FIRST = &20            ; font.bin's first code (the original's font is indexed from &F400)

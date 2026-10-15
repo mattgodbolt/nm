@@ -1,0 +1,60 @@
+\ ***************************************************************************
+\ The game's flow: the level's start.
+\ ***************************************************************************
+
+\ &C34F (the display part): the level's title screen, "LEVEL nn", and the
+\ pause before the level's set-up. A = the level (0-49).
+.level_intro
+{
+    PHA
+    LDA #INTRO_ATTR : JSR title
+    LDX #&10 : LDY #&0A : JSR print_at
+    EQUS "LEVEL ", 0
+    PLA : PHA : CLC : ADC #1
+    JSR print_dec2
+    \ (the password, every fifth level: to come)
+    \ &C390: two counts of 65,536 round a 34 T-state loop, as frames
+    LDX #LEVEL_PAUSE
+.pause
+    JSR wait_vsync
+    DEX : BNE pause
+    PLA
+    RTS
+}
+INTRO_ATTR  = 7             ; white on black (&C366)
+\ &C390-&C396: 2 x 65,536 x 34 T-states, at the 128K's 70,908 a frame
+LEVEL_PAUSE = (2 * 65536 * 34 + 70908 / 2) / 70908
+
+\ &C1A6: clear the playfield to attribute A and draw the title, NINJA
+\ MASSACRE, two rows of 10 characters from (1, 15), in its colours (&FF8A).
+\ (The original prints, then sets the colours: the port sets them first,
+\ as the BBC's pixels take their colours when they're drawn.)
+.title
+{
+    JSR clear_view
+    LDX #TITLE_W - 1
+.attr
+    LDA title_attr,X : STA attrs + 1 * SCREEN_COLS + TITLE_COL,X
+    LDA title_attr + TITLE_W,X : STA attrs + 2 * SCREEN_COLS + TITLE_COL,X
+    DEX : BPL attr
+    LDX #TITLE_COL : LDY #1 : JSR print_at
+    EQUS "+:;<=>?@:+", 0
+    LDX #TITLE_COL : LDY #2 : JSR print_at
+    EQUS "*$%&&%'()*", 0
+    RTS
+}
+TITLE_COL = 15
+TITLE_W = 10
+
+\ &DB83: print A (0-99) as two digits.
+.print_dec2
+{
+    LDX #'0'
+.tens
+    CMP #10 : BCC units
+    SBC #10 : INX
+    JMP tens
+.units
+    PHA : TXA : JSR print_char
+    PLA : ORA #'0' : JMP print_char
+}

@@ -56,6 +56,8 @@ SECTION ZeroPage, org = &00, guard = &70, virtual = TRUE
 .p2_col     SKIP 1          ; player 2's (&BA5D)
 .p2_row     SKIP 1          ; (&BA5E)
 .floor_ink  SKIP 1          ; the level's floor colour, a Spectrum ink (colour.6502)
+.cursor_col SKIP 1          ; the print position (&BA45)
+.cursor_row SKIP 1          ; (&BA46)
 ENDSECTION
 
 \ Workspace below the code, which the DFS no longer needs once NINJA is
@@ -63,6 +65,8 @@ ENDSECTION
 SECTION Work, org = &1000, guard = &1900, virtual = TRUE
 .map        SKIP 32 * 32
 .ink_mask   SKIP 8          ; each Spectrum ink's MODE 1 byte (colour.6502)
+    ALIGN 32
+.attrs      SKIP SCREEN_ROWS * SCREEN_COLS  ; the original's attributes (&5800, text.6502)
 ENDSECTION
 
 SECTION Code, org = &1900, load = &FFFF1900, exec = &FFFF0000 + start, filename = "NINJA", guard = screen
@@ -75,12 +79,18 @@ SECTION Code, org = &1900, load = &FFFF1900, exec = &FFFF0000 + start, filename 
     INCLUDE "view.6502"
     INCLUDE "colour.6502"
     INCLUDE "panel.6502"
+    INCLUDE "text.6502"
+    INCLUDE "game.6502"
     INCLUDE "tables.6502"
     \ Data from the original (tools/mkgfx.py, tools/mklevels.py)
 .blocks
     INCBIN "data/blocks.bin"
 .tileattr
     INCBIN "data/tileattr.bin"
+.font
+    INCBIN "data/font.bin"
+.title_attr
+    INCBIN "data/titleattr.bin"
 .code_end
     PRINT "code &1900-&", ~code_end, " (", screen - code_end, " bytes free below the screen)"
 ENDSECTION

@@ -25,6 +25,7 @@ ENDIF
     LDA #1 : STA seed
     LDA #START_LEVEL
     PHA : JSR level_colours : PLA
+    JSR level_intro
     JSR level_load
     JSR draw_view
 .idle

@@ -82,3 +82,15 @@ stars, and the monsters and items (`disasm/*.ctl`, `docs/research/`).
   spreading one, is the only tile with a paper that isn't black (green on
   magenta, flashing), so the drawing now takes a paper colour too, and the
   check's floor colour for level 50 was wrong. Now all 50 match.
+
+### The panel, the title and text
+
+- The status panel is drawn once from the loading screen's left columns
+  (`panel.6502`), as the original keeps them, in colours that don't
+  change with the level.
+- The original's print writes a glyph and leaves the attribute: so the
+  port keeps a copy of the attributes (decision 8) and prints in the
+  cell's colours. The clear (&C487), print (&D995/&D9AA) and the
+  two-digit number (&DB83) are transcribed, and with them the level's
+  title screen (&C1A6, &C34F): NINJA MASSACRE, "LEVEL nn", and the pause,
+  as a wait of the frames the original's loop took (decision 9).

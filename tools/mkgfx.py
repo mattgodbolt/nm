@@ -13,7 +13,9 @@ attributes do (docs/research.md).
 - font.bin: the font at &F500, 8 bytes a character from code 32 (the
   print routine indexes it from &F400, 8 bytes a code)
 - tileattr.bin: each tile type's attribute, &FF02 (40 bytes)
-- passwords.bin: the 8 passwords at &FF62 (5 bytes each)
+- passwords.bin: the 8 passwords at &FF62 (5 bytes each: the word, then
+  the level it starts)
+- titleattr.bin: the title's attributes, &FF8A: two rows of 10 (&C1A6)
 - panel.bin: the status panel, the loading screen's left 8 columns, which
   the game never draws but keeps: 192 pixel lines of 8 bytes, top first,
   then the 24 rows of 8 attributes
@@ -40,6 +42,7 @@ def main():
     write("font.bin", m[0xF500:0xF6EE - (0xF6EE - 0xF500) % 8])
     write("tileattr.bin", m[0xFF02:0xFF2A])
     write("passwords.bin", m[0xFF62:0xFF8A])
+    write("titleattr.bin", m[0xFF8A:0xFF9E])
     panel = bytearray()
     for y in range(192):
         row = 0x4000 + ((y & 0xC0) << 5) + ((y & 7) << 8) + ((y & 0x38) << 2)

@@ -51,17 +51,25 @@ VIEW_LEFT = 8               ; the view's first screen column (the panel's left o
 }
 
 \ Draw tile or block A (its graphic at blocks + 32A, its colours from the
-\ original's attribute for it, &FF02) at screen row X, column Y. (Flash,
-\ which only tile &13 has, isn't shown yet.)
+\ original's attribute for it, &FF02, which its 2 x 2 cells take) at
+\ screen row X, column Y. (Flash, which only tile &13 has, isn't shown
+\ yet.)
 .draw_tile
 {
+    ZA_AUTO2 at
     STX dt_row : STY dt_col
     PHA : TAX
     LDA tileattr,X : PHA
-    LSR A : LSR A : LSR A : AND #7 : TAY
-    LDA ink_mask,Y : STA dt_paper
-    PLA : AND #7 : TAY
-    LDA ink_mask,Y : EOR dt_paper : STA dt_mask
+    \ &C5C0: the 2 x 2 cells' attributes
+    LDA dt_row : LSR A : LSR A : LSR A : CLC : ADC #HI(attrs) : STA at+1
+    LDA dt_row : ASL A : ASL A : ASL A : ASL A : ASL A : ORA dt_col
+    CLC : ADC #LO(attrs) : STA at
+    BCC c : INC at+1
+.c
+    PLA : PHA
+    LDY #0 : STA (at),Y : INY : STA (at),Y
+    LDY #SCREEN_COLS : STA (at),Y : INY : STA (at),Y
+    PLA : JSR attr_colours
     PLA
     JMP draw_block_at
 }
