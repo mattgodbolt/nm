@@ -183,10 +183,9 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     RTS
 .c_porta                            ; &84 step, frames (&C247)
     JSR mu_byte : STA mv_pstep,X
-    LDA #0 : STA mv_pacc,X : STA mv_pacc+1,X
-    LDA mv_flags,X : ORA #4 : STA mv_flags,X
     JSR mu_byte : STA mv_pdelay,X
-    RTS
+    LDA #0 : STA mv_pacc,X : STA mv_pacc+1,X
+    LDA #4 : BNE set_flags              ; (always)
 .c_slide_down                       ; &85
     LDA #8 : BNE set_flags
 .c_slide_up                         ; &86
@@ -301,13 +300,15 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
 .move
     LDA mv_vmode,X : AND #&20 : BNE rising
     LDA mv_vphase,X : SEC : SBC mv_vstep,X : BCS store
-    LDA mv_vmode,X : ORA #&20 : STA mv_vmode,X
-    LDA #0 : BEQ store                  ; (always)
+    LDA #0 : BEQ turn                   ; (always)
 .rising
     LDA mv_vphase,X : CLC : ADC mv_vstep,X
     CMP mu_span : BCC store
-    LDA mv_vmode,X : AND #&DF : STA mv_vmode,X
     LDA mu_span
+.turn
+    PHA                                 ; (at either end, the other way)
+    LDA mv_vmode,X : EOR #&20 : STA mv_vmode,X
+    PLA
 .store
     STA mv_vphase,X
 .have
@@ -353,7 +354,7 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     EOR mu_ay + 7 : AND mv_mask,X : EOR mu_ay + 7 : STA mu_ay + 7
     \ &C460: the hi-hat, a frame of the shortest noise at a row's start
     LDA mv_hihat,X : BPL done
-    AND #&7F : STA mv_hihat,X
+    LSR A : STA mv_hihat,X              ; (&FF, the only one negative, to &7F)
     LDA mv_mask,X : AND #&38 : EOR #&FF
     AND mu_ay + 7 : STA mu_ay + 7
     LDA #MU_HIHAT_NOISE : STA mu_noise
