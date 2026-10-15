@@ -64,6 +64,27 @@ local one.
 - `python3 tools/grid.py out.png cols a.png b.png ...` tiles screenshots.
 - Run to a symbol after booting (`play.mjs --until`), never a guessed
   wait.
+- `make passes` (`tools/passcheck.sh`): each scenario in
+  `tests/scenarios.txt` on the original (`tools/passlog.py`, at `&C014`
+  each pass) and the port (`tools/passlog.mjs`, at `pass_top`), compared
+  by `tools/passcmp.py`: both variable blocks, the map, and every 50
+  passes the screen. Add a scenario for anything that lands; a scenario
+  `make fuzz` finds is copied in as it is.
+- The original takes its random numbers from the port's generator in the
+  checks (`tools/zx.py`'s `share_random`, decision 7).
+
+## Transcribing
+
+- The original's routines pass positions and map cells in registers; the
+  transcription keeps the Z80's registers in zero page by name
+  (`regs.6502`: rb, rc, rd, re, rh, rl, rhl), so a routine reads beside
+  its original. Keep what a routine leaves in them too: the touch loop
+  carries on from the BC a monster's death left (touch.6502).
+- The original's variables are in its own layout (`vars_ba`, `vars_ff`,
+  decision 10), named from `disasm/*.ctl` by `tools/mkvars.py`.
+- Watch the flags: a `LDY #0` between a test and its branch sets Z; the
+  Z80's `EX AF,AF'` and alternate registers keep values the 6502 must keep
+  somewhere else (monsters.6502's trap doors, the chase's carry).
 - `make music` (`tools/musiccheck.mjs`): every song on the 6502 driver
   against `tools/music/dw_decode.py`'s, frame by frame, and the SN76489's
   bytes against `tools/musicmodel.py`'s model of the conversion: change

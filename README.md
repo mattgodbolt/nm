@@ -9,7 +9,38 @@ was: the Spectrum original is the specification, it runs headless as an
 oracle, and the port is checked against it in a headless
 [jsbeeb](https://github.com/mattgodbolt/jsbeeb).
 
-It's at an early stage: `docs/journal.md` says where it has got to.
+Where it has got to (`docs/journal.md` has the story):
+
+- The whole game is transcribed: the levels and the view, the players,
+  touching and every item, the monsters, trap doors and the spreading
+  tile, the stars, the smart bomb, the status, the menu, the password,
+  the controls, game over, the high score and the game's end.
+- It plays the same as the original, pass for pass: `make passes` replays
+  scripted games on both and compares every variable, the map and the
+  screen; `make fuzz` does the same with random ones.
+- The music is David Whittaker's own driver, transcribed to 6502 and
+  playing the original's songs on the SN76489 (from the 128K version,
+  which is the specification for sound); the beeper's effects are played
+  on the SN76489 too.
+- It needs 16K of sideways RAM (or a Master). A stock-B edition is
+  considered in `docs/streaming.md`.
+- The colours are a first attempt (decision 5 and 21 in
+  `docs/decisions.md`), to be looked at.
+
+## Playing
+
+Boot `build/nm.ssd` (SHIFT-BREAK). Keys, as the original's where the BBC
+has them (decision 13):
+
+| | Player 1 | Player 2 |
+|---|---|---|
+| up, down | Q, A | 9, 8 |
+| left, right | O, P | 6, 7 |
+| fire | SPACE | 0 |
+| magic (a smart bomb) | RETURN | SHIFT |
+
+The menu's 3 redefines them. In play, with CTRL and SHIFT held (the
+Spectrum's EXTEND MODE): T turns the music off or on, P pauses, Q quits.
 
 The project began as a conversion of the game's music alone, which is
 still here: [`music/README.md`](music/README.md) tells that story, and
@@ -28,7 +59,8 @@ make venv       # .venv: SkoolKit, Pillow, and the music tools' libraries
 make fetch      # the Spectrum original, into original/ (not committed)
 make            # build/nm.ssd
 make run        # boot it in jsbeeb, screenshot to shots/run.png
-make check      # every check
+make check      # every check: the views, the music, the pass-by-pass scenarios
+make fuzz       # random scenarios on both (SEED=n COUNT=n)
 ```
 
 ## Where things are
