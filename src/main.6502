@@ -65,6 +65,9 @@ rhl = rl
 .music_key_held SKIP 1      ; the music's key, until seen released (the original's &B8E0)
 .music_off  SKIP 1          ; bit 7: the music is off (EXTEND+T; the original's &B8DF)
 .pass_sp    SKIP 1          ; the stack at a player's pass, for its exit (player.6502)
+.sh_steps   SKIP 1          ; a slide's steps so far, its attributes not yet moved (shift.6502)
+.sh_prog    SKIP 1          ; ... and its shift's program
+.sp_mode    SKIP 1          ; draw_sprite's: SP_PIXELS, SP_ATTRS or 0 (sprite.6502)
     \ The music (music.6502): the interrupt's, so not in baron's pool
 .mu_on      SKIP 1          ; non-zero: a song is playing (&C00C)
 .mu_busy    SKIP 1          ; non-zero: the game is writing the sound chip

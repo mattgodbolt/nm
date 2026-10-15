@@ -36,6 +36,14 @@ VIEW_LEFT = 8               ; the view's first screen column (the panel's left o
     RTS
 }
 
+\ A tile's attributes alone, at screen row X, column Y, for slide_attrs
+\ (shift.6502). Its strips show whole, as the slide's own did, which left
+\ sp_left and sp_right set.
+.tile_attrs
+    STY dt_col
+    JSR sprite_attrs
+    INX : JMP sprite_attrs
+
 \ &C59A: draw the map's tile A at screen row X, column Y (characters).
 \ Players and monsters (&40 and up) are drawn as floor; the walls'
 \ variant bits (3 and 4) are dropped.
@@ -59,6 +67,7 @@ VIEW_LEFT = 8               ; the view's first screen column (the panel's left o
     STX ra2
     TAX : LDA tileattr,X : STA sp_attr
     TXA : LDX ra2
+    BIT sp_mode : BVS tile_attrs
     \ (fall into draw_sprite: main.6502 includes sprite.6502 next)
 }
 .draw_tile_end

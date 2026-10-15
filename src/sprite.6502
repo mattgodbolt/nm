@@ -31,8 +31,10 @@
     CPY #SCREEN_COLS - 1 : BNE not_right
     INC sp_right                    ; (column 31: only the left byte, &C917)
 .not_right
-    \ the attributes: rows X and X + 1 (row -1's both go to row 0, &C93C)
+    \ the attributes: rows X and X + 1 (row -1's both go to row 0, &C93C),
+    \ unless it's a slide's strip (slide_attrs draws those later)
     LDA sp_attr : JSR attr_colours
+    BIT sp_mode : BMI no_attr2
     LDX dt_row : BPL attr_row
     LDX #0
 .attr_row
@@ -45,6 +47,8 @@
     LDA sp_pic
     \ (fall into draw_block_at)
 }
+SP_PIXELS = &80                 ; sp_mode: the pixels alone (bit 7)
+SP_ATTRS = &40                  ; ... a tile's attributes alone (bit 6: draw_tile)
 
 \ Draw block A at (dt_row, dt_col): a set pixel in dt_mask EOR dt_paper,
 \ the rest in dt_paper (the colours' MODE 1 bytes; dt_mask is the ink's
