@@ -15,8 +15,8 @@ T_SPREAD = &13
     CMP #&40 : BCC store
     AND #2 : EOR #2 : STA rc
     DEC rb : DEC rb : BNE store
-    LDA #&3C : STA rb
-    LDA rc : EOR #2 : STA rc
+    EOR #2 : STA rc                 ; (A is rc)
+    LDX #&3C : STX rb
 .store
     STA SpreadCursor                ; (A is rc on every path)
     LDA rb : STA SpreadCursor + 1
@@ -29,7 +29,7 @@ T_SPREAD = &13
 {
     JSR map_cell : CMP #T_SPREAD : BNE done
     LDA rl : PHA : LDA rh : PHA
-    LDA rl : SEC : SBC #1 : STA rl  ; (the Z80's DEC L: within the page)
+    DEC rl                          ; (the Z80's DEC L: within the page)
     JSR into
     INC rl : INC rl : JSR into      ; (INC L)
     LDA rl : CLC : ADC #&1F : STA rl
