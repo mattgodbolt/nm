@@ -11,6 +11,7 @@
 
 \ Draw picture A at screen row X (-1 to 23), column Y (7 to 31), in
 \ attribute sp_attr.
+    ASSERT draw_sprite = draw_tile_end
 .draw_sprite
 {
     STA sp_pic
@@ -32,23 +33,113 @@
 .not_right
     \ the attributes: rows X and X + 1 (row -1's both go to row 0, &C93C)
     LDA sp_attr : JSR attr_colours
-    LDA dt_row : BPL attr_row
-    LDA #0
+    LDX dt_row : BPL attr_row
+    LDX #0
 .attr_row
     JSR sprite_attrs
-    LDA sp_bottom : BEQ no_attr2
-    LDA dt_row : CLC : ADC #1
+    BIT sp_bottom : BPL no_attr2
+    LDX dt_row : INX
     JSR sprite_attrs
 .no_attr2
     \ the pixels
     LDA sp_pic
-    JMP draw_block_at
+    \ (fall into draw_block_at)
 }
 
-\ Set the attribute of row A's cells at dt_col and dt_col + 1, as shown.
+\ Draw block A at (dt_row, dt_col): a set pixel in dt_mask EOR dt_paper,
+\ the rest in dt_paper (the colours' MODE 1 bytes; dt_mask is the ink's
+\ EOR the paper's, so (pixels AND dt_mask) EOR dt_paper is either). The
+\ block is four quarters of eight lines (tools/mkgfx.py), so one loop
+\ draws a line of each, its addresses written into the loop: each
+\ quarter's source, and the two screen bytes each of its lines makes. A
+\ quarter that doesn't show (sp_top and the rest) has its stores made
+\ CMPs, which leave the screen alone.
+OP_STA_ABSY = &99
+OP_CMP_ABSY = &D9
+    ASSERT (OP_STA_ABSY EOR OP_CMP_ABSY) = &40
+.draw_block_at
+{
+    \ the quarters: blocks + 32A, then 8 on each
+    TAY
+    LSR A : LSR A : LSR A : STA bsrc+1
+    TYA : ASL A : ASL A : ASL A : ASL A : ASL A
+    CLC : ADC #LO(blocks) : STA src0+1
+    LDA bsrc+1 : ADC #HI(blocks) : STA src0+2
+    LDX #0
+.srcs
+    LDA src0+1,X : CLC : ADC #8 : STA src1+1,X
+    LDA src0+2,X : ADC #0 : STA src1+2,X
+    TXA : CLC : ADC #src1 - src0 : TAX
+    CPX #3 * (src1 - src0) : BNE srcs
+    \ the screen: screen + row * &200 + col * 16, the right quarters 16
+    \ on, the bottom a character row (&200) on; each line's second byte 8
+    \ on from its first (col * 16 is a multiple of 16: no carry)
+    LDA dt_col : ASL A : ASL A : ASL A : ASL A
+    STA dst0+1 : STA dst2+1
+    ORA #8 : STA dst0b+1 : STA dst2b+1
+    AND #&F0 : CLC : ADC #16
+    STA dst1+1 : STA dst3+1
+    ORA #8 : STA dst1b+1 : STA dst3b+1
+    LDA dt_col : LSR A : LSR A : LSR A : LSR A : STA bsrc+1
+    LDA dt_row : ASL A : CLC : ADC bsrc+1
+    ADC #HI(screen)                                     ; (C clear: the ADC above made at most &FF)
+    STA dst0+2 : STA dst0b+2
+    CLC : ADC #2 : STA dst2+2 : STA dst2b+2             ; (row -1 wraps below the screen: only its bottom half shows)
+    LDA dst0+1 : CMP #&F0                               ; (C set if the right quarters are a page on)
+    LDA dst0+2 : ADC #0 : STA dst1+2 : STA dst1b+2
+    ADC #2 : STA dst3+2 : STA dst3b+2                   ; (C clear: the screen's pages are below &80)
+    \ which quarters show: STA, or CMP
+    LDA sp_top : AND sp_left : AND #&40 : EOR #OP_CMP_ABSY : STA dst0 : STA dst0b
+    LDA sp_top : AND sp_right : AND #&40 : EOR #OP_CMP_ABSY : STA dst1 : STA dst1b
+    LDA sp_bottom : AND sp_left : AND #&40 : EOR #OP_CMP_ABSY : STA dst2 : STA dst2b
+    LDA sp_bottom : AND sp_right : AND #&40 : EOR #OP_CMP_ABSY : STA dst3 : STA dst3b
+    LDY #7
+.line
+.src0
+    LDX &FFFF,Y
+    LDA hi_nibble,X : AND dt_mask : EOR dt_paper
+.dst0
+    STA &FFFF,Y
+    LDA lo_nibble,X : AND dt_mask : EOR dt_paper
+.dst0b
+    STA &FFFF,Y
+.src1
+    LDX &FFFF,Y
+    LDA hi_nibble,X : AND dt_mask : EOR dt_paper
+.dst1
+    STA &FFFF,Y
+    LDA lo_nibble,X : AND dt_mask : EOR dt_paper
+.dst1b
+    STA &FFFF,Y
+.src2
+    LDX &FFFF,Y
+    LDA hi_nibble,X : AND dt_mask : EOR dt_paper
+.dst2
+    STA &FFFF,Y
+    LDA lo_nibble,X : AND dt_mask : EOR dt_paper
+.dst2b
+    STA &FFFF,Y
+.src3
+    LDX &FFFF,Y
+    LDA hi_nibble,X : AND dt_mask : EOR dt_paper
+.dst3
+    STA &FFFF,Y
+    LDA lo_nibble,X : AND dt_mask : EOR dt_paper
+.dst3b
+    STA &FFFF,Y
+    DEY : BPL line
+    RTS
+    ASSERT src2 - src1 = src1 - src0 AND src3 - src2 = src1 - src0
+}
+ZA_AUTO2 bsrc
+ZA_AUTO1 dt_row
+ZA_AUTO1 dt_col
+ZA_AUTO1 dt_mask
+ZA_AUTO1 dt_paper
+
+\ Set the attribute of row X's cells at dt_col and dt_col + 1, as shown.
 .sprite_attrs
 {
-    TAX
     LDA attr_row_lo,X : STA sp_at
     LDA attr_row_hi,X : STA sp_at+1
     LDY dt_col
