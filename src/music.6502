@@ -132,36 +132,6 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     RTS
 }
 
-\ &C0CD, each VSync (from irq.6502, which keeps X and Y): the driver's
-\ frame, then the chip.
-.music_tick
-{
-    LDA mu_on : BEQ output
-    LDA mu_noise_note : STA mu_noise    ; &C0D7
-    DEC mu_rows : BNE render
-    LDX #0 : JSR mu_row
-    LDA mu_on : BEQ output              ; (&8E: the song stopped)
-    LDX #MU_VOICE : JSR mu_row
-    LDA mu_on : BEQ output
-    LDX #2 * MU_VOICE : JSR mu_row
-    LDA mu_on : BEQ output
-    LDA mu_speed : STA mu_rows
-.render
-    \ &C0FD: each voice's period and volume
-    LDX #0 : JSR mu_render : STA mu_ay + 8
-    LDA mu_per : STA mu_ay + 0 : LDA mu_per+1 : STA mu_ay + 1
-    LDX #MU_VOICE : JSR mu_render : STA mu_ay + 9
-    LDA mu_per : STA mu_ay + 2 : LDA mu_per+1 : STA mu_ay + 3
-    LDX #2 * MU_VOICE : JSR mu_render : STA mu_ay + 10
-    LDA mu_per : STA mu_ay + 4 : LDA mu_per+1 : STA mu_ay + 5
-    LDA mu_noise : STA mu_ay + 6
-.output
-    LDA mu_busy : BNE done              ; (the game is writing the chip)
-    JMP mu_output
-.done
-    RTS
-}
-
 \ The next byte of the pattern at mu_ptr. Keeps X.
 .mu_byte
 {
@@ -343,8 +313,8 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     RTS
 }
 
-\ &C36E: voice X's frame. Returns its volume in A and its period in
-\ mu_per, and merges its tone and noise bits into mu_ay's register 7.
+\ &C36E: voice X's frame (voice mu_tmp, 0-2): its volume and period into
+\ mu_ay, and its tone and noise bits merged into mu_ay's register 7.
 .mu_render
 {
     LDA mv_flags,X : STA mu_flags
@@ -449,40 +419,47 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     AND mu_ay + 7 : STA mu_ay + 7
     LDA #MU_HIHAT_NOISE : STA mu_noise
 .done
-    LDA mv_vol,X
+    \ voice mu_tmp's volume and period in mu_ay
+    LDY mu_tmp
+    LDA mv_vol,X : STA mu_ay + 8,Y
+    TYA : ASL A : TAY
+    LDA mu_per : STA mu_ay,Y
+    LDA mu_per+1 : STA mu_ay + 1,Y
     RTS
 }
+
+\ &C0CD, each VSync (from irq.6502, which keeps X and Y): the driver's
+\ frame, then the chip. mu_tmp counts the voices.
+.music_tick
+{
+    LDA mu_on : BEQ output
+    LDA mu_noise_note : STA mu_noise    ; &C0D7
+    DEC mu_rows : BNE render
+    LDY #0
+.row
+    STY mu_tmp : LDX mu_voice_at,Y
+    JSR mu_row
+    LDA mu_on : BEQ output              ; (&8E: the song stopped)
+    LDY mu_tmp : INY : CPY #3 : BNE row
+    LDA mu_speed : STA mu_rows
+.render
+    \ &C0FD: each voice's period and volume
+    LDY #0
+.voice
+    STY mu_tmp : LDX mu_voice_at,Y
+    JSR mu_render
+    LDY mu_tmp : INY : CPY #3 : BNE voice
+    LDA mu_noise : STA mu_ay + 6
+.output
+    LDA mu_busy : BEQ mu_output         ; (unless the game is writing the chip)
+    RTS
+}
+    \ (mu_output follows)
 
 \ ---------------------------------------------------------------------------
 \ The SN76489. Its bytes: a tone's period is a latch byte %1cc0 and its
 \ low four bits, then %00 and its high six; a volume %1cc1 and the
 \ attenuation (15 silent); the noise %11100 then white (1) and the rate.
-
-\ The AY's volume (0 silent, 15 loudest) as the SN's attenuation
-\ (decision 16): ym2sn.py's mapping (its default, which nm's disc used),
-\ each AY step a 2dB step of the SN's, an odd one rounded up.
-.mu_att
-FOR v = 0..15
-    IF v = 15
-        EQUB 0
-    ELSE
-        EQUB 15 - (v + (v AND 1))
-    ENDIF
-NEXT
-
-\ The noise (decision 17): the SN's white noise, at the faster of its two
-\ fixed rates for AY noise periods up to MU_NOISE_SLOW - 1, the slower
-\ from there. The AY's noise shifts at 1.7734MHz / (16 x the period); the
-\ SN's at 4MHz / 512 and 4MHz / 1024. Halfway between those (5859Hz) is
-\ an AY period of 18.9.
-MU_NOISE_WHITE = &E4            ; white, the rate N/512 (+ 1: N/1024)
-MU_NOISE_SLOW = 19
-MU_SILENT = 15
-
-.mu_tone_latch  EQUB &80, &A0, &C0
-.mu_vol_latch   EQUB &90, &B0, &D0, &F0
-.mu_tone_bit    EQUB 1, 2, 4        ; register 7: the tone off (bits set)
-.mu_noise_bit   EQUB 8, 16, 32      ; ... and the noise
 
 \ The chip as it should be after this frame, from mu_ay (or silent while
 \ mu_on is 0), writing what changed since mu_sn_* were written.
@@ -562,6 +539,32 @@ MU_SILENT = 15
 .port_done
     RTS
 }
+
+\ The AY's volume (0 silent, 15 loudest) as the SN's attenuation
+\ (decision 16): ym2sn.py's mapping (its default, which nm's disc used),
+\ each AY step a 2dB step of the SN's, an odd one rounded up.
+.mu_att
+FOR v = 0..15
+    IF v = 15
+        EQUB 0
+    ELSE
+        EQUB 15 - (v + (v AND 1))
+    ENDIF
+NEXT
+
+\ The noise (decision 17): the SN's white noise, at the faster of its two
+\ fixed rates for AY noise periods up to MU_NOISE_SLOW - 1, the slower
+\ from there. The AY's noise shifts at 1.7734MHz / (16 x the period); the
+\ SN's at 4MHz / 512 and 4MHz / 1024. Halfway between those (5859Hz) is
+\ an AY period of 18.9.
+MU_NOISE_WHITE = &E4            ; white, the rate N/512 (+ 1: N/1024)
+MU_NOISE_SLOW = 19
+MU_SILENT = 15
+
+.mu_tone_latch  EQUB &80, &A0, &C0
+.mu_vol_latch   EQUB &90, &B0, &D0, &F0
+.mu_tone_bit    EQUB 1, 2, 4        ; register 7: the tone off (bits set)
+.mu_noise_bit   EQUB 8, 16, 32      ; ... and the noise
 
 \ Channel X's period for the SN in mu_s, from mu_ay's (decision 15). The
 \ AY's tone is 1.7734MHz / (16 x its period), the SN's 4MHz / (32 x its):
