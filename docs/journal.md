@@ -381,3 +381,14 @@ jackpot as two `replace_codes` sweeps. A suspected clash over `ra2`
 between the monsters and the redraws turned out not to be one: every use
 sets and reads it with no call between. Both agents said what's left is
 single bytes.
+
+### The last round
+
+One agent swept the whole program with every round's rejected ideas in
+hand, and found twelve bytes (the creeper's row steps through `add_rhl`)
+and an unused zero-page byte. What's left is single bytes that would cost
+clarity, so the optimisation stops here. Over the four rounds main RAM's
+free space went from under a kilobyte to about three, the bank's from
+almost nothing to most of two, the slide from about 31 frames to 22, and
+an ordinary pass's work by about a third, with nothing the game does
+changed.
