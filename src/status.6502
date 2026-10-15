@@ -16,15 +16,16 @@ ICON_SCROLL  = &23
 \ &C121 Timers: count down the five per-pass timers that aren't 0.
 .timers
 {
-    LDX #0
+    LDY #TIMERS - 1
 .next
-    LDY timer_index,X
-    LDA vars_ba,Y : BEQ zero
-    SEC : SBC #1 : STA vars_ba,Y
+    LDX timer_index,Y
+    LDA vars_ba,X : BEQ zero
+    DEC vars_ba,X
 .zero
-    INX : CPX #5 : BNE next
+    DEY : BPL next
     RTS
 }
+TIMERS = 5
 .timer_index
     EQUB P1Skull - vars_ba, P2Skull - vars_ba, FreezeTimer - vars_ba, P1Heart - vars_ba, P2Heart - vars_ba
 
@@ -37,14 +38,14 @@ ICON_SCROLL  = &23
     DEC StatusPasses : BNE done
     LDA #STATUS_EVERY : STA StatusPasses
     JSR music_restart
-    LDA #0 : STA pl : STA prec
-    LDA InPlay : AND #1 : BEQ no1
-    JSR drain
-.no1
-    LDA #1 : STA pl : LDA #R_SIZE : STA prec
-    LDA InPlay : AND #2 : BEQ no2
-    JSR drain
-.no2
+    LDA #0
+.drain
+    JSR set_player
+    LDA InPlay : AND in_play_bit,X : BEQ next
+    LDA #&FF : STA rd : STA re      ; (DE = -1)
+    JSR add_strength
+.next
+    LDA pl : EOR #1 : BNE drain     ; (player 1, then player 2)
     JSR close_one_ways
     DEC IdleTicks : BNE done
     \ keys, doors and chests (&08-&0B) go
@@ -57,9 +58,6 @@ ICON_SCROLL  = &23
     JSR replace_codes
 .done
     RTS
-.drain
-    LDA #&FF : STA rd : STA re     ; (DE = -1)
-    JMP add_strength
 }
 
 \ Every map code from A up to X (not including it) becomes Y, and is
@@ -103,6 +101,16 @@ ICON_SCROLL  = &23
     RTS
 }
 
+\ Player pl's icons for the count at field Y of its record: icon X, from
+\ column A of its icon row (&CB0C's).
+.print_icons
+    STA re
+    TYA : CLC : ADC prec : TAY
+    LDA Player1,Y : STA rl
+    LDY pl : LDA icon_row,Y : STA rd
+    TXA
+    \ (fall into print_grid)
+
 \ &DA7E PrintGrid: the panel's icons, a 3 x 3 grid from row rd, column re:
 \ A's character as many times as the count (rl), then spaces.
 .print_grid
@@ -138,14 +146,12 @@ ICON_SCROLL  = &23
     LDX prec
     LDA Player1 + R_HEART,X : BNE done
     LDA Player1 + R_ARMOUR,X : BEQ apply
-    JSR random : AND #&0C : BEQ done
+    JSR random : AND #&0C : BEQ done    ; (random keeps X)
 .apply
-    LDX prec
     LDA Player1 + R_STRENGTH,X : CLC : ADC re : STA rl
     LDA Player1 + R_STRENGTH + 1,X : ADC rd : STA rh
-    BMI dead
-    JMP set_strength
-.dead
+    BPL set_strength
+    \ (dead)
     \ out of play (InPlay's bits 0 and 2, or 1 and 3, cleared), its cells
     \ cleared, strength shown as 0, song 2, game over
     LDX pl
@@ -155,7 +161,7 @@ ICON_SCROLL  = &23
     LDA Player1 + R_COL,Y : STA rc
     LDA #0 : STA MapStamp
     JSR fill_cells
-    LDA #0 : STA rl : STA rh
+    STA rl : STA rh                 ; (A = 0: fill_cells leaves MapStamp in it)
     JSR set_strength
     LDA #SONG_DEAD : JSR play_song
     JMP game_over
@@ -211,7 +217,7 @@ SONG_DEAD = 2
     LDA rh : SBC tens_hi,X : BCC print
     STA rh : STY rl
     INC ch
-    JMP sub
+    BCS sub                         ; (always: no borrow)
 .print
     TXA : PHA
     LDA ch : JSR print_char
@@ -232,13 +238,19 @@ SONG_DEAD = 2
 .reset_game
 {
     LDA #0
-    STA P1Strength : STA P1Strength + 1 : STA P2Strength : STA P2Strength + 1
-    STA P1Treasure : STA P1Treasure + 1 : STA P2Treasure : STA P2Treasure + 1
-    STA PasswordTyped : STA PasswordTyped + 1 : STA PasswordTyped + 2 : STA PasswordTyped + 3
-    STA P1Keys : STA P2Keys : STA P1Magic : STA P2Magic
-    STA P1Power : STA P1Power + 1 : STA P2Power : STA P2Power + 1
+    LDX #R_ARMOUR - R_TREASURE - 1
+.scores
+    STA Player1 + R_TREASURE,X : STA Player2 + R_TREASURE,X     ; treasure, strength, power
+    DEX : BPL scores
+    \ the password typed, and the keys and scrolls (and the bounces and
+    \ rings after them, which reset_level clears anyway)
+    LDX #PASSWORD_LEN - 1
+.counts
+    STA PasswordTyped,X : STA P1Keys,X : STA P2Keys,X
+    DEX : BPL counts
     \ (fall into reset_level)
 }
+    ASSERT R_KEYS + PASSWORD_LEN - 1 = R_RING AND R_RING < R_SIZE
 \ &DBCA ResetLevel: the level's counts, and the one-way tiles' list.
 .reset_level
 {

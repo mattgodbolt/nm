@@ -21,11 +21,14 @@ C_LEFT  = 4
 C_FIRE  = 5
 CONTROLS = 6
 
-\ Set player A's pl and prec.
+\ Set player A's pl and prec. X = pl.
 .set_player
+{
     STA pl
     TAX : LDA player_rec,X : STA prec
+.done
     RTS
+}
 
 \ &C168 Player1Pass, &C187 Player2Pass: if player A is in play, its pass;
 \ then its code goes into the map under it (&D1A2). A player that leaves by
@@ -33,7 +36,7 @@ CONTROLS = 6
 .player_pass
 {
     JSR set_player
-    LDX pl : LDA InPlay : AND in_play_bit,X : BEQ done
+    LDA InPlay : AND in_play_bit,X : BEQ set_player.done
     TSX : STX pass_sp
     JSR player_update
     BNE drawn
@@ -45,8 +48,6 @@ CONTROLS = 6
     LDA Player1 + R_COL,Y : STA rc
     LDA player_code,X : STA MapStamp
     JMP fill_cells
-.done
-    RTS
 }
 .in_play_bit
     EQUB 1, 2
@@ -54,6 +55,39 @@ CONTROLS = 6
 \ right becomes left. Kept.)
 .pass_step_bit
     EQUB 1, 3
+
+\ Set the facing (pl's) to A (even), keeping its step bit (&C9BB).
+.set_facing
+{
+    LDX pl
+    EOR P1Facing,X : AND #&FE : EOR P1Facing,X   ; (A's bits 1-7, the facing's bit 0)
+    STA P1Facing,X
+    RTS
+}
+
+\ &C967 Diagonal: a right or left facing gains 8 going up, 12 going down.
+.diagonal
+{
+    LDA re : BEQ done
+    ASL A                           ; (C set: up, &FF; clear: down, 1)
+    LDA #12 : BCC add
+    LDA #8
+.add
+    LDX pl
+    CLC : ADC P1Facing,X : STA P1Facing,X
+.done
+    RTS
+}
+
+\ Is player pl's control A held? NZ if so.
+.control
+{
+    LDX pl : BEQ p1
+    CLC : ADC #CONTROLS             ; (player 2's follow player 1's)
+.p1
+    TAY : LDX controls,Y
+    JMP key_down
+}
 
 \ &C978 Player1Update, &CC98 Player2Update: read the controls, throw or
 \ move. Returns NZ when the player was drawn.
@@ -69,13 +103,13 @@ CONTROLS = 6
     JMP player_stay
 .read_controls
     LDA #0 : STA rd : STA re        ; D: the horizontal step, E: the vertical
-    \ magic: a smart bomb a pass while held, while there are any
+    \ magic: a smart bomb a pass while held, while there are any (the
+    \ bomb and the view leave DE 0, as the original's alternate set does)
     LDA #C_MAGIC : JSR control : BEQ up
-    LDY prec : LDA Player1 + R_MAGIC,Y : BEQ up
-    SEC : SBC #1 : STA Player1 + R_MAGIC,Y
+    LDX prec : LDA Player1 + R_MAGIC,X : BEQ up
+    DEC Player1 + R_MAGIC,X
     JSR smart_bomb
     JSR draw_view
-    LDA #0 : STA rd : STA re        ; (the original keeps them in the alternate set)
 .up
     LDA #C_UP : JSR control : BEQ down
     LDA #&FF : STA re
@@ -100,19 +134,17 @@ CONTROLS = 6
     LDX pl : LDY star_offset,X
     LDA Star1 + S_THROWER,Y : BNE stay
     \ the power counter: one off, if it isn't 0 (16 bits)
-    LDY prec
-    LDA Player1 + R_POWER,Y : BNE power_lo
-    LDA Player1 + R_POWER + 1,Y : BEQ no_power
-    SEC : SBC #1 : STA Player1 + R_POWER + 1,Y
-    LDA #0
+    LDX prec
+    LDA Player1 + R_POWER,X : BNE power_lo
+    LDA Player1 + R_POWER + 1,X : BEQ no_power
+    DEC Player1 + R_POWER + 1,X
 .power_lo
-    SEC : SBC #1 : STA Player1 + R_POWER,Y
+    DEC Player1 + R_POWER,X
 .no_power
-    LDA Player1 + R_BOUNCES,Y : STA Bounces
-    LDA Player1 + R_ROW,Y : STA rd
-    LDA Player1 + R_COL,Y : STA re
+    LDA Player1 + R_BOUNCES,X : STA Bounces
+    LDA Player1 + R_ROW,X : STA rb
+    LDA Player1 + R_COL,X : STA rc
     LDX pl : LDA P1Facing,X
-    PHA : LDA player_code,X : TAX : PLA
     JSR launch_star
     LDA #THROW_CHIRP : JSR chirp
 .stay
@@ -120,82 +152,40 @@ CONTROLS = 6
 .move
     \ &CA31: no direction, no move
     LDA rd : ORA re : BEQ stay
-    LDA rd : STA rb                 ; B: the horizontal step
-    LDA re : STA rc                 ; C: the vertical
-    LDA re : STA StepV
-    LDA rd : STA StepH
-    \ lift the player out of the map (its cells at the start of the pass)
-    LDA rb : PHA : LDA rc : PHA
-    LDA OldPos + 1 : STA rb
-    LDA OldPos : STA rc
+    LDA re : STA StepV              ; the vertical step
+    LDA rd : STA StepH              ; ... and the horizontal
+    \ lift the player out of the map (its cells at the start of the pass,
+    \ where it is)
+    LDA OldPos + 1 : STA rb : STA rd
+    LDA OldPos : STA rc : STA re
     LDA #0 : STA MapStamp
     JSR fill_cells
-    PLA : STA rc : PLA : STA rb
-    LDY prec
-    LDA Player1 + R_ROW,Y : STA rd
-    LDA Player1 + R_COL,Y : STA re
     \ a new facing clears the step bit: a turn takes a pass
     LDX pl
     LDA P1LastFacing,X : EOR P1Facing,X : AND #&FE : BEQ same
-    LDA P1Facing,X : AND #&FE : STA P1Facing,X
+    LSR P1Facing,X : ASL P1Facing,X     ; (bit 0 cleared)
 .same
     LDA P1Facing,X : STA P1LastFacing,X
     \ step when the step bit was set, and toggle it
     AND #1 : BEQ toggle
-    LDA re : CLC : ADC rb : STA re
-    LDA rd : CLC : ADC rc : STA rd
+    LDA re : CLC : ADC StepH : STA re
+    LDA rd : CLC : ADC StepV : STA rd
 .toggle
     LDA P1Facing,X : EOR #1 : STA P1Facing,X
-    JSR player_touch : BEQ place
+    JSR player_touch : BEQ player_place
     \ blocked: the step bit set, and slide: the horizontal step alone,
-    \ then the vertical
+    \ then the vertical (a touch leaves the facing alone)
     LDX pl : LDA P1Facing,X : ORA #1 : STA P1Facing,X
     LDY prec
     LDA Player1 + R_ROW,Y : STA rd
     LDA Player1 + R_COL,Y : CLC : ADC StepH : STA re
-    JSR player_touch : BEQ place
-    LDX pl : LDA P1Facing,X : ORA #1 : STA P1Facing,X
+    JSR player_touch : BEQ player_place
     LDY prec
     LDA Player1 + R_ROW,Y : CLC : ADC StepV : STA rd
     LDA Player1 + R_COL,Y : STA re
-    JSR player_touch : BEQ place
-    JMP player_stay
-.place
-    JMP player_place
+    JSR player_touch : BEQ player_place
+    \ (fall into player_stay)
 }
-
-\ Set the facing (pl's) to A, keeping its step bit (&C9BB).
-.set_facing
-{
-    LDX pl : STA ra2
-    LDA P1Facing,X : AND #1 : ORA ra2 : STA P1Facing,X
-    RTS
-}
-
-\ &C967 Diagonal: a right or left facing gains 8 going up, 12 going down.
-.diagonal
-{
-    LDA re : BEQ done
-    LDX pl
-    CMP #1 : BEQ down
-    LDA P1Facing,X : CLC : ADC #8 : STA P1Facing,X
-    RTS
-.down
-    LDA P1Facing,X : CLC : ADC #12 : STA P1Facing,X
-.done
-    RTS
-}
-
-\ Is player pl's control A held? NZ if so.
-.control
-{
-    STA ra2
-    LDA pl : ASL A : ADC pl : ASL A     ; (pl * CONTROLS)
-    ADC ra2 : TAY
-    LDX controls,Y
-    JMP key_down
-}
-    ASSERT CONTROLS = 6
 
 \ &CAA6 P1Stay: not moving: its position as it was.
 .player_stay
@@ -211,14 +201,13 @@ CONTROLS = 6
 \ picture if it moved, and draw. NZ when drawn.
 .player_place
 {
+    ZA_AUTO1 column
     \ the other player's position, for the scroll (H its row, L its column)
-    LDA pl : EOR #1 : TAX : LDY player_rec,X
+    LDA prec : EOR #R_SIZE : TAY
     LDA Player1 + R_ROW,Y : STA rh
     LDA Player1 + R_COL,Y : STA rl
     LDA rd : SEC : SBC ViewOrigin : STA rc
-    CMP #PLACE_MAX + 1 : BCC not_down
-    JMP scroll_down
-.not_down
+    CMP #PLACE_MAX + 1 : BCS scroll_down
     CMP #PLACE_MIN : BCS not_up
     JMP scroll_up
 .not_up
@@ -229,27 +218,23 @@ CONTROLS = 6
     CMP #PLACE_MIN : BCS not_left
     JMP scroll_left
 .not_left
-    CLC : ADC #VIEW_LEFT : STA ra2  ; the screen column
+    ADC #VIEW_LEFT - 1 : STA column ; the screen column (C set: from PLACE_MIN)
     LDY prec
-    LDA rd : STA Player1 + R_ROW,Y
     LDA re : STA Player1 + R_COL,Y
+    LDA rd : STA Player1 + R_ROW,Y
     \ moved: erase the old picture
-    LDA rd : CMP OldPos + 1 : BNE moved
+    CMP OldPos + 1 : BNE moved
     LDA re : CMP OldPos : BEQ same
 .moved
-    LDA rc : PHA : LDA ra2 : PHA
-    JSR erase_old
-    PLA : STA ra2 : PLA : STA rc
+    JSR erase_old                   ; (which keeps rc)
 .same
     LDA rc : STA rd                 ; the view row
-    LDA ra2 : STA re                ; the screen column
+    LDA column : STA re             ; the screen column
     \ its heart: it blinks (drawn as floor on even counts)
     LDX pl : LDY prec
     LDA Player1 + R_HEART,Y : BEQ draw
-    AND #1 : BNE draw
-    LDA TileAttrs : STA sp_attr
-    LDA #0
-    JMP draw_frame
+    LSR A : BCS draw
+    JMP draw_floor_frame
 .draw
     LDA player_colour,X : STA sp_attr
     LDA P1Facing,X : ORA #PIC_PLAYER
@@ -268,59 +253,6 @@ CONTROLS = 6
 .player_colour
     EQUB P1_COLOUR, P2_COLOUR
 
-\ &CC75 EraseOld: floor at the moving player's old position, with the
-\ click. &CC79 EraseAt: at map position (rd, re).
-.erase_old
-    LDA OldPos + 1 : STA rd
-    LDA OldPos : STA re
-.erase_at
-{
-    LDA rd : SEC : SBC ViewOrigin : STA rd
-    LDA re : SEC : SBC ViewOrigin + 1 : CLC : ADC #VIEW_LEFT : STA re
-    LDA TileAttrs : STA sp_attr
-    JSR click
-    LDA #0
-    JMP draw_frame
-}
-
-\ &CB0C P1Touch, &CE18: player pl touches its four cells at (rd, re):
-\ treasure and strength from what it found, the panel's icons and
-\ figures reprinted. NZ when blocked; the exit leaves the level.
-.player_touch
-{
-    LDA rd : PHA : LDA re : PHA
-    LDA rd : STA rb : LDA re : STA rc
-    LDX prec
-    JSR touch_all
-    \ the icons: keys, and scrolls
-    LDX pl : LDY prec
-    LDA Player1 + R_KEYS,Y : STA rl
-    LDA icon_row,X : STA rd : LDA #ICON_KEY_COL : STA re
-    LDA #ICON_KEY : JSR print_grid
-    LDX pl : LDY prec
-    LDA Player1 + R_MAGIC,Y : STA rl
-    LDA icon_row,X : STA rd : LDA #ICON_SCROLL_COL : STA re
-    LDA #ICON_SCROLL : JSR print_grid
-    LDA #0 : STA rd
-    LDA TouchTreasure : STA re
-    JSR add_treasure
-    LDA #0 : STA rd
-    LDA TouchStrength : STA re
-    JSR add_strength
-    PLA : STA re : PLA : STA rd
-    LDA TouchCode : BEQ done
-    CMP #T_EXIT : BNE blocked
-    JMP player_exits
-.blocked
-    LDA #&FF
-.done
-    RTS
-}
-.icon_row
-    EQUB 5, 13
-ICON_KEY_COL = 1
-ICON_SCROLL_COL = 4
-
 \ &CB4C ScrollUp, &CB93 ScrollDown, &CBD5 ScrollLeft, &CC23 ScrollRight:
 \ slide the view 8 tiles, a tile a step (each a block move of the screen
 \ and a new strip), as far as keeps the other player (rh, rl) in its
@@ -328,26 +260,6 @@ ICON_SCROLL_COL = 4
 \ The mover is drawn over (erase_old) and drawn next pass. Returns Z
 \ when it couldn't, or stopped at the edge.
 SCROLL_STEPS = 8
-.scroll_up
-{
-    LDA #SCROLL_STEPS : STA steps
-    LDA InPlay : CMP #3 : BNE step
-    LDA rh : SEC : SBC #2 : SEC : SBC ViewOrigin
-    LSR A : ADC #0 : STA steps
-    LDA #SCROLL_STEPS + 1 : SEC : SBC steps : BEQ done
-    STA steps
-.step
-    JSR shift_down
-    DEC ViewOrigin : DEC ViewOrigin
-    LDA #0 : STA rb : STA rc
-    JSR view_strip_row
-    LDA ViewOrigin : BEQ done
-    DEC steps : BNE step
-    JMP erase_old
-.done
-    RTS
-    ZA_AUTO1 steps
-}
 .scroll_down
 {
     LDA #SCROLL_STEPS : STA steps
@@ -363,13 +275,77 @@ SCROLL_STEPS = 8
     JSR view_strip_row
     LDA ViewOrigin : CMP #VIEW_MAX : BCS edge
     DEC steps : BNE step
-    JMP erase_old
+    BEQ erase_old                   ; (always)
 .edge
     LDA #0                          ; (Z)
 .done
     RTS
     ZA_AUTO1 steps
 }
+.scroll_up
+{
+    LDA #SCROLL_STEPS : STA steps
+    LDA InPlay : CMP #3 : BNE step
+    LDA rh : SEC : SBC #2 : SEC : SBC ViewOrigin
+    LSR A : ADC #0 : STA steps
+    LDA #SCROLL_STEPS + 1 : SEC : SBC steps : BEQ scroll_down.done
+    STA steps
+.step
+    JSR shift_down
+    DEC ViewOrigin : DEC ViewOrigin
+    LDA #0 : STA rb : STA rc
+    JSR view_strip_row
+    LDA ViewOrigin : BEQ scroll_down.done
+    DEC steps : BNE step
+    \ (fall into erase_old)
+    ZA_AUTO1 steps
+}
+\ &CC75 EraseOld: floor at the moving player's old position, with the
+\ click. &CC79 EraseAt: at map position (rd, re).
+.erase_old
+    LDA OldPos + 1 : STA rd
+    LDA OldPos : STA re
+.erase_at
+    LDA rd : SEC : SBC ViewOrigin : STA rd
+    LDA re : SEC : SBC ViewOrigin + 1 : CLC : ADC #VIEW_LEFT : STA re
+    JSR click
+    \ (fall into draw_floor_frame)
+\ Floor at view row rd, screen column re.
+.draw_floor_frame
+    LDA TileAttrs : STA sp_attr
+    LDA #0
+    JMP draw_frame
+
+\ &CB0C P1Touch, &CE18: player pl touches its four cells at (rd, re):
+\ treasure and strength from what it found, the panel's icons and
+\ figures reprinted. NZ when blocked; the exit leaves the level.
+.player_touch
+{
+    LDA rd : STA rb : PHA
+    LDA re : STA rc : PHA
+    JSR touch_all
+    \ the icons: keys, and scrolls
+    LDY #R_KEYS : LDX #ICON_KEY : LDA #ICON_KEY_COL : JSR print_icons
+    LDY #R_MAGIC : LDX #ICON_SCROLL : LDA #ICON_SCROLL_COL : JSR print_icons
+    LDA #0 : STA rd
+    LDA TouchTreasure : STA re
+    JSR add_treasure
+    LDA TouchStrength : STA re      ; (add_treasure keeps rd 0)
+    JSR add_strength
+    PLA : STA re : PLA : STA rd
+    LDA TouchCode : BEQ done
+    CMP #T_EXIT : BNE blocked
+    JMP player_exits
+.blocked
+    LDA #&FF
+.done
+    RTS
+}
+.icon_row
+    EQUB 5, 13
+ICON_KEY_COL = 1
+ICON_SCROLL_COL = 4
+
 .scroll_left
 {
     LDA #SCROLL_STEPS : STA steps
@@ -426,9 +402,8 @@ SCROLL_STEPS = 8
 \ uncovers: &CB73-&CB86).
 .view_strip_row
 {
-    LDA rb : PHA
+    LDA rb : STA strip_row
     JSR view_cell
-    PLA : STA strip_row
     LDA #VIEW_LEFT : STA strip_col
 .next
     LDY #0 : LDA (rhl),Y
@@ -445,9 +420,8 @@ SCROLL_STEPS = 8
 \ A column of the view's tiles, at view column rc (&CBFC-&CC16).
 .view_strip_col
 {
-    LDA rc : PHA
+    LDA rc : CLC : ADC #VIEW_LEFT : STA strip_col
     JSR view_cell
-    PLA : CLC : ADC #VIEW_LEFT : STA strip_col
     LDA #0 : STA strip_row
 .next
     LDY #0 : LDA (rhl),Y
