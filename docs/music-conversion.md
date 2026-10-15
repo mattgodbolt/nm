@@ -1,5 +1,9 @@
 # Ninja Massacre AY Music Extraction & BBC Micro Conversion
 
+*The commands below run in `music/`, as `tools/music/build.sh` does; the
+scripts are in `tools/music/` (moved there when the repository became the
+game's port).*
+
 ## Overview
 
 Extracting AY-3-8910 music from the ZX Spectrum 128K game "Ninja Massacre"
@@ -198,7 +202,7 @@ ninja_music.ssd (bootable BBC Micro DFS disc image)
 
 ## Reproducing the Build
 
-Run `./build.sh` to reproduce the full pipeline. It will:
+Run `make music-disc` (`tools/music/build.sh`) to reproduce the full pipeline. It will:
 1. Clone and patch the tools (if not already present)
 2. Convert PSG → YM6 → SN76489 VGM → VGC → BBC disc image
 

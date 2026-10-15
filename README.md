@@ -24,15 +24,17 @@ Where it has got to (`docs/journal.md` has the story):
   on the SN76489 too.
 - It needs 16K of sideways RAM (or a Master). A stock-B edition is
   considered in `docs/streaming.md`.
-- The colours are a first attempt (decision 5 and 21 in
-  `docs/decisions.md`), to be looked at.
+- The colours are a first attempt (decisions 5 and 21 in
+  `docs/decisions.md`), to be looked at, and the scroll's slide is slower
+  than the original's (decision 22).
 
 ## Playing
 
-[Play it in jsbeeb](https://bbc.xania.org/?autoboot&disc1=https://raw.githubusercontent.com/mattgodbolt/nm/port/ninja-massacre.ssd)
+[Play it in jsbeeb](https://bbc.xania.org/?autoboot&disc1=https://raw.githubusercontent.com/mattgodbolt/nm/main/ninja-massacre.ssd)
 (a Model B with sideways RAM), or write `ninja-massacre.ssd` to a disc and
-SHIFT-BREAK. Press a key at the first screen for the menu. Keys, as the original's where the BBC
-has them (decision 13):
+SHIFT-BREAK: it starts at the menu (1 one player, 2 two, 3 the controls,
+4 a password). The keys, as the original's where the BBC has them
+(decision 13):
 
 | | Player 1 | Player 2 |
 |---|---|---|

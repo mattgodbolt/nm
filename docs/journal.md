@@ -311,3 +311,12 @@ first wait, on its loading screen, which the port doesn't keep), and the
 start-up still loaded the screen's first test colours. At power-on the
 menu now comes straight up (decision 21), and the start-up palette is a
 level's.
+
+### Docs, and the music still builds
+
+A pass over the docs before merging to main: the README's links point at
+main, the music's README says how its disc relates to the game's music,
+and the conversion notes say where their commands run. `make music-disc`
+rebuilds `ninja_music.ssd` byte for byte from the committed captures; and
+from TOSEC's 128K snapshot (`make fetch`), the AY captures come out byte
+for byte as committed.

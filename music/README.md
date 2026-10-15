@@ -106,14 +106,22 @@ The fix is in `vgm-player-bbc-lz4fix.patch`.
 ### Build
 
 ```bash
-tools/music/build.sh (or `make music-disc`)
+make music-disc     # (tools/music/build.sh)
 ```
 
 This clones and patches the required tools, converts the included PSG files
 through the full pipeline, and produces `ninja_music.ssd`.
 
-The .z80 snapshot is not included (copyright), but the captured PSG register
-dumps are, so the build works without it.
+The .z80 snapshot is not included (copyright): `make fetch` downloads one
+(TOSEC's) into `original/`, and the build uses it if the captures need
+making again. The captured PSG register dumps are included, so the build
+works without it.
+
+The game's own port plays this music differently: it runs Whittaker's
+driver, transcribed to 6502, on the original's song data
+(`src/music.6502`, `docs/research/music-driver.md`). This disc plays a
+recording of the chip, through Simon Morris's player, with the bass
+synthesised by timer interrupts.
 
 ## Songs
 
