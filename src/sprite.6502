@@ -1,0 +1,75 @@
+\ ***************************************************************************
+\ Drawing a 16 x 16 picture (a block: blocks + 32 x its number) at a
+\ screen character (row, column), opaque, in the colours of an attribute,
+\ which its cells take: the original's DrawSprite (&C8D8) and DrawSpriteA
+\ (&C8E8), with BlockAddr (&C5EE). Those clip by the Spectrum's memory map
+\ (a picture at view row -1 writes its top half into the ROM; one at row 23
+\ its second attribute row past the screen), and at the playfield's left
+\ and right edges by drawing one byte of each line. The port clips the same
+\ pictures the same way, explicitly (docs/research/players.md).
+\ ***************************************************************************
+
+\ Draw picture A at screen row X (-1 to 23), column Y (7 to 31), in
+\ attribute sp_attr.
+.draw_sprite
+{
+    STA sp_pic
+    STX dt_row : STY dt_col
+    \ which parts show: the top half (row X), the bottom (row X + 1); the
+    \ left byte (column Y), the right (Y + 1)
+    LDA #&FF : STA sp_top : STA sp_bottom : STA sp_left : STA sp_right
+    CPX #&FF : BNE not_above
+    INC sp_top                      ; (row -1: the top half is lost)
+.not_above
+    CPX #SCREEN_ROWS - 1 : BNE not_below
+    INC sp_bottom                   ; (row 23: the bottom half is)
+.not_below
+    CPY #VIEW_LEFT - 1 : BNE not_left
+    INC sp_left                     ; (column 7, the panel's: only the right byte, &C902)
+.not_left
+    CPY #SCREEN_COLS - 1 : BNE not_right
+    INC sp_right                    ; (column 31: only the left byte, &C917)
+.not_right
+    \ the attributes: rows X and X + 1 (row -1's both go to row 0, &C93C)
+    LDA sp_attr : JSR attr_colours
+    LDA dt_row : BPL attr_row
+    LDA #0
+.attr_row
+    JSR sprite_attrs
+    LDA sp_bottom : BEQ no_attr2
+    LDA dt_row : CLC : ADC #1
+    JSR sprite_attrs
+.no_attr2
+    \ the pixels
+    LDA sp_pic
+    JMP draw_block_at
+}
+
+\ Set the attribute of row A's cells at dt_col and dt_col + 1, as shown.
+.sprite_attrs
+{
+    TAX
+    LDA attr_row_lo,X : STA sp_at
+    LDA attr_row_hi,X : STA sp_at+1
+    LDY dt_col
+    LDA sp_attr
+    BIT sp_left : BPL l : STA (sp_at),Y
+.l
+    INY
+    BIT sp_right : BPL r : STA (sp_at),Y
+.r
+    RTS
+}
+
+\ Each row's attributes' address.
+.attr_row_lo
+FOR r = 0..SCREEN_ROWS - 1
+    EQUB LO(attrs + r * SCREEN_COLS)
+NEXT
+.attr_row_hi
+FOR r = 0..SCREEN_ROWS - 1
+    EQUB HI(attrs + r * SCREEN_COLS)
+NEXT
+
+ZA_AUTO2 sp_at
+ZA_AUTO1 sp_pic

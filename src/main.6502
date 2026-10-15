@@ -48,11 +48,30 @@ ENDSECTION
 \ The game's own state that lasts: fixed zero page (not baron's pool,
 \ which is the rest of zero page up to DATA_BANK_ZP). The original's
 \ variables are in vars_ba and vars_ff (decision 10).
-ZP_FIXED = &10
+ZP_FIXED = &20
 SECTION ZeroPage, org = &00, guard = ZP_FIXED, virtual = TRUE
 .vsyncs     SKIP 1          ; counts VSyncs (irq.6502)
 .seed       SKIP 1          ; the random generator's state (level.6502)
 .floor_ink  SKIP 1          ; the level's floor colour, a Spectrum ink (colour.6502)
+.passes     SKIP 1          ; counts the pass clock's ticks (irq.6502)
+    \ The Z80's registers (regs.6502): rb and rc together are BC (rc the
+    \ low byte), rd and re DE, rh and rl HL; rhl is HL as a pointer.
+.rc         SKIP 1
+.rb         SKIP 1
+.re         SKIP 1
+.rd         SKIP 1
+.rl         SKIP 1
+.rh         SKIP 1
+rhl = rl
+.ra2        SKIP 1          ; spare places for what the Z80 keeps in AF' or on its stack
+.rx         SKIP 1
+.pl         SKIP 1          ; the player a shared routine is for: 0 or 1 (player.6502)
+.prec       SKIP 1          ; ... and its record's offset from Player1 (0 or Player2 - Player1)
+.sp_attr    SKIP 1          ; draw_sprite's attribute (sprite.6502)
+.sp_top     SKIP 1          ; which parts of the picture show: bit 7 set if so
+.sp_bottom  SKIP 1
+.sp_left    SKIP 1
+.sp_right   SKIP 1
 ENDSECTION
 
 \ OS workspace the game takes once it owns the machine (decision 11): the
@@ -78,6 +97,8 @@ SECTION Code, org = CODE_BASE, load = &FFFF0000 OR CODE_LOAD, exec = &FFFF0000 +
     INCLUDE "unpack.6502"
     INCLUDE "level.6502"
     INCLUDE "view.6502"
+    INCLUDE "sprite.6502"
+    INCLUDE "mapcell.6502"
     INCLUDE "colour.6502"
     INCLUDE "panel.6502"
     INCLUDE "text.6502"

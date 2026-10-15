@@ -56,22 +56,10 @@ VIEW_LEFT = 8               ; the view's first screen column (the panel's left o
 \ yet.)
 .draw_tile
 {
-    ZA_AUTO2 at
-    STX dt_row : STY dt_col
-    PHA : TAX
-    LDA tileattr,X : PHA
-    \ &C5C0: the 2 x 2 cells' attributes
-    LDA dt_row : LSR A : LSR A : LSR A : CLC : ADC #HI(attrs) : STA at+1
-    LDA dt_row : ASL A : ASL A : ASL A : ASL A : ASL A : ORA dt_col
-    CLC : ADC #LO(attrs) : STA at
-    BCC c : INC at+1
-.c
-    PLA : PHA
-    LDY #0 : STA (at),Y : INY : STA (at),Y
-    LDY #SCREEN_COLS : STA (at),Y : INY : STA (at),Y
-    PLA : JSR attr_colours
-    PLA
-    JMP draw_block_at
+    PHA : STX ra2
+    TAX : LDA tileattr,X : STA sp_attr
+    LDX ra2 : PLA
+    JMP draw_sprite
 }
 
 \ Draw block A at (dt_row, dt_col): a set pixel in dt_mask EOR dt_paper,
@@ -87,9 +75,16 @@ VIEW_LEFT = 8               ; the view's first screen column (the panel's left o
     LDA bsrc+1 : ADC #HI(blocks) : STA bsrc+1
     \ the screen: screen + row * &200 + col * 16
     LDA dt_col : ASL A : ASL A : ASL A : ASL A : STA scr
-    LDA dt_row : ASL A : ADC #HI(screen) : STA scr+1
+    LDA dt_row : ASL A : CLC : ADC #HI(screen) : STA scr+1   ; (row -1 wraps below the screen: only its bottom half is drawn)
     LDA dt_col : LSR A : LSR A : LSR A : LSR A : CLC : ADC scr+1 : STA scr+1
+    BIT sp_top : BPL no_top
     JSR half                    ; the top 8 lines
+    JMP bottom
+.no_top
+    LDA bsrc : CLC : ADC #16 : STA bsrc
+    BCC bottom : INC bsrc+1
+.bottom
+    BIT sp_bottom : BPL done
     INC scr+1 : INC scr+1       ; the next character row
     \ (fall into half for the bottom 8)
 .half
@@ -97,23 +92,29 @@ VIEW_LEFT = 8               ; the view's first screen column (the panel's left o
 .line
     STX bline
     TXA : ASL A : TAY           ; this line's two source bytes
+    BIT sp_left : BPL no_left
     LDA (bsrc),Y : TAX
     LDY bline
     LDA hi_nibble,X : AND dt_mask : EOR dt_paper : STA (scr),Y
     TYA : ORA #8 : TAY
     LDA lo_nibble,X : AND dt_mask : EOR dt_paper : STA (scr),Y
+.no_left
+    BIT sp_right : BPL no_right
     LDA bline : ASL A : TAY : INY
     LDA (bsrc),Y : TAX
     LDA bline : ORA #16 : TAY
     LDA hi_nibble,X : AND dt_mask : EOR dt_paper : STA (scr),Y
     TYA : ORA #8 : TAY
     LDA lo_nibble,X : AND dt_mask : EOR dt_paper : STA (scr),Y
+.no_right
     LDX bline : INX : CPX #8 : BNE line
     LDA bsrc : CLC : ADC #16 : STA bsrc
     BCC done : INC bsrc+1
 .done
     RTS
 }
+    \ (A row of -1: the top half's screen address isn't used, only the
+    \ bottom's, a character row on, which is row 0.)
 ZA_AUTO2 bsrc
 ZA_AUTO2 scr
 ZA_AUTO1 bline

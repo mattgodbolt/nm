@@ -1,0 +1,109 @@
+\ ***************************************************************************
+\ The map's cells: the original's helpers (&D117, &D181, &D18A-&D1B9,
+\ &D267, &D521, &D569). A position is (row, column) in characters, two to
+\ a tile each way; the map is 32 x 32 tiles, page-aligned (map).
+\ ***************************************************************************
+
+\ &D569 MapCell: rhl = the map's tile at (rb, rc); A = its code, Z if
+\ empty. Y = 0. (Rows wrap within the map's 32, as the original's do.)
+.map_cell
+{
+    LDA rb : AND #&3E
+    ASL A : ASL A : ASL A : ASL A : STA rl      ; (the tile row's low three bits, times 32)
+    LDA rb : AND #&30 : LSR A : LSR A : LSR A : LSR A
+    ORA #HI(map) : STA rh
+    LDA rc : LSR A : AND #&1F : ORA rl : STA rl
+    LDY #0 : LDA (rhl),Y
+    RTS
+}
+    ASSERT (HI(map) AND 3) = 0
+
+\ &D117 CellPos: the position (rb, rc) of the map tile at rhl.
+.cell_pos
+{
+    LDA rl : ASL A : AND #&3E : STA rc
+    LDA rh : SEC : SBC #HI(map) : STA rb        ; (the tile row's top two bits)
+    LDA rl
+    LSR rb : ROR A : LSR rb : ROR A : LSR rb : ROR A : LSR rb : ROR A
+    AND #&3E : STA rb
+    RTS
+}
+
+\ &D1A2 FillCells: MapStamp into the four cells at (rb, rc): (rb, rc),
+\ (rb+1, rc), (rb+1, rc+1), (rb, rc+1). rc comes back one more.
+.fill_cells
+{
+    JSR fill_cell
+    INC rb : JSR fill_cell
+    INC rc : JSR fill_cell
+    DEC rb
+    \ (fall into fill_cell)
+}
+\ &D1B2
+.fill_cell
+{
+    JSR map_cell
+    LDA MapStamp : STA (rhl),Y
+    RTS
+}
+
+\ &D18A CellsEmpty: are the four cells at (rb, rc) empty? Z if so; else
+\ NZ with A the first non-empty one's code. rc comes back one more (when
+\ all are empty).
+.cells_empty
+{
+    JSR map_cell : BNE done
+    INC rb : JSR map_cell : BNE done
+    INC rc : JSR map_cell : BNE done
+    DEC rb : JSR map_cell
+.done
+    RTS
+}
+
+\ &D521 CellsFree: as cells_empty, but rc comes back as it was when all
+\ four are empty.
+.cells_free
+{
+    JSR map_cell : BNE done
+    INC rb : JSR map_cell : BNE done
+    INC rc : JSR map_cell : BNE done
+    DEC rb : JSR map_cell : BNE done
+    DEC rc
+    LDA #0
+.done
+    RTS
+}
+
+\ &D181 RedrawCell: redraw the map tile at rhl, if it's in view.
+.redraw_cell
+{
+    LDA rl : PHA : LDA rh : PHA
+    LDA rb : PHA : LDA rc : PHA                 ; (cell_pos sets BC: the original's callers keep their own)
+    JSR cell_pos
+    JSR redraw_tile
+    PLA : STA rc : PLA : STA rb
+    PLA : STA rh : PLA : STA rl
+    RTS
+}
+
+\ &D267 RedrawTile: redraw the map tile at rhl, whose position is (rb,
+\ rc), if it's in the view.
+.redraw_tile
+{
+    LDA rb : SEC : SBC ViewOrigin
+    CMP #SCREEN_ROWS : BCS done
+    AND #&1E : TAX
+    LDA rc : SEC : SBC ViewOrigin+1
+    CMP #SCREEN_ROWS : BCS done                 ; (the view is 24 characters square)
+    AND #&1E : CLC : ADC #VIEW_LEFT : TAY
+    LDA rb : PHA : LDA rc : PHA
+    LDA rl : PHA : LDA rh : PHA
+    STY ra2
+    LDY #0 : LDA (rhl),Y
+    LDY ra2
+    JSR draw_cell
+    PLA : STA rh : PLA : STA rl
+    PLA : STA rc : PLA : STA rb
+.done
+    RTS
+}

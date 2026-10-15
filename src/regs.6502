@@ -1,0 +1,8 @@
+\ ***************************************************************************
+\ The Z80's registers, in zero page. The game's routines are transcribed
+\ from the original's, which pass positions and map cells in registers (BC
+\ a position: B the row, C the column; HL a map cell; DE a position or a
+\ screen place), and a transcription keeps them in these, by the same
+\ names, so each routine can be read beside its original. Fixed zero page,
+\ not the allocator's pool: many routines share them, as the Z80's do.
+\ ***************************************************************************
