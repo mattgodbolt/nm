@@ -116,7 +116,10 @@ and keeping the bytes it reads, not by walking the bytes.
 the original's offsets (`mv_flags` is `mu_voices + 0`, and so on), the
 self-modified operands are variables in the workspace, and the shadow
 registers are `mu_ay`. The data's pointers are labels, so baron places
-it; the tables the driver indexes are split into low and high bytes.
+it; the tables the driver indexes are split into low and high bytes. A
+pattern list's entries are a byte each here, the pattern's number in a
+table of their addresses (`mu_pat_lo`, `mu_pat_hi`), and a voice's
+place in its list (`mv_next`) counts entries.
 
 The VSync interrupt calls `music_tick`. After the driver's frame,
 `mu_output` makes the SN76489's registers from `mu_ay` and writes those
@@ -129,7 +132,8 @@ that changed since it last wrote:
   mixed into (decision 17).
 
 While the song is stopped it writes silence. While `mu_busy` is set it
-writes nothing: the game's own writes hold it (`sound_write`).
+writes nothing: the game's own writes hold it (`sound.6502`'s
+`effect_start` to `effect_end`).
 
 `make music` checks it: every frame of every song, the shadow registers
 against `dw_decode.py`'s, and the SN's bytes against a Python model of
@@ -157,7 +161,7 @@ hand. What the port would need for it:
   volumes many times a frame. A two-byte tone write anywhere (the music's
   or the game's) must keep them off between its bytes, or a volume's
   latch byte lands between and the data byte goes to the volume. So
-  `mu_write`'s callers and `sound_write` would hold interrupts off (SEI)
+  `mu_write`'s callers, the music's and the effects', would hold interrupts off (SEI)
   across each pair, rather than `mu_busy` alone.
 - **Latency.** While `music_tick` runs, interrupts wait, and it takes up
   to a few thousand cycles (decision 14): a bass edge would be late by

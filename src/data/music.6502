@@ -34,17 +34,31 @@ MU_NOTES = 64
     EQUB HI(mu_arp_0), HI(mu_arp_1), 0, 0, HI(mu_arp_4), HI(mu_arp_5), HI(mu_arp_6)
 MU_ARPS = 7
 
-\ Each instrument, for D0-DF in a pattern (the pointers at &C575),
+\ Each instrument, for D0-DF in a pattern (the pointers at &C575,
+\ here to its step time, the byte before),
 \ low then high bytes. Those no song uses are 0.
 .mu_inst_lo
-    EQUB 0, LO(mu_inst_1), 0, LO(mu_inst_3), LO(mu_inst_4), 0, LO(mu_inst_6), 0, 0, LO(mu_inst_9), 0, LO(mu_inst_11)
+    EQUB 0, LO(mu_inst_1 - 1), 0, LO(mu_inst_3 - 1), LO(mu_inst_4 - 1), 0, LO(mu_inst_6 - 1), 0, 0, LO(mu_inst_9 - 1), 0, LO(mu_inst_11 - 1)
 .mu_inst_hi
-    EQUB 0, HI(mu_inst_1), 0, HI(mu_inst_3), HI(mu_inst_4), 0, HI(mu_inst_6), 0, 0, HI(mu_inst_9), 0, HI(mu_inst_11)
+    EQUB 0, HI(mu_inst_1 - 1), 0, HI(mu_inst_3 - 1), HI(mu_inst_4 - 1), 0, HI(mu_inst_6 - 1), 0, 0, HI(mu_inst_9 - 1), 0, HI(mu_inst_11 - 1)
 MU_INSTS = 12
 
+\ Each pattern's address, for its number in a pattern list (from 1),
+\ low then high bytes.
+.mu_pat_lo
+    EQUB LO(mu_pat_C8E2), LO(mu_pat_C90C), LO(mu_pat_C934), LO(mu_pat_C94C), LO(mu_pat_C967), LO(mu_pat_C9AF), LO(mu_pat_C9D9), LO(mu_pat_CA06)
+    EQUB LO(mu_pat_CA15), LO(mu_pat_CA50), LO(mu_pat_CA7B), LO(mu_pat_CA96), LO(mu_pat_CAAE), LO(mu_pat_CAC5), LO(mu_pat_CAE2), LO(mu_pat_CAF2)
+    EQUB LO(mu_pat_CB0E), LO(mu_pat_CB2D), LO(mu_pat_CB3E), LO(mu_pat_CB4E), LO(mu_pat_CB76), LO(mu_pat_CB78), LO(mu_pat_CB7B), LO(mu_pat_CB7E)
+.mu_pat_hi
+    EQUB HI(mu_pat_C8E2), HI(mu_pat_C90C), HI(mu_pat_C934), HI(mu_pat_C94C), HI(mu_pat_C967), HI(mu_pat_C9AF), HI(mu_pat_C9D9), HI(mu_pat_CA06)
+    EQUB HI(mu_pat_CA15), HI(mu_pat_CA50), HI(mu_pat_CA7B), HI(mu_pat_CA96), HI(mu_pat_CAAE), HI(mu_pat_CAC5), HI(mu_pat_CAE2), HI(mu_pat_CAF2)
+    EQUB HI(mu_pat_CB0E), HI(mu_pat_CB2D), HI(mu_pat_CB3E), HI(mu_pat_CB4E), HI(mu_pat_CB76), HI(mu_pat_CB78), HI(mu_pat_CB7B), HI(mu_pat_CB7E)
+MU_PATS = 24
+
 \ The rest as the original keeps it, in its order: the song table, the
-\ pattern lists, the patterns, the instruments (each a step time, then
-\ volumes) and the arpeggios; only the bytes the songs read.
+\ pattern lists (a pattern's number for each address, 0 the list's
+\ end), the patterns, the instruments (each a step time, then volumes)
+\ and the arpeggios; only the bytes the songs read.
 \ &C55F
 .mu_arp_0
     EQUB &80
@@ -113,84 +127,18 @@ MU_INSTS = 12
     EQUW mu_list_CB72
     EQUW mu_list_CB74
 .mu_list_C848
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C90C
-    EQUW mu_pat_C934
-    EQUW mu_pat_C934
-    EQUW mu_pat_C934
-    EQUW mu_pat_C934
-    EQUW mu_pat_C967
-    EQUW mu_pat_C967
-    EQUW mu_pat_C967
-    EQUW mu_pat_C967
-    EQUW mu_pat_C934
-    EQUW mu_pat_C934
-    EQUW mu_pat_C934
-    EQUW mu_pat_C934
-    EQUW mu_pat_C934
-    EQUW mu_pat_C934
-    EQUW mu_pat_C934
-    EQUW mu_pat_C934
-    EQUW mu_pat_C934
-    EQUW mu_pat_C934
-    EQUW mu_pat_C934
-    EQUW mu_pat_C934
-    EQUW mu_pat_CB76
+    EQUB 1, 1, 1, 2, 3, 3, 3, 3, 5, 5, 5, 5
+    EQUB 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3
+    EQUB 21
 \ &C87C
 .mu_list_C87C
-    EQUW mu_pat_C9AF
-    EQUW mu_pat_C9AF
-    EQUW mu_pat_C9AF
-    EQUW mu_pat_C9D9
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C90C
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C90C
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C90C
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C90C
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C90C
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C90C
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C8E2
-    EQUW mu_pat_C90C
-    EQUW mu_pat_C90C
-    EQUW mu_pat_C90C
-    EQUW mu_pat_C90C
-    EQUW mu_pat_C90C
+    EQUB 6, 6, 6, 7, 1, 1, 1, 2, 1, 1, 1, 2
+    EQUB 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2
+    EQUB 1, 1, 1, 2, 1, 1, 1, 2, 2, 2, 2, 2
 \ &C8C6
 .mu_list_C8C6
-    EQUW mu_pat_CA06
-    EQUW mu_pat_C94C
-    EQUW mu_pat_C94C
-    EQUW mu_pat_C94C
-    EQUW mu_pat_C94C
-    EQUW mu_pat_CA15
-    EQUW mu_pat_CA06
-    EQUW mu_pat_CA50
-    EQUW mu_pat_CA7B
-    EQUW mu_pat_C94C
-    EQUW mu_pat_C94C
-    EQUW mu_pat_C94C
-    EQUW mu_pat_C94C
+    EQUB 8, 4, 4, 4, 4, 9, 8, 10, 11, 4, 4, 4
+    EQUB 4
 \ &C8E2
 .mu_pat_C8E2
     EQUB &90, &C0, &D1, &E2, &8A, &84, &3C, &01, &24, &E0, &84, &3C
@@ -244,11 +192,11 @@ MU_INSTS = 12
     EQUB &81, &D1, &FF, &C4, &30, &8F, &88, &08, &08, &82, &C0, &D4
     EQUB &84, &01, &0C, &18, &84, &01, &0C, &15, &87
 .mu_list_CA90
-    EQUW mu_pat_CA96
+    EQUB 12
 .mu_list_CA92
-    EQUW mu_pat_CAAE
+    EQUB 13
 .mu_list_CA94
-    EQUW mu_pat_CAC5
+    EQUB 14
 .mu_pat_CA96
     EQUB &8A, &D1, &90, &C0, &88, &02, &02, &82, &E0, &10, &10, &0E
     EQUB &E3, &10, &E1, &09, &0A, &E3, &0B, &E2, &10, &0E, &10, &8E
@@ -259,11 +207,11 @@ MU_INSTS = 12
     EQUB &8A, &D1, &90, &C0, &88, &02, &04, &82, &E0, &28, &28, &26
     EQUB &E3, &28, &E1, &21, &22, &E3, &23, &E2, &28, &26, &28
 .mu_list_CADC
-    EQUW mu_pat_CAE2
+    EQUB 15
 .mu_list_CADE
-    EQUW mu_pat_CAF2
+    EQUB 16
 .mu_list_CAE0
-    EQUW mu_pat_CB0E
+    EQUB 17
 .mu_pat_CAE2
     EQUB &8A, &D1, &90, &C0, &88, &02, &02, &82, &E2, &13, &11, &E5
     EQUB &0C, &E3, &8F, &8E
@@ -276,11 +224,11 @@ MU_INSTS = 12
     EQUB &30, &E1, &D9, &84, &1E, &01, &8D, &24, &84, &1E, &01, &8D
     EQUB &24
 .mu_list_CB27
-    EQUW mu_pat_CB2D
+    EQUB 18
 .mu_list_CB29
-    EQUW mu_pat_CB3E
+    EQUB 19
 .mu_list_CB2B
-    EQUW mu_pat_CB4E
+    EQUB 20
 .mu_pat_CB2D
     EQUB &8A, &D1, &90, &C0, &88, &02, &02, &82, &E0, &18, &18, &18
     EQUB &18, &18, &E9, &16, &8E
@@ -291,26 +239,23 @@ MU_INSTS = 12
     EQUB &8A, &D4, &C0, &90, &88, &02, &04, &82, &E0, &2B, &2B, &2B
     EQUB &2B, &2B, &E9, &29
 .mu_list_CB5E
-    EQUW mu_pat_CB78
-    EQUW mu_pat_CB2D
+    EQUB 22, 18
 .mu_list_CB62
-    EQUW mu_pat_CB3E
+    EQUB 19
 .mu_list_CB64
-    EQUW mu_pat_CB4E
+    EQUB 20
 .mu_list_CB66
-    EQUW mu_pat_CB7B
-    EQUW mu_pat_CB2D
+    EQUB 23, 18
 .mu_list_CB6A
-    EQUW mu_pat_CB3E
+    EQUB 19
 .mu_list_CB6C
-    EQUW mu_pat_CB4E
+    EQUB 20
 .mu_list_CB6E
-    EQUW mu_pat_CB7E
-    EQUW mu_pat_CB2D
+    EQUB 24, 18
 .mu_list_CB72
-    EQUW mu_pat_CB3E
+    EQUB 19
 .mu_list_CB74
-    EQUW mu_pat_CB4E
+    EQUB 20
 .mu_pat_CB76
     EQUB &8E
 \ &CB78

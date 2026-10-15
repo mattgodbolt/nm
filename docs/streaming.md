@@ -9,14 +9,15 @@ the disc would carry. Nothing here is built yet.
 
 - **Main RAM**, from `CODE_BASE` up to the screen: the game's code that
   runs every pass (the players, touching, the monsters, the stars, the
-  sprite drawer, the shifts, the status), the music's driver, the 192
-  graphics blocks, and the original's two variable blocks.
+  sprite drawer, the shifts, the status), the music's driver (but for
+  the entries the game calls, `musicentry.6502`), the 192 graphics
+  blocks, and the original's two variable blocks.
 - **OS workspace** below `CODE_BASE` (decision 11): the map, the
   attributes, the drawing's tables (made at start-up, decision 20).
 - **The sideways RAM bank** (`NDATA`): the 50 levels, packed (decision 4),
   the songs, the panel (packed), the font, and the code that needn't be in
-  main RAM: the level's set-up, text, the colours, the front end
-  (decision 20).
+  main RAM: the level's set-up, text, the colours, the front end, the
+  music's entries (decision 20).
 
 The build's `PRINT`s say how full each is. Both are close to full.
 

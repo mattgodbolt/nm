@@ -140,7 +140,6 @@ SECTION Code, org = CODE_BASE, load = &FFFF0000 OR CODE_LOAD, exec = &FFFF0000 +
     INCLUDE "status.6502"
     INCLUDE "shift.6502"
     INCLUDE "spread.6502"
-    INCLUDE "songs.6502"
     INCLUDE "stubs.6502"
     INCLUDE "bomb.6502"
     INCLUDE "sound.6502"
@@ -202,6 +201,8 @@ SECTION Data, org = &8000, load = &FFFF3000, filename = "NDATA", guard = &C000
     INCLUDE "text.6502"
     INCLUDE "game.6502"
     INCLUDE "menu.6502"
+    INCLUDE "songs.6502"
+    INCLUDE "musicentry.6502"
 .font
     INCBIN "data/font.bin"
 .banked_code_end
