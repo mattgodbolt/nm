@@ -3,13 +3,6 @@
 \ rest can be built and checked. Each goes as its part arrives.
 \ ***************************************************************************
 
-.smart_bomb                     ; &C4B0 SmartBomb
-.chirp                          ; &C508 the throw's chirp (A: its length)
-.click                          ; &CC8D the step's click
-.hit_noise                      ; &C8C4 HitNoise (A: its segments)
-.noise_burst                    ; &CEED NoiseBurst (A: its segments)
-    RTS
-
 \ &C097 GameComplete, and &D85E's game over: for now, a new game.
 .game_complete
 .game_over

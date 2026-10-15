@@ -61,6 +61,7 @@ rhl = rl
 .scan_rows  SKIP 1          ; ... starts a new game from inside it
 .scan_cols  SKIP 1
 .st         SKIP 1          ; the star a routine is for: its offset from Star1 (stars.6502)
+.noise_seed SKIP 1          ; the sounds' own random numbers (sound.6502)
 .music_off  SKIP 1          ; bit 7: the music is off (EXTEND+T; the original's &B8DF)
 .pass_sp    SKIP 1          ; the stack at a player's pass, for its exit (player.6502)
     \ The music (music.6502): the interrupt's, so not in baron's pool
@@ -129,6 +130,7 @@ SECTION Code, org = CODE_BASE, load = &FFFF0000 OR CODE_LOAD, exec = &FFFF0000 +
     INCLUDE "touch.6502"
     INCLUDE "monsters.6502"
     INCLUDE "stars.6502"
+    INCLUDE "status.6502"
     INCLUDE "shift.6502"
     INCLUDE "spread.6502"
     INCLUDE "songs.6502"
@@ -184,7 +186,8 @@ SECTION Data, org = &8000, load = &FFFF3000, filename = "NDATA", guard = &C000
     INCLUDE "panel.6502"
     INCLUDE "text.6502"
     INCLUDE "game.6502"
-    INCLUDE "status.6502"
+    INCLUDE "bomb.6502"
+    INCLUDE "sound.6502"
 .font
     INCBIN "data/font.bin"
 .banked_code_end

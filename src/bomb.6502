@@ -18,9 +18,9 @@ T_TEA      = &0E
 .area
     LDA #0 : STA rc
     JSR scan_start
-    STA rows
+    STA bomb_rows
 .row
-    LDA #SCAN_COLS : STA cols
+    LDA #SCAN_COLS : STA bomb_cols
 .tile
     LDY #0 : LDA (rhl),Y
     CMP #T_TRAP : BCC next
@@ -42,11 +42,11 @@ T_TEA      = &0E
 .next
     INC rl : BNE n : INC rh
 .n
-    DEC cols : BNE tile
+    DEC bomb_cols : BNE tile
     LDA rl : CLC : ADC #&12 : STA rl
     BCC m : INC rh
 .m
-    DEC rows : BNE row
+    DEC bomb_rows : BNE row
     \ (fall into bomb_flash)
 }
 
@@ -85,5 +85,5 @@ T_TEA      = &0E
     INC rh : LDA rh : CMP #HI(map) + 4 : BNE next
     JMP bomb_flash
 }
-ZA_AUTO1 rows
-ZA_AUTO1 cols
+ZA_AUTO1 bomb_rows
+ZA_AUTO1 bomb_cols
