@@ -150,15 +150,11 @@ SECTION Code, org = CODE_BASE, load = &FFFF0000 OR CODE_LOAD, exec = &FFFF0000 +
     PRINT "music's driver: ", music_code_end - music_code, " bytes"
     INCLUDE "tables.6502"
     \ Data from the original (tools/mkgfx.py, tools/mklevels.py)
-.passwords
-    INCBIN "data/passwords.bin"
 .blocks
     INCBIN "data/blocks.bin"
 .tileattr
 TileAttrs = tileattr          ; (the original's &FF02)
     INCBIN "data/tileattr.bin"
-.title_attr
-    INCBIN "data/titleattr.bin"
     \ What each panel cell shows (text.6502's print_char): &FF, nothing yet
 .panel_shown
     SKIP SCREEN_ROWS * PANEL_COLS
@@ -181,6 +177,12 @@ SECTION Data, org = &8000, load = &FFFF3000, filename = "NDATA", guard = &C000
 .levels
     INCBIN "data/levels.bin"
     INCLUDE "data/levels.6502"
+    \ The passwords and the title's colours (tools/mkgfx.py): only the
+    \ bank's code reads them (game.6502)
+.passwords
+    INCBIN "data/passwords.bin"
+.title_attr
+    INCBIN "data/titleattr.bin"
     \ The status panel, drawn once (panel.6502)
 .panel_packed
     INCBIN "data/panel.zx02"
