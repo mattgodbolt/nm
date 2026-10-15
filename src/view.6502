@@ -11,12 +11,12 @@ VIEW_LEFT = 8               ; the view's first screen column (the panel's left o
     ZA_AUTO2 cell
     ZA_AUTO1 col
     ZA_AUTO1 row
-    \ &C574: the map's cell at the view's origin
-    LDA ViewOrigin : LSR A : STA cell+1
-    LDA #0 : LSR cell+1 : ROR A : LSR cell+1 : ROR A : LSR cell+1 : ROR A
-    STA cell
+    \ &C574: the map's cell at the view's origin: map + 32 * (row / 2) +
+    \ column / 2, the row's bits shifted as the original's are
+    LDA ViewOrigin : LSR A : LSR A : LSR A : LSR A
+    CLC : ADC #HI(map) : STA cell+1
+    LDA ViewOrigin : ASL A : ASL A : ASL A : ASL A : AND #&E0 : STA cell
     LDA ViewOrigin+1 : LSR A : AND #&1F : ORA cell : STA cell
-    LDA cell+1 : CLC : ADC #HI(map) : STA cell+1
     LDA #0 : STA row
 .rows
     LDA #VIEW_LEFT : STA col
@@ -50,75 +50,15 @@ VIEW_LEFT = 8               ; the view's first screen column (the panel's left o
     \ (fall into draw_tile)
 }
 
-\ Draw tile or block A (its graphic at blocks + 32A, its colours from the
+\ Draw tile or block A (the block of that number, in the colours of the
 \ original's attribute for it, &FF02, which its 2 x 2 cells take) at
 \ screen row X, column Y. (Flash, which only tile &13 has, isn't shown
 \ yet.)
 .draw_tile
 {
-    PHA : STX ra2
+    STX ra2
     TAX : LDA tileattr,X : STA sp_attr
-    LDX ra2 : PLA
-    JMP draw_sprite
+    TXA : LDX ra2
+    \ (fall into draw_sprite: main.6502 includes sprite.6502 next)
 }
-
-\ Draw block A at (dt_row, dt_col): a set pixel in dt_mask EOR dt_paper,
-\ the rest in dt_paper (the colours' MODE 1 bytes; dt_mask is the ink's
-\ EOR the paper's, so (pixels AND dt_mask) EOR dt_paper is either).
-.draw_block_at
-{
-    \ the block: blocks + 32A
-    LDX #0 : STX bsrc+1
-    ASL A : ROL bsrc+1 : ASL A : ROL bsrc+1 : ASL A : ROL bsrc+1
-    ASL A : ROL bsrc+1 : ASL A : ROL bsrc+1
-    CLC : ADC #LO(blocks) : STA bsrc
-    LDA bsrc+1 : ADC #HI(blocks) : STA bsrc+1
-    \ the screen: screen + row * &200 + col * 16
-    LDA dt_col : ASL A : ASL A : ASL A : ASL A : STA scr
-    LDA dt_row : ASL A : CLC : ADC #HI(screen) : STA scr+1   ; (row -1 wraps below the screen: only its bottom half is drawn)
-    LDA dt_col : LSR A : LSR A : LSR A : LSR A : CLC : ADC scr+1 : STA scr+1
-    BIT sp_top : BPL no_top
-    JSR half                    ; the top 8 lines
-    JMP bottom
-.no_top
-    LDA bsrc : CLC : ADC #16 : STA bsrc
-    BCC bottom : INC bsrc+1
-.bottom
-    BIT sp_bottom : BPL done
-    INC scr+1 : INC scr+1       ; the next character row
-    \ (fall into half for the bottom 8)
-.half
-    LDX #0
-.line
-    STX bline
-    TXA : ASL A : TAY           ; this line's two source bytes
-    BIT sp_left : BPL no_left
-    LDA (bsrc),Y : TAX
-    LDY bline
-    LDA hi_nibble,X : AND dt_mask : EOR dt_paper : STA (scr),Y
-    TYA : ORA #8 : TAY
-    LDA lo_nibble,X : AND dt_mask : EOR dt_paper : STA (scr),Y
-.no_left
-    BIT sp_right : BPL no_right
-    LDA bline : ASL A : TAY : INY
-    LDA (bsrc),Y : TAX
-    LDA bline : ORA #16 : TAY
-    LDA hi_nibble,X : AND dt_mask : EOR dt_paper : STA (scr),Y
-    TYA : ORA #8 : TAY
-    LDA lo_nibble,X : AND dt_mask : EOR dt_paper : STA (scr),Y
-.no_right
-    LDX bline : INX : CPX #8 : BNE line
-    LDA bsrc : CLC : ADC #16 : STA bsrc
-    BCC done : INC bsrc+1
-.done
-    RTS
-}
-    \ (A row of -1: the top half's screen address isn't used, only the
-    \ bottom's, a character row on, which is row 0.)
-ZA_AUTO2 bsrc
-ZA_AUTO2 scr
-ZA_AUTO1 bline
-ZA_AUTO1 dt_row
-ZA_AUTO1 dt_col
-ZA_AUTO1 dt_mask
-ZA_AUTO1 dt_paper
+.draw_tile_end

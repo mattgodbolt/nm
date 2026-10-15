@@ -10,9 +10,7 @@ T_SPREAD = &13
 {
     LDA SpreadCursor : STA rc
     LDA SpreadCursor + 1 : STA rb
-    JSR spread
-    LDA SpreadCursor : STA rc
-    LDA SpreadCursor + 1 : STA rb
+    JSR spread                      ; (which keeps BC, as the original's PUSH and POP do)
     LDA rc : CLC : ADC #4 : STA rc
     CMP #&40 : BCC store
     AND #2 : EOR #2 : STA rc
@@ -20,7 +18,7 @@ T_SPREAD = &13
     LDA #&3C : STA rb
     LDA rc : EOR #2 : STA rc
 .store
-    LDA rc : STA SpreadCursor
+    STA SpreadCursor                ; (A is rc on every path)
     LDA rb : STA SpreadCursor + 1
     RTS
 }

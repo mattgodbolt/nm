@@ -12,8 +12,8 @@
 .next
     TXA : AND #&0F : STA tmp : ASL A : ASL A : ASL A : ASL A : ORA tmp
     STA lo_nibble,X
-    TXA : AND #&F0 : STA tmp : LSR A : LSR A : LSR A : LSR A : ORA tmp
-    STA hi_nibble,X
+    TXA : LSR A : LSR A : LSR A : LSR A : TAY  ; (lo_nibble's entry Y, at most X, is made)
+    LDA lo_nibble,Y : STA hi_nibble,X
     INX : BNE next
     RTS
     ZA_AUTO1 tmp

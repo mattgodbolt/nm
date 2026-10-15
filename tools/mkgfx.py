@@ -7,9 +7,14 @@ From the 48K load (build/nm48.z80, make zx). They stay one bit a pixel, as
 the original's are: the port colours them as it draws, as the original's
 attributes do (docs/research.md).
 
-- blocks.bin: the 192 graphics blocks at &DD00, 16 x 16, 32 bytes each,
-  two bytes a pixel line, top line first (the drawer at &C5FC: block n at
-  &DD00 + 32n)
+- blocks.bin: the 192 graphics blocks at &DD00, 16 x 16, 32 bytes each
+  (the drawer at &C5FC: block n at &DD00 + 32n). The original's are two
+  bytes a pixel line, top line first; here each block is four 8 x 8
+  quarters, and the file is four planes of quarters, eight bytes (lines)
+  each in block order: the top left quarters, then the top right, the
+  bottom left and the bottom right. So a block's quarters are the same
+  distance apart, and one index reads a line of each (view.6502's
+  draw_block_at)
 - font.bin: the font at &F500, 8 bytes a character from code 32 (the
   print routine indexes it from &F400, 8 bytes a code) to Z, the last the
   game prints (the font's last two, [ and \\, are blank)
@@ -45,7 +50,13 @@ def main():
             f.write(bytes(data))
         print(f"{OUT}/{name}: {len(data)} bytes")
 
-    write("blocks.bin", m[0xDD00:0xF500])
+    blocks = bytearray()
+    for half in (0, 16):
+        for side in (0, 1):
+            for n in range(192):
+                block = m[0xDD00 + 32 * n:0xDD00 + 32 * n + 32]
+                blocks += bytes(block[half + 2 * line + side] for line in range(8))
+    write("blocks.bin", blocks)
     write("font.bin", m[0xF500:0xF500 + 8 * (ord("Z") + 1 - 32)])
     write("tileattr.bin", m[0xFF02:0xFF2A])
     write("passwords.bin", m[0xFF62:0xFF8A])
