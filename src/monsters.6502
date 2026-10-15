@@ -1,0 +1,313 @@
+\ ***************************************************************************
+\ The monsters and trap doors (&CE58-&D116; docs/research/monsters.md).
+\ A monster is its code in the map: bit 7 set, bits 4-6 its kind, 2-3 its
+\ health, 0-1 which of its tile's cells it starts at (bit 1 down, bit 0
+\ right). Its head cell holds the code, the others &7F.
+\ ***************************************************************************
+
+SCAN_COLS   = 14                ; the scan's area: the view and a tile's margin (&CE6F)
+SCAN_ROWS_BOTTOM = 12           ; ... 12 rows with the view at the map's bottom (&CE74)
+SCAN_BOTTOM = &26               ; the first row (in characters) that is (&CE71)
+T_MONSTER   = &80
+T_SPARKLE   = &40               ; &40-&5F: a monster appearing
+PIC_SPARKLE = &28               ; its pictures: &28 + SparkleFrame (&D0E9)
+PIC_MONSTER = &40               ; a monster's: &40 + kind x 16 + facing + MoveSweep (&CF90)
+MON_INK     = 4                 ; a monster's ink: 4 + its health (&CF9A)
+BURST       = 50                ; the noise burst's segments (&CEF2)
+
+\ &CE58 ViewMapPtr: rhl = the scan's first tile (the view's origin less a
+\ tile, unless at the map's edge, plus rc characters across); A = its
+\ rows.
+.scan_start
+{
+    LDA ViewOrigin + 1 : BEQ c0
+    SEC : SBC #2
+.c0
+    CLC : ADC rc : STA rc
+    LDA ViewOrigin : BEQ r0
+    SEC : SBC #2
+.r0
+    STA rb
+    JSR map_cell
+    LDA rb : CMP #SCAN_BOTTOM : BCS bottom
+    LDA #SCAN_COLS
+    RTS
+.bottom
+    LDA #SCAN_ROWS_BOTTOM
+    RTS
+}
+
+\ &CE77 MonsterScan: a quarter of the scan's area a pass: every fourth
+\ tile of each row, two columns on in alternate rows. Monsters move,
+\ trap doors may spawn, sparkles turn into monsters. The original also
+\ burns a fixed delay for every other tile (&CF04), to pace the pass:
+\ the port's pass clock does that (decision 12).
+.monsters_update
+{
+    LDA #0 : STA HitFlag
+    LDA ScanQuarter : STA ScanPhase
+    ASL A : STA rc
+    JSR scan_start
+    STA scan_rows
+    LDA rl : STA scan_at : LDA rh : STA scan_at + 1
+.row
+    LDA #SCAN_COLS : SEC : SBC ScanPhase : STA scan_cols
+.tile
+    LDY #0 : LDA (scan_at),Y
+    CMP #T_MONSTER : BCC other
+    LDX scan_at : STX rl : LDX scan_at + 1 : STX rh
+    JSR monster_move
+    JMP next
+.other
+    CMP #T_TRAP : BCC next
+    CMP #&3F : BCS is_sparkle
+    LDX scan_at : STX rl : LDX scan_at + 1 : STX rh
+    JSR trap_door
+    JMP next
+.is_sparkle
+    AND #&E0 : CMP #T_SPARKLE : BNE next
+    LDX scan_at : STX rl : LDX scan_at + 1 : STX rh
+    JSR sparkle
+.next
+    LDA scan_at : CLC : ADC #4 : STA scan_at
+    BCC n : INC scan_at + 1
+.n
+    LDA scan_cols : SEC : SBC #5 : STA scan_cols
+    INC scan_cols
+    BCS tile
+    \ the next row: the phase moves by two
+    LDA ScanPhase : EOR #2 : STA ScanPhase
+    LDA scan_at : CLC : ADC #&12 : STA scan_at
+    BCC r : INC scan_at + 1
+.r
+    DEC scan_rows : BNE row
+    \ the next quarter; after the fourth, the move flag and the sparkle
+    LDA ScanQuarter : CLC : ADC #1 : AND #3 : STA ScanQuarter
+    BNE burst
+    LDA MoveSweep : EOR #1 : STA MoveSweep
+    LDA SparkleFrame : SEC : SBC #1 : AND #7 : STA SparkleFrame
+.burst
+    \ &CEED NoiseBurst: a monster hit a player
+    LDA HitFlag : BEQ done
+    LDA #BURST : JSR noise_burst
+.done
+    RTS
+}
+
+\ &CF0E MonsterMove: the monster whose head is at rhl: step it towards
+\ (or from) a player on move sweeps, and draw it.
+.monster_move
+{
+    LDY #0 : LDA (rhl),Y : STA MonCode
+    \ its position: its tile's, plus its code's offset bits
+    JSR cell_pos
+    LDY #0 : LDA (rhl),Y : AND #2 : BEQ r : INC rb
+.r
+    LDA (rhl),Y : AND #1 : BEQ c : INC rc
+.c
+    LDA rc : STA MonNewPos : STA MonOldPos
+    LDA rb : STA MonNewPos + 1 : STA MonOldPos + 1
+    LDA #0 : STA MapStamp
+    JSR fill_cells
+    LDA MonNewPos : STA rc : LDA MonNewPos + 1 : STA rb
+    JSR monster_chase
+    LDA MoveSweep : BEQ stay
+    JSR monster_try : BEQ place
+    LDA MonNewPos : CLC : ADC StepV : STA rc    ; (the monsters' StepV is the column's: &D05E)
+    LDA MonNewPos + 1 : STA rb
+    JSR monster_try : BEQ place
+    LDA MonNewPos : STA rc
+    LDA MonNewPos + 1 : CLC : ADC StepH : STA rb
+    JSR monster_try : BEQ place
+.stay
+    LDA MonNewPos : STA rc : LDA MonNewPos + 1 : STA rb
+.place
+    \ &CF62: &7F in its cells, its code (with the new offset bits) at the head
+    LDA rc : STA MonNewPos : LDA rb : STA MonNewPos + 1
+    LDA #T_MARKER : STA MapStamp
+    JSR fill_cells
+    LDA MonNewPos : STA rc : LDA MonNewPos + 1 : STA rb
+    JSR map_cell
+    LDA rb : ASL A : STA ra2
+    LDA rc : AND #1 : ORA ra2 : AND #3 : STA ra2
+    LDA MonCode : AND #&FC : ORA ra2
+    LDY #0 : STA (rhl),Y
+    \ its picture and colour
+    PHA
+    AND #&70 : ORA MonFacing : ORA MoveSweep : CLC : ADC #PIC_MONSTER : STA pic
+    PLA : LSR A : LSR A : AND #3 : ORA #MON_INK : STA ink
+    \ moved: floor at the old place
+    LDA MonNewPos : CMP MonOldPos : BNE moved
+    LDA MonNewPos + 1 : CMP MonOldPos + 1 : BEQ draw
+.moved
+    LDA MonOldPos + 1 : STA rd : LDA MonOldPos : STA re
+    LDA TileAttrs : STA sp_attr
+    LDA #0 : JSR draw_at
+.draw
+    LDA MonNewPos + 1 : STA rd : LDA MonNewPos : STA re
+    LDA ink : STA sp_attr
+    LDA pic : JMP draw_at
+    ZA_AUTO1 pic
+    ZA_AUTO1 ink
+}
+
+\ &CFDF MonsterChase: step (rb, rc) towards the nearer player (by row
+\ distance plus column distance; a tie goes to player 2), or away while
+\ that player's idol runs. Nothing while the clock runs. The step goes in
+\ StepV (the column's) and StepH (the row's), the facing in MonFacing.
+.monster_chase
+{
+    LDA FreezeTimer : JNE done
+    LDA InPlay : AND #3
+    CMP #2 : BEQ p2
+    CMP #1 : BEQ p1
+    LDX #0 : JSR distance : STA d1
+    LDX #R_SIZE : JSR distance
+    CMP d1 : BEQ p2 : BCS p1         ; (player 1 only when nearer)
+.p2
+    LDX #R_SIZE
+    JMP step
+.p1
+    LDX #0
+.step
+    \ the row: H the step, E the facing (0, 6 down, 4 up)
+    LDA #0 : STA dh : STA face
+    LDA rb : CMP Player1 + R_ROW,X : BEQ cols
+    LDA #1 : STA dh : LDA #6 : STA face
+    BCC cols
+    LDA #&FF : STA dh : LDA #4 : STA face
+.cols
+    LDA #0 : STA dl
+    LDA rc : CMP Player1 + R_COL,X : BEQ idol
+    PHP : ASL face : PLP            ; (the Z80 keeps the compare's carry in AF')
+    LDA #1 : STA dl
+    BCC idol
+    LDA #&FF : STA dl
+    INC face : INC face
+.idol
+    LDA Player1 + R_SKULL,X : BEQ go
+    LDA #0 : SEC : SBC dh : STA dh
+    LDA #0 : SEC : SBC dl : STA dl
+.go
+    LDA rb : CLC : ADC dh : STA rb
+    LDA rc : CLC : ADC dl : STA rc
+    LDA dl : STA StepV
+    LDA dh : STA StepH
+    LDA face : STA MonFacing
+.done
+    RTS
+    ZA_AUTO1 d1
+    ZA_AUTO1 dh
+    ZA_AUTO1 dl
+    ZA_AUTO1 face
+}
+
+\ Player X's (0 or R_SIZE) distance from (rb, rc): rows plus columns.
+.distance
+{
+    LDA Player1 + R_ROW,X : SEC : SBC rb : BCS r
+    EOR #&FF : ADC #1
+.r
+    STA ra2
+    LDA Player1 + R_COL,X : SEC : SBC rc : BCS c
+    EOR #&FF : ADC #1
+.c
+    CLC : ADC ra2
+    RTS
+}
+
+\ &D066 MonsterTry: can the monster go to (rb, rc)? Z if its four cells
+\ are empty. A player in the first full cell is hit: its strength less
+\ the monster's kind + 1, and the noise burst. (rb, rc) kept.
+.monster_try
+{
+    LDA rb : PHA : LDA rc : PHA
+    JSR cells_empty
+    TAX : PLA : STA rc : PLA : STA rb : TXA
+    CMP #0 : BEQ done
+    CMP #T_P2 + 1 : BCS done        ; (the Z80's CP &73: Z for &73 itself)
+    CMP #T_P1 : BCC done
+    \ a player: DE = -(kind + 1)
+    STA ra2
+    LDA MonCode : AND #&70 : LSR A : LSR A : LSR A : LSR A : EOR #&FF
+    STA re : STA HitFlag
+    LDA #&FF : STA rd
+    LDA rb : PHA : LDA rc : PHA
+    LDA pl : PHA : LDA prec : PHA
+    \ (The original hits player 1 if it's &71, then player 2 if A is
+    \ &72, A being what player 1's hit left: so with player 1's heart at
+    \ &72, player 2 is hit too. Kept.)
+    LDA ra2 : CMP #T_P1 : BNE not_p1
+    LDA rd : PHA : LDA re : PHA
+    LDA #0 : JSR set_player
+    PLA : STA re : PLA : STA rd
+    JSR add_strength
+    JMP p2
+.not_p1
+    LDA ra2
+.p2
+    CMP #T_P2 : BNE hit_done
+    LDA #1 : JSR set_player
+    JSR add_strength
+.hit_done
+    PLA : STA prec : PLA : STA pl
+    PLA : STA rc : PLA : STA rb
+    LDA #&FF                        ; (NZ)
+.done
+    RTS
+}
+
+\ &D08F TrapDoor: the trap door at rhl (&20-&3E: bits 0-2 its kind, 3-4
+\ its health): one time in four, or every time for a hell hole (kind 7),
+\ a sparkle appears in its first empty neighbour (SpawnOffsets). Not
+\ while the clock runs.
+.trap_door
+{
+    LDY #0 : LDA (rhl),Y : STA code
+    LDA FreezeTimer : BNE done
+    JSR random : AND #3 : BEQ spawn
+    LDA code : AND #7 : CMP #7 : BNE done
+.spawn
+    JSR cell_pos
+    LDA rc : STA TrapPos : LDA rb : STA TrapPos + 1
+    LDX #0
+.next
+    LDA TrapPos + 1 : CLC : ADC SpawnOffsets,X : STA rb
+    INX
+    LDA SpawnOffsets,X : CMP #&FF : BEQ done
+    CLC : ADC TrapPos : STA rc
+    TXA : PHA
+    JSR map_cell
+    TAY : PLA : TAX : TYA
+    BNE next                        ; (the pairs overlap: the column is the next row)
+    LDA code : AND #7 : CMP #7 : BEQ any
+    LDA code : AND #&1F : ORA #T_SPARKLE
+    JMP put
+.any
+    \ a hell hole's: any kind and health
+    JSR random : AND #&1F : ORA #T_SPARKLE
+.put
+    LDY #0 : STA (rhl),Y
+.done
+    RTS
+    ZA_AUTO1 code
+}
+
+\ &D0DF Sparkle: the sparkle at rhl is drawn (picture &28 + SparkleFrame,
+\ ink 4 + its health); at frame 0 it becomes its monster.
+.sparkle
+{
+    LDA rl : PHA : LDA rh : PHA
+    JSR cell_pos
+    LDA rb : STA rd : LDA rc : STA re
+    LDY #0 : LDA (rhl),Y : AND #&18 : LSR A : LSR A : LSR A : ORA #MON_INK : STA sp_attr
+    LDA SparkleFrame : ORA #PIC_SPARKLE
+    JSR draw_at
+    PLA : STA rh : PLA : STA rl
+    LDA SparkleFrame : BNE done
+    LDY #0 : LDA (rhl),Y : AND #7 : ASL A : ASL A : ASL A : ASL A : STA ra2
+    LDA (rhl),Y : AND #&18 : LSR A : ORA ra2 : ORA #T_MONSTER
+    STA (rhl),Y
+.done
+    RTS
+}

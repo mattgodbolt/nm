@@ -182,3 +182,23 @@ transcribed, on the original's song data.
 
 (The music was written on a branch beside the game's work and merged
 after the players: its decisions, numbered 8-12 there, are 14-18.)
+
+### The monsters, pass for pass
+
+The monsters, trap doors and sparkles are transcribed (`monsters.6502`):
+the quarter-view scan, the chase (the nearer player, or away under its
+idol), the step tried diagonally then by column then by row, the hit on a
+player, the trap doors' spawning and the sparkles' turning into monsters.
+The scan's fixed delay per empty tile isn't: the pass clock paces the
+pass (decision 12). Two things the transcription had to keep: the chase's
+facing doubles in the Z80's alternate flags, so the compare's carry
+survives it (here a PHP/PLP); and a monster's hit on player 1 is followed
+by a test for player 2 on whatever A player 1's strength routine left,
+so with player 1's heart at &72 player 2 is hit too.
+
+`make passes` now replays `tests/scenarios.txt` on both machines side by
+side (`tools/passcheck.sh`), and it's in `make check`. Five scenarios on
+level 1 match pass for pass: standing, walking into walls, walking right
+and up across the view's scroll, and up then right into the monsters (33
+hits, a chest taken). The menu's flashing colour is the one thing not
+compared yet.

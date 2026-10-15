@@ -5,6 +5,7 @@
 #   make check    every check (MODEL=Master to run them on a Master 128;
 #                 default B-DFS1.2)
 #   make views    every level's first view, against the original's
+#   make passes   tests/scenarios.txt on both, compared pass by pass
 #   make music    the music's 6502 driver against the original's, every
 #                 song frame by frame, and the sound chip's bytes
 #   make fetch    download the Spectrum original into original/
@@ -34,7 +35,7 @@ BUILD   := $(shell date -u '+%Y-%m-%d %H:%M UTC') $(shell git rev-parse --short 
 # warning after baron has written the disc).
 .DELETE_ON_ERROR:
 
-.PHONY: all run check views music fetch zx disasm venv music-disc clean
+.PHONY: all run check views passes music fetch zx disasm venv music-disc clean
 
 all: $(TARGET)
 
@@ -48,6 +49,10 @@ build:
 # The view check's disc: every level's first view in turn (VIEWCHECK).
 build/viewcheck.ssd: $(SOURCES) | build
 	$(ASM) -D VIEWCHECK=1 -D 'BUILD="$(BUILD) viewcheck"' -o $@ --title NINJA --opt 3 --warn 2 --symbols $(@:.ssd=.json) src/main.6502
+
+# tests/scenarios.txt on both machines, compared pass by pass.
+passes: $(TARGET) build/nm48.z80
+	PASSDIR=build/passes-$(MODEL) tools/passcheck.sh
 
 # Every level's first view, against the original's (tools/zxviews.py).
 views: build/viewcheck.ssd build/views/zx_50.scr
@@ -69,7 +74,7 @@ music: $(TARGET) build/musiccheck.ssd build/nm128.z80
 run: $(TARGET)
 	node tools/play.mjs '1,!run' shots/ --disc $(TARGET)
 
-check: $(TARGET) views disasm music
+check: $(TARGET) views disasm music passes
 
 fetch:
 	tools/fetch_original.sh

@@ -1,0 +1,10 @@
+# Scenarios: name | keys held over main-loop passes | passes [| flags]
+# Keys: up down left right fire magic (player 1), p2up p2down p2left
+# p2right p2fire p2magic. Flags go to both loggers (--level n, --two).
+# make passes replays each on the original (tools/passlog.py) and the port
+# (tools/passlog.mjs) and compares them pass by pass (tools/passcmp.py).
+idle         |                                  | 60
+walk-blocked | right:5-30,down:31-60            | 120
+walk-right   | right:5-300                      | 320
+walk-up      | up:5-250                         | 270
+monsters     | up:5-60,right:61-300             | 320

@@ -217,6 +217,7 @@ SONG_DEAD = 2
     LDA ch : JSR print_char
     PLA : TAX
     DEX : BPL digit
+    LDA #0                          ; (&DB8F: XOR A, which the monsters' hit relies on)
     RTS
     ZA_AUTO1 ch
 }

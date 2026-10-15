@@ -16,6 +16,12 @@ ENDIF
     \ The data's bank (the loader left its number), paged in for good. The
     \ OS's copy too, which it puts back after paging ROMs itself.
     LDA DATA_BANK_ZP : STA romshad : STA romsel
+    \ the fixed zero page starts at 0 (the original's variables start as
+    \ the tape has them: vars_ba, vars_ff)
+    LDA #0 : LDX #ZP_FIXED - 1
+.zp
+    STA &00,X
+    DEX : BPL zp
     JSR music_init                  ; (before the interrupt plays it)
     JSR init_system
     JSR cls
