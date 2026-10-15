@@ -47,8 +47,9 @@ MENU_SWAPS = MENU_SETTLE_FRAMES DIV FLASH_FRAMES
 }
 
 \ &D972 ReadKey: Z if no key is down; else X its BBC internal number and
-\ A its character (key_chars: letters, digits, space and RETURN as ASCII,
-\ SHIFT as CAPS SHIFT's &E3, any other &0E, SYMBOL SHIFT's: none).
+\ A its character: letters, digits, space and RETURN as ASCII, SHIFT as
+\ CAPS SHIFT's &E3, and any other key SYMBOL SHIFT's &0E (which nothing
+\ takes).
 .read_key
 {
     LDX #0
@@ -58,9 +59,42 @@ MENU_SWAPS = MENU_SETTLE_FRAMES DIV FLASH_FRAMES
     LDA #0
     RTS
 .found
-    LDA key_chars,X
+    TXA
+    LDY #KEY_CODES - 1
+.code
+    CMP key_codes,Y : BEQ known
+    DEY : BPL code
+    LDA #K_SYM_CH
+    RTS
+.known
+    \ the digits' and the letters' characters follow from their places
+    TYA
+    CMP #KEY_DIGITS : BCC digit
+    CMP #KEY_DIGITS + KEY_LETTERS : BCS other
+    ADC #'A' - '0' - KEY_DIGITS     ; (C clear)
+.digit
+    ADC #'0'                        ; (C clear)
+    RTS
+.other
+    LDA key_other_chars - KEY_DIGITS - KEY_LETTERS,Y
     RTS
 }
+\ The BBC keys that have a character for read_key: the digits 0-9, the
+\ letters A-Z, then the others (key_other_chars has their characters).
+KEY_DIGITS  = 10
+KEY_LETTERS = 26
+.key_codes
+    EQUB &27, &30, &31, &11, &12, &13, &34, &24, &15, &26           ; 0-9
+    EQUB &41, &64, &52, &32, &22, &43, &53, &54, &25, &45, &46, &56 ; A-L
+    EQUB &65, &55, &36, &37, &10, &33, &51, &23, &35, &63, &21, &42 ; M-X
+    EQUB &44, &61                                                   ; Y-Z
+    EQUB K_SPACE, K_RETURN, K_SHIFT
+.key_codes_end
+KEY_CODES = key_codes_end - key_codes
+.key_other_chars
+    EQUB ' ', K_ENTER_CH, K_CAPS_CH
+.key_other_chars_end
+    ASSERT KEY_CODES - KEY_DIGITS - KEY_LETTERS = key_other_chars_end - key_other_chars
 
 \ Wait for no key, then for one: X its number, A its character.
 .new_key
