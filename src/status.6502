@@ -127,8 +127,15 @@ TIMERS = 5
     DEC rl : BNE draw
     LDA #' ' : STA icon             ; (spaces from there on: the count wraps past 0)
 .draw
+    \ (print_char's, unless the cell shows it: panel_cell)
     LDA icon
-    JSR panel_put
+    LDX put_at : INC put_at
+    CMP panel_shown,X : BEQ shown
+    JSR print_char
+    JMP drawn
+.shown
+    INC PrintPos
+.drawn
     DEC grid_cols : BNE col
     INC rd
     DEC grid_rows : BNE row
@@ -141,30 +148,14 @@ TIMERS = 5
 
 \ The figures and icons are reprinted on every touch, up to three times a
 \ pass, and mostly show what they did. print_char skips a panel cell
-\ that shows its character already (decision 22); panel_put makes the
-\ same check before print_char's call, for a run along a row of the
-\ panel from panel_cell.
-
-\ put_at: the cursor's index in panel_shown.
+\ that shows its character already (decision 22); print_grid and print5
+\ make the same check before calling it, from put_at, the cursor's index
+\ in panel_shown, moving along a row of the panel: a character shown
+\ already only moves the cursor (never at a row's end there).
 .panel_cell
     LDA PrintPos + 1 : ASL A : ASL A : ASL A : ORA PrintPos : STA put_at
     RTS
     ASSERT PANEL_COLS = 8
-\ print_char for A at the cursor, put_at its index (which moves on): in
-\ the panel, a character the cell shows already only moves the cursor
-\ (never at a row's end there). (The menu's high score isn't in the
-\ panel.)
-.panel_put
-{
-    LDX put_at : INC put_at
-    LDY PrintPos : CPY #PANEL_COLS : BCS draw
-    CMP panel_shown,X : BEQ shown
-.draw
-    JMP print_char
-.shown
-    INC PrintPos
-    RTS
-}
 ZA_AUTO1 put_at
 
 \ &DAA6 P1AddStrength, &DAF4 P2AddStrength: add DE (rd, re: high, low) to
@@ -239,7 +230,7 @@ SONG_DEAD = 2
 \ their value.) &DB83 Print2Digits: its last two. The digits are kept
 \ for each of the panel's four figures (a slot by the print row's bits 2
 \ and 3), with the value they are, as a memo: the division is most of a figure's
-\ cost, and it mostly shows the same value again (panel_put).
+\ cost, and it mostly shows the same value again (panel_cell).
 .print5
 {
     LDA PrintPos + 1 : LSR A : LSR A : AND #P5_SLOTS - 1 : STA slot
@@ -268,7 +259,15 @@ SONG_DEAD = 2
     LDA slot : ORA #4 * P5_SLOTS : STA slot
 .next
     LDY slot : LDA p5_digits,Y
-    JSR panel_put
+    LDX put_at : INC put_at
+    LDY PrintPos : CPY #PANEL_COLS : BCS draw   ; (the menu's high score isn't in the panel)
+    CMP panel_shown,X : BEQ shown
+.draw
+    JSR print_char
+    JMP on
+.shown
+    INC PrintPos
+.on
     LDA slot : SEC : SBC #P5_SLOTS : STA slot : BCS next
     LDA #0 : STA rl : STA rh        ; (as the division leaves them)
     RTS                             ; (A = 0: &DB8F: XOR A, which the monsters' hit relies on)
