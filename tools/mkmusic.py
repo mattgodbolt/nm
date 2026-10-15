@@ -210,13 +210,15 @@ def emit(m, kinds, words, insts, arps, notes):
     w(f"MU_NOTES = {notes}")
     w("")
     for name, used, what in (("arp", arps, "arpeggio, for C0-CF in a pattern (the offsets at &C558)"),
-                             ("inst", insts, "instrument, for D0-DF in a pattern (the pointers at &C575)")):
+                             ("inst", insts, "instrument, for D0-DF in a pattern (the pointers at &C575,\n\\ here to its step time, the byte before)")):
         w(f"\\ Each {what},")
         w("\\ low then high bytes. Those no song uses are 0.")
         top = max(used) + 1
+        # (an instrument from its step time, the byte before its volumes)
+        back = " - 1" if name == "inst" else ""
         for part, f in (("lo", "LO"), ("hi", "HI")):
             w(f".mu_{name}_{part}")
-            w("    EQUB " + ", ".join(f"{f}(mu_{name}_{i})" if i in used else "0" for i in range(top)))
+            w("    EQUB " + ", ".join(f"{f}(mu_{name}_{i}{back})" if i in used else "0" for i in range(top)))
         w(f"MU_{name.upper()}S = {top}")
         w("")
     w("\\ Each pattern's address, for its number in a pattern list (from 1),")

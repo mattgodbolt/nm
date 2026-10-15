@@ -47,8 +47,10 @@ mv_rows   = mu_voices + &10     ; rows left of this note
 mv_dur    = mu_voices + &11     ; each note's rows
 mv_note   = mu_voices + &12
 mv_vol    = mu_voices + &13
-mv_inst   = mu_voices + &14     ; the instrument (2)
-mv_epos   = mu_voices + &16     ; the envelope's place in it (2)
+mv_inst   = mu_voices + &14     ; the instrument (2), and
+mv_epos   = mu_voices + &16     ; the envelope's place in it (2): each a
+                                ; byte before the original's, so the
+                                ; instrument is its step time (mu_inst_lo)
 mv_evol   = mu_voices + &18     ; the envelope's volume
 mv_ecnt   = mu_voices + &19     ; ... and frames until its next step
 mv_vdepth = mu_voices + &1A     ; the vibrato's depth,
@@ -163,13 +165,13 @@ ASSERT MU_STATE <= &80
     JMP next                            ; return here: c_rest, c_tie, c_stop)
 .note
     \ &C2C2: a note, and its instrument's envelope from the start
-    STA mv_note,X
+    STA mv_note,X : TAY
     LDA mv_noisep,X : LSR A : BCC envelope
-    LDA mv_note,X : STA mu_noise_note
+    STY mu_noise_note
 .envelope
     LDA mv_inst,X : STA mv_epos,X : STA mu_ptr2
     LDA mv_inst+1,X : STA mv_epos+1,X : STA mu_ptr2+1
-    LDY #0 : LDA (mu_ptr2),Y
+    LDY #1 : LDA (mu_ptr2),Y            ; (the first volume, after the step time)
     STA mv_evol,X : STA mv_vol,X
     LDA mv_estep,X : STA mv_ecnt,X
 .tied
@@ -197,11 +199,7 @@ ASSERT MU_STATE <= &80
     AND #&0F : TAY                      ; D0-DF: an instrument
     LDA mu_inst_lo,Y : STA mv_inst,X : STA mu_ptr2
     LDA mu_inst_hi,Y : STA mv_inst+1,X : STA mu_ptr2+1
-    LDA mu_ptr2 : BNE step              ; its step time is the byte before
-    DEC mu_ptr2+1
-.step
-    DEC mu_ptr2
-    LDY #0 : LDA (mu_ptr2),Y : STA mv_estep,X
+    LDY #0 : LDA (mu_ptr2),Y : STA mv_estep,X   ; its step time, then volumes
     RTS
 .not_instrument
     CMP #&C0 : BCC speed
@@ -213,17 +211,23 @@ ASSERT MU_STATE <= &80
     SEC : SBC #&B7 : STA mu_speed       ; B8-BF: 1-8 frames a row
     RTS
 .numbered
-    \ &C366: 80-91, through a table (B7 and below otherwise: none in the songs)
-    ASL A : TAY
-    LDA mu_commands+1,Y : PHA
-    LDA mu_commands,Y : PHA
+    \ &C366: 80-91, through a table of offsets, as the original's (B7 and
+    \ below otherwise: none in the songs). Here they're from c_rest, and
+    \ RTS goes to the address pushed, plus 1.
+    TAY
+    LDA mu_commands - &80,Y
+    CLC : ADC #LO(c_rest - 1) : TAY
+    LDA #HI(c_rest - 1) : ADC #0 : PHA
+    TYA : PHA
     RTS
 
 .mu_commands
-    EQUW c_rest-1, c_vib_off-1, c_vib_on-1, c_vib_alt-1, c_porta-1
-    EQUW c_slide_down-1, c_slide_up-1, mu_pattern-1, c_vib-1, c_transpose-1
-    EQUW c_tone-1, c_noise-1, c_both-1, c_drum-1, c_stop-1, c_tie-1
-    EQUW c_hihat_on-1, c_hihat_off-1
+    EQUB c_rest - c_rest, c_vib_off - c_rest, c_vib_on - c_rest, c_vib_alt - c_rest
+    EQUB c_porta - c_rest, c_slide_down - c_rest, c_slide_up - c_rest
+    EQUB mu_pattern - c_rest, c_vib - c_rest, c_transpose - c_rest, c_tone - c_rest
+    EQUB c_noise - c_rest, c_both - c_rest, c_drum - c_rest, c_stop - c_rest
+    EQUB c_tie - c_rest, c_hihat_on - c_rest, c_hihat_off - c_rest
+    ASSERT mu_pattern - c_rest < &100   ; (the furthest)
 
 .c_rest                             ; &80 (&C294)
     PLA : PLA                           ; (the row ends: not back to read on)
@@ -324,7 +328,7 @@ ASSERT MU_STATE <= &80
     LDA mv_estep,X : STA mv_ecnt,X
     LDA mv_epos,X : STA mu_ptr2
     LDA mv_epos+1,X : STA mu_ptr2+1
-    LDY #1 : LDA (mu_ptr2),Y : BMI held ; (the next step)
+    LDY #2 : LDA (mu_ptr2),Y : BMI held ; (the next step: mv_epos is a byte before)
     STA mv_evol,X
     INC mv_epos,X : BNE held
     INC mv_epos+1,X

@@ -34,12 +34,13 @@ MU_NOTES = 64
     EQUB HI(mu_arp_0), HI(mu_arp_1), 0, 0, HI(mu_arp_4), HI(mu_arp_5), HI(mu_arp_6)
 MU_ARPS = 7
 
-\ Each instrument, for D0-DF in a pattern (the pointers at &C575),
+\ Each instrument, for D0-DF in a pattern (the pointers at &C575,
+\ here to its step time, the byte before),
 \ low then high bytes. Those no song uses are 0.
 .mu_inst_lo
-    EQUB 0, LO(mu_inst_1), 0, LO(mu_inst_3), LO(mu_inst_4), 0, LO(mu_inst_6), 0, 0, LO(mu_inst_9), 0, LO(mu_inst_11)
+    EQUB 0, LO(mu_inst_1 - 1), 0, LO(mu_inst_3 - 1), LO(mu_inst_4 - 1), 0, LO(mu_inst_6 - 1), 0, 0, LO(mu_inst_9 - 1), 0, LO(mu_inst_11 - 1)
 .mu_inst_hi
-    EQUB 0, HI(mu_inst_1), 0, HI(mu_inst_3), HI(mu_inst_4), 0, HI(mu_inst_6), 0, 0, HI(mu_inst_9), 0, HI(mu_inst_11)
+    EQUB 0, HI(mu_inst_1 - 1), 0, HI(mu_inst_3 - 1), HI(mu_inst_4 - 1), 0, HI(mu_inst_6 - 1), 0, 0, HI(mu_inst_9 - 1), 0, HI(mu_inst_11 - 1)
 MU_INSTS = 12
 
 \ Each pattern's address, for its number in a pattern list (from 1),
