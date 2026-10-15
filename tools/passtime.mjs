@@ -17,7 +17,8 @@ const KEYS = {
     up: "Q", down: "A", left: "O", right: "P", fire: "SPACE", magic: "RETURN",
     p2up: "K9", p2down: "K8", p2left: "K6", p2right: "K7", p2fire: "K0", p2magic: "SHIFT",
 };
-const SCROLLS = ["scroll_up", "scroll_down", "scroll_left", "scroll_right"];
+// The scroll's entry: one routine, or (on an older disc) one a direction.
+const SCROLLS = ["scroll", "scroll_up", "scroll_down", "scroll_left", "scroll_right"];
 
 const args = process.argv.slice(2);
 const opt = (name, dflt) => { const i = args.indexOf(`--${name}`); if (i < 0) return dflt; const v = args[i + 1]; args.splice(i, 2); return v; };
@@ -45,7 +46,7 @@ async function run(path, [name, keys, passes, flags = ""]) {
         await beeb.write("direct_level", [Number(flag("level") ?? 1) - 1]);
         const at = (s) => beeb.addr(s);
         const kinds = new Map([[at("pass_top"), "top"], [at("main_loop"), "end"], [at("wait_us"), "wait"]]);
-        for (const s of SCROLLS) kinds.set(at(s), "scroll");
+        for (const s of SCROLLS) if (s in beeb.syms) kinds.set(at(s), "scroll");
         for (const pc of kinds.keys()) await beeb.breakpoint(pc);
         const held = new Set();
         let pass = -1, start = null, scrolled = false;

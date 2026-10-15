@@ -47,14 +47,26 @@
 }
 
 \ &D1A2 FillCells: MapStamp into the four cells at (rb, rc): (rb, rc),
-\ (rb+1, rc), (rb+1, rc+1), (rb, rc+1). rc comes back one more.
+\ (rb+1, rc), (rb+1, rc+1), (rb, rc+1). rc comes back one more. A cell in
+\ a tile already stamped is skipped (the same again would change
+\ nothing): the cells below are in the same tiles when rb is even, the
+\ cells to the right when rc is even.
 .fill_cells
 {
+    LDA rb : LSR A : BCC fill_pair  ; (rb even: the row below's tiles are these)
+    INC rb : JSR fill_pair
+    DEC rc : DEC rb
+    \ (fall into fill_pair)
+}
+\ MapStamp into (rb, rc) and (rb, rc+1); rc comes back one more. rhl is
+\ the last cell's tile, Y = 0 and A = MapStamp, as fill_cell leaves them.
+.fill_pair
+{
     JSR fill_cell
-    INC rb : JSR fill_cell
-    INC rc : JSR fill_cell
-    DEC rb
-    \ (fall into fill_cell)
+    INC rc
+    LDA rc : LSR A : BCC fill_cell  ; (rc+1 even: a tile of its own)
+    LDA MapStamp
+    RTS
 }
 \ &D1B2
 .fill_cell
