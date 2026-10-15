@@ -67,12 +67,10 @@ US_PER_T_256 = (256 * 1000 + 1773) DIV 3547
 {
     \ microseconds = (16A + 37) x 1000 / 3547: about 4.51A + 10.4
     STA n
-    LDA #0 : STA us_hi
-    LDA n : ASL A : ROL us_hi : ASL A : ROL us_hi : STA us_lo    ; 4A
-    LDA n : LSR A : CLC : ADC us_lo : STA us_lo                  ; + A/2
-    BCC c : INC us_hi
-.c
-    LDA us_lo : CLC : ADC #10 : STA us_lo
+    LDY #0 : STY us_hi
+    ASL A : ROL us_hi : ASL A : ROL us_hi : STA us_lo            ; 4A
+    LDA n : LSR A : CLC : ADC #10                                ; + A/2 + 10
+    ADC us_lo : STA us_lo                                        ; (no carry before)
     BCC d : INC us_hi
 .d
     \ the SN period: a quarter of it
@@ -152,19 +150,16 @@ CLICK_US = 20
     JSR noise_random : STA len
     LDA unit : LDX len : JSR mul8          ; T-states, in t_hi:t_lo
     \ microseconds: T-states x 1000 / 3547, about x 9/32
-    LDA t_lo : STA us_lo : LDA t_hi : STA us_hi
-    LSR us_hi : ROR us_lo : LSR us_hi : ROR us_lo           ; /4
-    LDA us_lo : LSR A : LSR A : LSR A : STA ra2              ; + /32
-    LDA us_lo : CLC : ADC ra2 : TAX
-    LDA us_hi : ADC #0 : TAY
+    LSR t_hi : ROR t_lo : LSR t_hi : ROR t_lo               ; /4
+    LDA t_lo : LSR A : LSR A : LSR A : STA ra2               ; + /32
+    LDA t_lo : CLC : ADC ra2 : TAX
+    LDA t_hi : ADC #0 : TAY
     JSR wait_us
     DEC count : BNE next
     JMP effect_end
     ZA_AUTO1 count
     ZA_AUTO1 unit
     ZA_AUTO1 len
-    ZA_AUTO1 us_lo
-    ZA_AUTO1 us_hi
 }
 
 \ t_hi:t_lo = A x X (X = 0 meaning 256).
