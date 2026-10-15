@@ -83,6 +83,11 @@ rhl = rl
 .mu_p       SKIP 2          ; mu_period's AY period
 .mu_t       SKIP 3          ; ... its sum
 .mu_s       SKIP 2          ; ... and the SN's period
+.mu_a       SKIP 1          ; mu_output's attenuation for a channel
+    \ The bass's edges (bass.6502), which interrupt the rest
+.bass_x     SKIP 1          ; the interrupted X and Y
+.bass_y     SKIP 1
+.bass_t     SKIP 2          ; a timer's count, read
 IF DEFINED(MUSICCHECK)
 .mc_at      SKIP 2          ; the music check's next record (startup.6502)
 .mc_left    SKIP 1          ; ... records left before mc_full
@@ -118,6 +123,12 @@ SECTION Work, org = &0400, guard = &0D9F, virtual = TRUE
 .mu_sn_att  SKIP 4          ; each channel's attenuation, the noise's last
 .mu_sn_noise SKIP 1         ; the noise's register
 .mu_bass    SKIP 3          ; octaves each tone went up to fit (decision 18)
+.mu_h       SKIP 2          ; mu_period's SN period before it went up: the bass's
+    \ The bass (bass.6502): each channel's, while its timer plays it
+.mu_half_lo SKIP 3          ; its half-cycle in microseconds, high byte 0 when it's off
+.mu_half_hi SKIP 3
+.mu_bass_lvl SKIP 3         ; its volume's byte for the chip, heard
+.mu_bass_phase SKIP 3       ; 0 heard last, MU_SILENT silent last: OR'd with mu_bass_lvl
 ENDSECTION
     ASSERT LO(map) = 0 AND LO(hi_nibble) = 0
 
@@ -209,6 +220,7 @@ SECTION Data, org = &8000, load = &FFFF3000, filename = "NDATA", guard = &C000
     INCLUDE "menu.6502"
     INCLUDE "songs.6502"
     INCLUDE "musicentry.6502"
+    INCLUDE "bass.6502"
 .font
     INCBIN "data/font.bin"
 .banked_code_end

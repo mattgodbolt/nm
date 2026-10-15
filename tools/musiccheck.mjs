@@ -22,9 +22,17 @@ import { startBeeb } from "./beeb.mjs";
 const PYTHON = process.env.PYTHON || ".venv/bin/python";
 mkdirSync("build/music", { recursive: true });
 const model = JSON.parse(execFileSync(PYTHON, ["tools/musicmodel.py"], { maxBuffer: 1 << 28 }).toString());
-const RECORD = 13;          // startup.6502's MC_RECORD: 12 registers, then mu_on
+const RECORD = 19;          // startup.6502's MC_RECORD: 12 registers, mu_on, the bass's half-cycles
 const hex = (a) => a.map((x) => x.toString(16).padStart(2, "0")).join(" ");
 const snBytes = (log) => [...log.matchAll(/: 0x([0-9a-f]{2}) /g)].map((m) => parseInt(m[1], 16));
+
+// The bass check: frames to wait for a channel's bass and to watch it, how
+// close its half-cycles must be on average, and the latest an edge may be
+// (an interrupt waits while another runs or interrupts are off).
+const BASS_WAIT = 3000;
+const BASS_FRAMES = 25;
+const BASS_MEAN_US = 1;
+const BASS_LATE_US = 100;
 
 let failed = false;
 const fail = (msg) => { console.log(`DIFFERS: ${msg}`); failed = true; };
@@ -92,17 +100,58 @@ try {
     if ((await b.peek("mu_on")) !== 1) fail("the game's build isn't playing a song");
     if (writes.length === 0) fail(`the game's build: no bytes to the chip in ${frames} frames`);
     else console.log(`the game's build: the music from the interrupt, ${writes.length} bytes to the chip in ${frames} frames`);
-    await b.write("mu_busy", [1]);
-    await b.call("start_sound_capture", { session_id: b.session_id });
-    await b.frames(50);
-    writes = snBytes((await b.call("stop_sound_capture", { session_id: b.session_id, max_entries: 1e6 })).content[0].text);
-    if (writes.length) fail(`with mu_busy set the interrupt wrote ${writes.length} bytes to the chip`);
-    await b.write("mu_busy", [0]);
+    // Each channel's bass (bass.6502), each when it next plays: with
+    // mu_busy set the music's frame writes nothing, and the bass's edges go
+    // on at the half-cycles it left, each channel's volume switching
+    // between its level and silence, every half-cycle on average (an edge
+    // is as late as the interrupt, but the next is timed from when it was
+    // due). Nothing else reaches the chip.
+    const seen = new Set();
+    for (let want = 0; want < 3; want++) {
+        if (seen.has(want)) continue;
+        let halves = [];
+        for (let f = 0; f < BASS_WAIT; f++) {
+            const h = await b.read("mu_half_lo", 6);
+            halves = [0, 1, 2].map((c) => h[c] | (h[c + 3] << 8));
+            if (halves[want]) break;
+            await b.frames(1);
+        }
+        if (!halves[want]) { fail(`channel ${want}: no bass in ${BASS_WAIT} frames, to check`); continue; }
+        await b.write("mu_busy", [1]);
+        const lvl = await b.read("mu_bass_lvl", 3);
+        await b.call("start_sound_capture", { session_id: b.session_id });
+        await b.frames(BASS_FRAMES);
+        const busyLog = (await b.call("stop_sound_capture", { session_id: b.session_id, max_entries: 1e6 })).content[0].text;
+        await b.write("mu_busy", [0]);
+        // (jsbeeb's capture stamps a write with the cycle the chip last
+        // caught up to, which is the write before's: a write's time is the
+        // next one's stamp, so the last has none.)
+        const stamped = [...busyLog.matchAll(/^(\d+): 0x([0-9a-f]{2}) /gm)].map((m) => [Number(m[1]), parseInt(m[2], 16)]);
+        const entries = stamped.slice(0, -1).map(([, v], i) => [stamped[i + 1][0], v]);
+        const ours = (v, c) => halves[c] && (v & 0xF0) === (lvl[c] & 0xF0);
+        for (const [c, half] of halves.entries()) {
+            if (!half) continue;
+            seen.add(c);
+            const mine = entries.filter(([, v]) => ours(v, c));
+            let alternate = mine.every(([, v]) => v === lvl[c] || v === (lvl[c] | 15));
+            for (let i = 1; i < mine.length; i++) if (mine[i][1] === mine[i - 1][1]) alternate = false;
+            const gaps = mine.slice(1).map(([t], i) => (t - mine[i][0]) / 2);   // microseconds
+            const mean = gaps.length ? (mine[mine.length - 1][0] - mine[0][0]) / 2 / gaps.length : 0;
+            const worst = Math.max(...gaps.map((g) => Math.abs(g - half)));
+            console.log(`channel ${c}: bass at a half-cycle of ${half}us: ${gaps.length} edges, ` +
+                        `${mean.toFixed(2)}us apart on average, the furthest out by ${worst.toFixed(1)}us`);
+            if (!alternate) fail(`channel ${c}: its edges don't switch between &${lvl[c].toString(16)} and silence`);
+            if (gaps.length < 2 || Math.abs(mean - half) > BASS_MEAN_US) fail(`channel ${c}: its half-cycles aren't ${half}us`);
+            if (worst > BASS_LATE_US) fail(`channel ${c}: an edge ${worst.toFixed(1)}us out`);
+        }
+        const others = entries.filter(([, v]) => ![0, 1, 2].some((c) => ours(v, c)));
+        if (others.length) fail(`with mu_busy set the chip got ${others.length} bytes that aren't the bass's`);
+    }
     await b.call("start_sound_capture", { session_id: b.session_id });
     await b.frames(10);
     writes = snBytes((await b.call("stop_sound_capture", { session_id: b.session_id, max_entries: 1e6 })).content[0].text);
     if (!writes.length) fail("after mu_busy the interrupt didn't write the chip again");
-    else console.log("mu_busy: nothing to the chip while it's set, and the music's changes after");
+    else console.log("mu_busy: nothing but the bass's edges to the chip while it's set, and the music's changes after");
 } finally {
     await b.close();
 }

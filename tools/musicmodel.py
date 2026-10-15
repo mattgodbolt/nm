@@ -26,7 +26,7 @@ from nmsnap import bank
 import dw_decode as dw
 
 SONGS = 7
-MC_FRAMES = 64          # startup.6502's records a chunk
+MC_FRAMES = 48          # startup.6502's records a chunk
 SHADOW = 0xC47F         # the shadow AY registers 0-11
 AY_REGS = 12
 
@@ -36,40 +36,57 @@ SILENT = 15
 NOISE_WHITE = 0xE4
 NOISE_SLOW = 19
 SN_PERIODS = 1024
+BASS_PER_PERIOD = 4     # bass.6502's: a bass half-cycle's microseconds per SN period
 
 
 def sn_period(p):
-    """An AY period (12 bits) as the SN's, and the octaves it went up."""
+    """An AY period (12 bits) as the SN's, the octaves it went up, and
+    the period before it did."""
     s = p + ((p * 131 + 512) >> 10)
     if s == 0:
         s = 1
+    whole = s
     octaves = 0
     while s >= SN_PERIODS:
         s >>= 1
         octaves += 1
-    return s, octaves
+    return s, octaves, whole
 
 
 class SN:
     """mu_output: the chip's registers as last written, and the bytes
-    each frame writes."""
+    each frame writes; and the bass's half-cycles (bass.6502), 0 for a
+    channel that isn't playing bass."""
 
     def __init__(self):
         self.tone = [None] * 3
         self.att = [None] * 4
         self.noise = None
+        self.half = [0] * 3
 
     def frame(self, ay, on):
         out = []
         for c in range(3):
             att = SILENT
+            bass = False
             if on:
-                s, _ = sn_period(ay[2 * c] | ((ay[2 * c + 1] & 15) << 8))
+                s, octaves, whole = sn_period(ay[2 * c] | ((ay[2 * c + 1] & 15) << 8))
+                if not ay[7] & (1 << c):
+                    att = ATT[ay[8 + c] & 15]
+                if octaves and att != SILENT:
+                    # bass: the tone at period 1, its volume switched by a timer
+                    bass = True
+                    s = 1
                 if s != self.tone[c]:
                     self.tone[c] = s
                     out += [0x80 | (c << 5) | (s & 15), s >> 4]
-                if not ay[7] & (1 << c):
-                    att = ATT[ay[8 + c] & 15]
+            if bass:
+                if not self.half[c]:
+                    out.append(0x90 | (c << 5) | att)      # heard first
+                self.half[c] = BASS_PER_PERIOD * whole
+                self.att[c] = None                          # the edges' meanwhile
+                continue
+            self.half[c] = 0
             if att != self.att[c]:
                 self.att[c] = att
                 out.append(0x90 | (c << 5) | att)
@@ -121,8 +138,9 @@ def main():
             d.tick()
             ay = list(d.mem[SHADOW:SHADOW + AY_REGS])
             on = int(d.playing)
-            records.append(ay + [on])
             writes += sn.frame(ay, on)
+            halves = [h & 255 for h in sn.half] + [h >> 8 for h in sn.half]
+            records.append(ay + [on] + halves)
         songs.append(dict(song=s, captured=len(caps[s]), chunks=chunks, records=records))
     json.dump(dict(mc_frames=MC_FRAMES, songs=songs, sn=writes), sys.stdout)
 

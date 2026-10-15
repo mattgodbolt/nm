@@ -95,7 +95,8 @@ NEXT
     LDA #&7F : STA sysvia_ier : STA usrvia_ier  ; anything we don't service
     \ The pass clock (decision 12): System VIA T1, free-running. (Writing
     \ T1's high counter loads the counter from the latches, and starts it.)
-    LDA sysvia_acr : AND #&3F : ORA #&40 : STA sysvia_acr
+    \ (T2 one-shot: the bass's channel 2, bass.6502)
+    LDA sysvia_acr : AND #&1F : ORA #&40 : STA sysvia_acr
     LDA #LO(PASS_TICK - 2) : STA sysvia_t1ll
     LDA #HI(PASS_TICK - 2) : STA sysvia_t1ch
     LDA #&C2 : STA sysvia_ier                   ; T1 and VSync (CA1)
@@ -173,11 +174,13 @@ ENDIF
 IF DEFINED(MUSICCHECK)
 \ The music check's build (tools/musiccheck.mjs): the driver's frames as
 \ fast as it goes, not from the interrupt. Each frame's shadow AY
-\ registers and mu_on go to a record in mc_buf; at mc_full the tool reads
-\ MC_FRAMES of them, and may set mc_next to start a song there.
-MC_FRAMES = 64
+\ registers, mu_on and the bass's half-cycles (bass.6502, whose timers
+\ this build doesn't start) go to a record in mc_buf; at mc_full the tool
+\ reads MC_FRAMES of them, and may set mc_next to start a song there.
+MC_FRAMES = 48
 MC_PLAY = &7F                       ; mc_next: on into a game
-MC_RECORD = MU_AY_REGS + 1
+MC_HALVES = 6                       ; mu_half_lo, then mu_half_hi
+MC_RECORD = MU_AY_REGS + 1 + MC_HALVES
 mc_buf = map                        ; (no level in this build)
 ASSERT MC_FRAMES * MC_RECORD <= 32 * 32
 .music_check
@@ -194,6 +197,11 @@ ASSERT MC_FRAMES * MC_RECORD <= 32 * 32
     LDA mu_ay,Y : STA (mc_at),Y
     INY : CPY #MU_AY_REGS : BNE mc_copy
     LDA mu_on : STA (mc_at),Y
+    LDX #0
+.mc_halves
+    INY
+    LDA mu_half_lo,X : STA (mc_at),Y
+    INX : CPX #MC_HALVES : BNE mc_halves
     LDA mc_at : CLC : ADC #MC_RECORD : STA mc_at
     BCC mc_same
     INC mc_at+1

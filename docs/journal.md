@@ -392,3 +392,27 @@ free space went from under a kilobyte to about three, the bank's from
 almost nothing to most of two, the slide from about 31 frames to 22, and
 an ordinary pass's work by about a third, with nothing the game does
 changed.
+
+## The bass at its pitch
+
+Matt chose the timer bass over notes an octave up (decision 18). Low
+notes are now played as nm's music disc plays them: the channel's period
+1, and a VIA timer switching its volume every half-cycle, one timer a
+channel (`bass.6502`). `mu_output` starts, retunes and stops them each
+frame; the VSync handler turns interrupts back on for the driver's frame
+so that the edges aren't late; a tone's two bytes keep them off between.
+
+`make music` checks it twice over. The music check's build records each
+frame's half-cycles next to the shadow registers, and `musicmodel.py`
+works them out too, with the bytes `mu_output` now writes (period 1 for a
+bass channel, its volume once as it starts). In the game, the check
+holds `mu_busy` while each channel's bass plays and measures its edges:
+every channel's are a half-cycle apart to within a microsecond on
+average. The one-shots' allowance for their own reload took a
+measurement: at first they ran 20 microseconds a half-cycle long.
+
+Measuring the edges turned up a quirk of jsbeeb's sound capture: it
+stamps a write with the time the chip last caught up to, which is the
+write before's. The chip takes each byte at the right time; only the log
+is a write late. It's also why a tone's two bytes had looked a frame
+apart in earlier captures.

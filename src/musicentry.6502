@@ -25,6 +25,15 @@
     LDA #&24 : STA mv_mask + 2 * MU_VOICE
     LDA #MU_MIX_INIT : STA mu_mix
     LDA #1 : STA mu_speed
+    \ No bass playing (bass.6502), and the User VIA's T1 free-running and
+    \ T2 one-shot for its channels 0 and 1, which enable their interrupts
+    \ as they play
+    LDA usrvia_acr : AND #&1F : ORA #&40 : STA usrvia_acr
+    LDA #0
+    LDX #2
+.no_bass
+    STA mu_half_lo,X : STA mu_half_hi,X
+    DEX : BPL no_bass
     JMP music_dirty
 }
 MU_STATE = mu_ay + MU_AY_REGS - mu_voices   ; (main.6502 keeps them together)

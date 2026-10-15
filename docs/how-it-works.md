@@ -349,10 +349,10 @@ for the SN76489 and writes those that changed:
   a noise channel of its own, played as loud as the loudest voice the
   noise is mixed into (decision 17).
 - **Bass**: the SN can't play below about 122Hz, and the main theme's bass
-  is below that nearly all the time. For now those notes go up an octave
-  or two (decision 18). The music conversion's own player plays them at
-  pitch by toggling a channel's volume from a timer; research/music-driver.md
-  says what the port would need to do the same.
+  is below that nearly all the time. Those notes are played at their
+  pitch as the music conversion's own player plays them: the channel's
+  tone too high to hear, and a VIA timer switching its volume on and off
+  every half-cycle, one timer a channel (`bass.6502`, decision 18).
 
 `tools/mkmusic.py` finds the song data by playing every song and noting
 what the driver reads, rather than by walking the bytes: the jingles'
@@ -366,9 +366,11 @@ The chirp and the smart bomb's sweeps are a tone at each half-cycle's
 pitch, the step's click a step of a channel's volume, and the noises white
 noise switched on and off in the original's segments, timed by the User
 VIA's second timer. While an effect plays it holds `mu_busy`, which keeps
-the music's interrupt off the chip (a write is two bytes, and one landing
-in between would go to the wrong register); the music writes its whole
-state again afterwards.
+the music's frame off the chip; the music writes its whole state again
+afterwards. The bass's edges go on, each a single byte, but channel 1's,
+whose channel and timer the effect takes. A tone's write is two bytes,
+and an edge's landing between would send the second to the wrong
+register, so those keep interrupts off between them.
 
 ### The front end and the keys
 
@@ -473,9 +475,8 @@ with the two games side by side, not bugs:
 - **The scroll's slide** is slower than the original's (decision 22).
 - **The pace of a pass**: the original's passes vary with what they do,
   the port's are all the median (decision 12).
-- **Sound**: the bass (an octave up, or at pitch from a timer), the
-  volume table and the noise's level (decisions 16 to 18). None of the
-  sound has been listened to closely yet.
+- **Sound**: the volume table and the noise's level (decisions 16 and
+  17), and how the timer bass sounds on real hardware (decision 18).
 - **The front end**: the attract screen's legend, the Kempston options,
   and the keys standing in for EXTEND MODE (with SHIFT also player 2's
   magic).

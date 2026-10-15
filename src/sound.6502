@@ -22,11 +22,13 @@ FUNCTION us(t) = (t * 1000 + 1773) DIV 3547
 US_PER_T_256 = (256 * 1000 + 1773) DIV 3547
 
 \ Start an effect: the music off the chip, and the chip's port set up for
-\ mu_write. Nothing else uses System VIA port A or the latch until
-\ effect_end: the effect only waits between its writes, and with mu_busy
-\ held the interrupt doesn't write the chip.
+\ mu_write. With mu_busy held the music's frame doesn't write the chip;
+\ the bass's edges do (bass.6502), but put port A back as they found it.
+\ Channel 1's bass stops: the effect takes its channel, and its timer
+\ (wait_us).
 .effect_start
     INC mu_busy
+    LDX #1 : JSR bass_stop
     \ (fall into sn_port)
 \ System VIA port A set up for the chip (mu_write): the keyboard on
 \ auto-scan, off port A's bit 7, and the port an output.
@@ -43,15 +45,20 @@ US_PER_T_256 = (256 * 1000 + 1773) DIV 3547
     JMP music_dirty
 
 \ Tone channel 1 at SN period X (10 bits: X the low eight, A the top two).
+\ (Interrupts off between the two bytes: a bass edge's between would take
+\ the second.)
 .tone1
 {
     STA tmp
+    PHP : SEI
     TXA : AND #&0F : ORA #SN_TONE1 : JSR mu_write
     \ the top six bits: the period shifted right by four (A has two)
     TXA
     LSR tmp : ROR A : LSR tmp : ROR A
     LSR A : LSR A
-    JMP mu_write
+    JSR mu_write
+    PLP
+    RTS
     ZA_AUTO1 tmp
 }
 

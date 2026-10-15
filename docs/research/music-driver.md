@@ -125,8 +125,8 @@ The VSync interrupt calls `music_tick`. After the driver's frame,
 `mu_output` makes the SN76489's registers from `mu_ay` and writes those
 that changed since it last wrote:
 
-- the periods x 1155/1024 (decision 15), an octave up or two where they
-  are past the SN's ten bits (decision 18);
+- the periods x 1155/1024 (decision 15); one past the SN's ten bits is
+  played as bass (decision 18, below), its period 1;
 - the volumes through ym2sn.py's table (decision 16);
 - the noise on the SN's noise channel, as loud as the loudest voice it's
   mixed into (decision 17).
@@ -136,44 +136,44 @@ writes nothing: the game's own writes hold it (`sound.6502`'s
 `effect_start` to `effect_end`).
 
 `make music` checks it: every frame of every song, the shadow registers
-against `dw_decode.py`'s, and the SN's bytes against a Python model of
-`mu_output` (`tools/musicmodel.py`).
+and the bass's half-cycles against `dw_decode.py`'s, and the SN's bytes
+against a Python model of `mu_output` (`tools/musicmodel.py`); then, in
+the game, each channel's bass edges' spacing.
 
-## The bass, later
+## The bass
 
 The SN's lowest note is 122Hz and the main theme's bass is below it
 nearly all the time. nm's player (`tools/music/player.asm`, from Simon
 Morris's `vgcplayer_bass.asm`) plays such notes at their pitch: the
 channel's period is set to 1, which the ear hears as silence, and a VIA
 timer toggles its volume at the note's frequency, a square wave made by
-hand. What the port would need for it:
+hand. The port does the same (`bass.6502`, decision 18):
 
 - **Three timers**, one a channel: the User VIA's T1 (free-running), its
-  T2 and the System VIA's T2 (both one-shot, reloaded in the interrupt).
-  The System VIA's T1 is the brief's choice for the pace of a pass (D4),
-  so it isn't one of them. Each timer's count is half the note's period
-  in microseconds: the AY's period P is 16P / 1.7734MHz long, so a half
-  is about 4.51P microseconds, which fits a timer's 16 bits for every
-  note. `mu_bass,X` says which channels need it; `mu_ay` has the period.
-- **The interrupt** dispatching the timers as well as VSync, with
-  start-up (`start`, startup.6502) enabling them.
-- **The chip shared at a finer grain.** The bass interrupts write
-  volumes many times a frame. A two-byte tone write anywhere (the music's
-  or the game's) must keep them off between its bytes, or a volume's
-  latch byte lands between and the data byte goes to the volume. So
-  `mu_write`'s callers, the music's and the effects', would hold interrupts off (SEI)
-  across each pair, rather than `mu_busy` alone.
-- **Latency.** While `music_tick` runs, interrupts wait, and it takes up
-  to a few thousand cycles (decision 14): a bass edge would be late by
-  that much once a frame, a click at 50Hz. Either the VSync handler
-  re-enables interrupts once it has acknowledged VSync (and guards
-  against running twice), or the driver's frame is split so that each
-  part is short.
-- **A Model B's 6502.** nm says its player needs a Master. Upstream's
-  `vgcplayer_bass.asm` has an `IF MASTER ... ELSE` path for every 65C02
-  instruction it uses (`stz`, `inc a`, `bra`, `bit #`); the only `phx`
-  and `phy` are in an `IF 0` block. So it should assemble for a B with
-  `MASTER` false, untested. The port's own would be plain 6502 anyway.
-- **The game's sounds** taking a channel would stop its timer as well as
-  its writes (docs/brief.md, D3), and the disc's NMIs (a later edition)
-  would delay the timers.
+  T2 and the System VIA's T2 (one-shot, started again at each edge). The
+  System VIA's T1 is the pass clock, so it isn't one of them. A
+  half-cycle in microseconds is four SN periods: `mu_period` keeps the
+  period before it went up in `mu_h`, and `bass_play` takes four times
+  it, which fits a timer's 16 bits for every note. A one-shot counts on
+  past 0, so adding its count when the edge reads it takes off however
+  late the interrupt was, and the pitch doesn't drift.
+- **`mu_output` decides** each frame which channels play bass (a period
+  too low, and heard), and at what volume: `bass_play` starts a channel's
+  timer or changes its half-cycle; `bass_stop` turns its interrupt off.
+  Each edge writes one byte, the channel's volume or silence.
+- **The chip shared at a finer grain.** A two-byte tone write anywhere
+  (the music's or the effects') keeps interrupts off between its bytes,
+  or an edge's volume byte lands between and the data byte goes to the
+  volume. `mu_write` keeps them off for its own byte too, since an edge
+  sets port A up itself and puts it back after.
+- **Latency.** `irq_handler` turns interrupts back on once it has
+  acknowledged VSync, so the driver's frame doesn't hold the edges back;
+  only `mu_output`'s writes do. (A nested interrupt's entry overwrites
+  the OS's copy of A at &FC, so the handler keeps its own.)
+- **The effects** take channel 1 and the User VIA's T2 (`wait_us`), so
+  `effect_start` stops channel 1's bass; the other channels' edges go on.
+- **Plain 6502**, so it runs on a B as well as a Master.
+
+The edges' spacing is checked in jsbeeb (`make music`); real hardware is
+untested. The disc's NMIs, for a later edition that reads the disc in
+play, would delay the edges.

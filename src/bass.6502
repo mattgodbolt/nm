@@ -1,0 +1,135 @@
+\ ***************************************************************************
+\ The bass (decision 18): a tone too low for the SN76489 played at its
+\ pitch, as nm's music disc plays it (docs/research/music-driver.md). The
+\ channel's period is 1, which the ear doesn't hear, and a VIA timer
+\ switches its volume on and off at the note's frequency: a square wave
+\ made by hand. One timer a channel:
+\
+\   channel 0   the User VIA's T1, free-running from its latches
+\   channel 1   the User VIA's T2, one-shot, started again at each edge
+\               (the effects' timer too: they stop this channel's bass,
+\               effect_start, as they take its channel)
+\   channel 2   the System VIA's T2, the same
+\
+\ (The System VIA's T1 is the pass clock.) mu_output decides each frame
+\ which channels play bass, at what half-cycle and volume (bass_play,
+\ bass_stop); the interrupt (irq.6502) comes here at each edge. An edge
+\ writes one byte, a volume, so the game's two-byte writes keep
+\ interrupts off between their bytes (mu_write, tone1).
+\ ***************************************************************************
+
+\ A half-cycle's microseconds is four SN periods' (the SN's tone is
+\ 4MHz / (32 x its period)): the period mu_period made, before it went up.
+BASS_PER_PERIOD = 4
+\ T1 runs for its latches plus this many microseconds between edges.
+BASS_T1_EXTRA = 2
+\ A one-shot T2's half-cycle loses this many microseconds to the edge's
+\ instructions from reading its count to starting it again (measured in
+\ jsbeeb, 2026-10-15; tools/musiccheck.mjs checks every edge's spacing).
+BASS_T2_EXTRA = 32
+ASSERT HI(BASS_PER_PERIOD * MU_SN_PERIODS) <> 0     ; (mu_half_hi is never 0 when on)
+
+\ Each channel's VIA, as an offset from the System VIA's registers, and
+\ its timer's bit in that VIA's interrupt registers.
+.bass_via   EQUB usrvia_t1cl - sysvia_t1cl, usrvia_t1cl - sysvia_t1cl, 0
+.bass_bit   EQUB &40, &20, &20
+
+\ Channel X plays mu_a's attenuation as bass, at mu_h's period's pitch:
+\ started if it wasn't playing (its volume on, and its timer), its
+\ half-cycle and volume changed for the next edges if it was. Keeps X.
+.bass_play
+{
+    LDA mu_a : ORA mu_vol_latch,X : STA mu_bass_lvl,X
+    LDA #&FF : STA mu_sn_att,X          ; (the edges' until the bass stops)
+    \ the half-cycle: BASS_PER_PERIOD x the period
+    ASSERT BASS_PER_PERIOD = 4
+    LDA mu_h : ASL A : ROL mu_h+1 : ASL A : ROL mu_h+1
+    STA mu_half_lo,X
+    LDY mu_half_hi,X
+    LDA mu_h+1 : STA mu_half_hi,X
+    TYA : BEQ begin
+    \ playing: the one-shots read mu_half at their next edge; T1 runs
+    \ from its latches, which take the next
+    TXA : BNE done
+    JSR t1_latch : STA usrvia_t1lh
+.done
+    RTS
+.begin
+    LDA #0 : STA mu_bass_phase,X
+    LDA mu_bass_lvl,X : JSR mu_write    ; (heard first)
+    LDY bass_via,X
+    TXA : BNE begin_t2
+    JSR t1_latch : STA usrvia_t1ch      ; (the latches into the count: it starts)
+    BNE enable                          ; (always: mu_half_hi isn't 0)
+.begin_t2
+    LDA mu_half_lo,X : STA sysvia_t2cl,Y
+    LDA mu_half_hi,X : STA sysvia_t2ch,Y    ; (starts it)
+.enable
+IF NOT(DEFINED(MUSICCHECK))         ; (whose chip's bytes are mu_output's alone)
+    LDA bass_bit,X : ORA #&80 : STA sysvia_ier,Y
+ENDIF
+    RTS
+\ T1's latches for channel 0's half-cycle: the low one written, the high in A.
+.t1_latch
+    LDA mu_half_lo : SEC : SBC #BASS_T1_EXTRA : STA usrvia_t1ll
+    LDA mu_half_hi : SBC #0
+    RTS
+}
+
+\ Channel X's bass stopped, if it's playing: its timer's interrupt off.
+\ mu_output writes its volume next (mu_sn_att is &FF while it plays).
+\ Keeps X.
+.bass_stop
+{
+    LDA mu_half_hi,X : BEQ done
+    LDY bass_via,X
+    LDA bass_bit,X : STA sysvia_ier,Y
+    LDA #0 : STA mu_half_lo,X : STA mu_half_hi,X
+.done
+    RTS
+}
+
+\ ---------------------------------------------------------------------------
+\ The edges, from irq_handler with A the User VIA's interrupts (its IFR
+\ AND IER) shifted left once, so N is T1's. Each ends the interrupt.
+.bass_user
+{
+    STX bass_x : STY bass_y
+    BPL t2
+    LDA usrvia_t1cl                     ; (acknowledges it: it runs on)
+    LDX #0
+    BEQ bass_edge                       ; (always)
+.t2
+    LDX #1 : LDY #usrvia_t1cl - sysvia_t1cl
+    BNE bass_one_shot                   ; (always)
+}
+.bass_system
+    STX bass_x : STY bass_y
+    LDX #2 : LDY #0
+    \ (fall into bass_one_shot)
+\ Channel X's one-shot (Y its VIA), started again for the next half-cycle
+\ less the time since this one ended: it counts on past 0 (&FFFF, &FFFE
+\ ...), so adding its count takes off however late the interrupt was.
+.bass_one_shot
+{
+.read
+    LDA sysvia_t2ch,Y : STA bass_t+1
+    LDA sysvia_t2cl,Y : STA bass_t      ; (acknowledges it)
+    LDA sysvia_t2ch,Y : CMP bass_t+1
+    BNE read                            ; (the low byte went past 0 meanwhile)
+    LDA bass_t : CLC : ADC mu_half_lo,X : STA bass_t
+    LDA bass_t+1 : ADC mu_half_hi,X : STA bass_t+1
+    LDA bass_t : SEC : SBC #BASS_T2_EXTRA : STA sysvia_t2cl,Y
+    LDA bass_t+1 : SBC #0 : STA sysvia_t2ch,Y   ; (starts it)
+    \ (fall into bass_edge)
+}
+\ Channel X's volume to its other level, heard or silent.
+.bass_edge
+{
+    LDA mu_bass_phase,X : EOR #MU_SILENT : STA mu_bass_phase,X
+    ORA mu_bass_lvl,X
+    JSR mu_write_port
+    LDX bass_x : LDY bass_y
+    LDA &FC                             ; (the OS saved A here)
+    RTI
+}

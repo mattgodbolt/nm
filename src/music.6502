@@ -16,15 +16,17 @@
 \ The driver works on shadow AY registers, mu_ay, as the original does
 \ (&C47F-&C48A, registers 0-11). Where the original then copies them to
 \ the AY, mu_output converts them to the SN76489 (decisions 15-18): the
-\ tones' periods, an octave up where they're too low for it; the volumes;
-\ and the noise, which the AY mixes into any voice and the SN has a
-\ channel of its own for. It writes only what changed since it last wrote.
+\ tones' periods; a tone too low for it as bass, its volume switched by a
+\ timer (bass.6502); the volumes; and the noise, which the AY mixes into
+\ any voice and the SN has a channel of its own for. It writes only what
+\ changed since it last wrote.
 \
 \ The game's own writes to the chip (sound.6502's effects) hold mu_busy
-\ across them: the chip takes a register in one byte and its value in the
-\ next, and the interrupt's bytes mustn't land between. While
-\ mu_busy is set the interrupt plays the frame but doesn't write it; the
-\ next frame writes whatever changed meanwhile.
+\ across them: while it's set the interrupt plays the frame but doesn't
+\ write it, and the next frame writes whatever changed meanwhile. The
+\ bass's edges go on (but channel 1's: effect_start), each a single byte;
+\ the chip takes a tone's register in one byte and its value in the next,
+\ so a tone's two bytes keep interrupts off between them.
 \
 \ Not transcribed: the sound effects entry (&C009), which the game never
 \ calls (decision 2), and with it the effects' part of the tick (&C129-
@@ -396,10 +398,15 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     CPX #3 * MU_VOICE : BNE voice
     LDA mu_noise : STA mu_ay + 6
 .output
-    LDA mu_busy : BEQ mu_output         ; (unless the game is writing the chip)
+    LDA mu_busy : BNE done              ; (unless the game is writing the chip)
+    \ (irq_handler runs the frame with interrupts on, for the bass's edges;
+    \ the chip's writes keep them off)
+    PHP : SEI
+    JSR mu_output
+    PLP
+.done
     RTS
 }
-    \ (mu_output follows)
 
 \ ---------------------------------------------------------------------------
 \ The SN76489. Its bytes: a tone's period is a latch byte %1cc0 and its
@@ -417,8 +424,22 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     LDA mu_ay + 7 : STA mu_tmp          ; (the mixer, a voice's bit at a time)
     LDX #0
 .channel
-    LDA mu_on : BEQ silent
+    LDA #MU_SILENT : STA mu_a
+    LDA mu_on : BEQ unbass
     JSR mu_period
+    LSR mu_tmp : BCS heard              ; (its tone off: silent)
+    LDA mu_ay + 8,X : AND #&0F : TAY
+    LDA mu_att,Y : STA mu_a
+.heard
+    \ Too low for the SN, and heard: bass (bass.6502), its tone at period
+    \ 1, which the ear doesn't hear
+    LDA mu_bass,X : BEQ tone_check
+    LDA mu_a : CMP #MU_SILENT : BEQ not_bass
+    LDA #1 : STA mu_s : LSR A : STA mu_s+1
+    BEQ tone_check                      ; (always)
+.not_bass
+    LDA #0 : STA mu_bass,X              ; (silent: not bass)
+.tone_check
     LDA mu_s : CMP mu_sn_lo,X : BNE tone
     LDA mu_s+1 : CMP mu_sn_hi,X : BEQ volume
 .tone
@@ -430,17 +451,19 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     LSR A : LSR A                       ; (the period's top six bits)
     JSR mu_write
 .volume
-    LSR mu_tmp : BCS silent             ; (its tone off)
-    LDA mu_ay + 8,X : AND #&0F : TAY
-    LDA mu_att,Y : BPL attenuation      ; (always)
-.silent
-    LDA #MU_SILENT
-.attenuation
+    LDA mu_bass,X : BEQ unbass
+    JSR bass_play
+    JMP channel_done
+.unbass
+    JSR bass_stop
+    LDA mu_a
     CMP mu_sn_att,X : BEQ channel_done
     STA mu_sn_att,X
     ORA mu_vol_latch,X : JSR mu_write
 .channel_done
-    INX : CPX #3 : BNE channel
+    INX : CPX #3 : BEQ channels_done
+    JMP channel
+.channels_done
 
     \ The noise: as loud as the loudest voice the mixer gives it to (the
     \ channels shifted the tones' bits out of mu_tmp: the noise's are next)
@@ -474,6 +497,12 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     STA mu_sn_att + 3
     ORA mu_vol_latch + 3 : JSR mu_write
 .out
+    \ (fall into sn_restore)
+}
+\ The System VIA's port A as it was before the two bytes a routine pushed
+\ (sysvia_ddra's, then sysvia_ora_nh's), and back to its caller.
+.sn_restore
+{
     PLA : STA sysvia_ora_nh
     PLA : STA sysvia_ddra
     \ (Chuckie Egg 2's key reading leaves port A an input on bit 7 and
@@ -513,8 +542,8 @@ MU_SILENT = 15
 \ the same note is the AY's period x 1.12778 on the SN. The port takes
 \ x 1155/1024 (1.12793), rounded: a quarter of a cent sharp, and only
 \ adds and shifts. A period the SN's ten bits can't hold goes up an
-\ octave, or two or three, until it fits (decision 18), counted in
-\ mu_bass,X: the hook for a bass that would play it at its pitch.
+\ octave, or two or three, until it fits, counted in mu_bass,X, and as it
+\ was in mu_h: mu_output plays it as bass (decision 18).
 .mu_period
 {
     TXA : ASL A : TAY
@@ -539,10 +568,13 @@ MU_SILENT = 15
     CLC : ADC mu_p : STA mu_s
     LDY #0                              ; (octaves up, for mu_bass)
     LDA mu_t+2 : ADC mu_p+1 : STA mu_s+1
-    BNE fit
+    BNE big
     ORA mu_s : BNE fits
     INC mu_s                            ; (period 0: the AY plays it as 1)
     BNE fits                            ; (always)
+.big
+    STA mu_h+1 : LDA mu_s : STA mu_h    ; (as it was, for the bass's pitch)
+    BCC fit                             ; (always: the add carried nothing out)
 .octave
     LSR mu_s+1 : ROR mu_s
     INY
@@ -559,14 +591,30 @@ ASSERT LO(MU_SN_PERIODS) = 0
 
 \ A to the chip, from inside the interrupt or with mu_busy held (sound.6502's
 \ effect_start): port A already an output, the keyboard off it. Keeps X.
+\ (Interrupts off throughout: a bass edge mustn't use port A while the
+\ chip takes this byte.)
 .mu_write
 {
+    PHP : SEI
     STA sysvia_ora_nh
     LDY #0 : STY sysvia_orb             ; the chip's write enable low
     LDY #MU_WRITE_HOLD
 .hold
     DEY : BNE hold
     LDY #8 : STY sysvia_orb             ; ... and high
+    PLP
     RTS
+}
+
+\ A to the chip from an interrupt that may have stopped anything (the
+\ bass's edges): port A set up for it, and put back after. Keeps X.
+.mu_write_port
+{
+    TAY
+    LDA sysvia_ddra : PHA
+    LDA sysvia_ora_nh : PHA
+    JSR sn_port
+    TYA : JSR mu_write
+    JMP sn_restore
 }
 MU_WRITE_HOLD = 3               ; (a few microseconds of it: Chuckie Egg 2's)
