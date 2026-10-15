@@ -7,6 +7,7 @@
 PASS_TICK = 24400
 \ ***************************************************************************
 
+    ASSERT install_irq = init_system_end
 .install_irq
 {
     SEI
