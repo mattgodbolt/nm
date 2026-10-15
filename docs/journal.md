@@ -370,3 +370,14 @@ logic's agent merged the two.
   the start of the code, with the copier after it.
 - `read_key`'s 128-byte table became a list of the keys that matter.
 - The views' rule depends on both snapshots, which `zxviews.py` reads.
+
+### A third round
+
+Two agents on what round 2 left. The music's frame is about a twentieth
+cheaper (checked frame by frame on all seven songs, and every AY period
+through `mu_period`, against the old driver in a simulator); the logic
+gained `clear_cells`/`stamp_cells`, `add_rhl` for signed offsets, and the
+jackpot as two `replace_codes` sweeps. A suspected clash over `ra2`
+between the monsters and the redraws turned out not to be one: every use
+sets and reads it with no call between. Both agents said what's left is
+single bytes.
