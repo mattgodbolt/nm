@@ -121,13 +121,14 @@ TIMERS = 5
 .row
     LDA re : STA PrintPos
     LDA rd : STA PrintPos + 1
+    JSR panel_cell
     LDA #3 : STA grid_cols
 .col
     DEC rl : BNE draw
     LDA #' ' : STA icon             ; (spaces from there on: the count wraps past 0)
 .draw
     LDA icon
-    JSR print_char
+    JSR panel_put
     DEC grid_cols : BNE col
     INC rd
     DEC grid_rows : BNE row
@@ -136,6 +137,35 @@ TIMERS = 5
     ZA_AUTO1 grid_rows
     ZA_AUTO1 grid_cols
 }
+    ASSERT ICON_SCROLL_COL + 3 <= PANEL_COLS
+
+\ The figures and icons are reprinted on every touch, up to three times a
+\ pass, and mostly show what they did. print_char skips a panel cell
+\ that shows its character already (decision 22); panel_put makes the
+\ same check before print_char's call, for a run along a row of the
+\ panel from panel_cell.
+
+\ put_at: the cursor's index in panel_shown.
+.panel_cell
+    LDA PrintPos + 1 : ASL A : ASL A : ASL A : ORA PrintPos : STA put_at
+    RTS
+    ASSERT PANEL_COLS = 8
+\ print_char for A at the cursor, put_at its index (which moves on): in
+\ the panel, a character the cell shows already only moves the cursor
+\ (never at a row's end there). (The menu's high score isn't in the
+\ panel.)
+.panel_put
+{
+    LDX put_at : INC put_at
+    LDY PrintPos : CPY #PANEL_COLS : BCS draw
+    CMP panel_shown,X : BEQ shown
+.draw
+    JMP print_char
+.shown
+    INC PrintPos
+    RTS
+}
+ZA_AUTO1 put_at
 
 \ &DAA6 P1AddStrength, &DAF4 P2AddStrength: add DE (rd, re: high, low) to
 \ player pl's strength, and print it. Not while its heart runs; with its
@@ -206,27 +236,54 @@ SONG_DEAD = 2
 
 \ &DB71 Print5Digits: rhl as 5 digits at the print position. (The panel's
 \ sixth digit is a 0 in the loading screen: the figures show ten times
-\ their value.) &DB83 Print2Digits: its last two.
+\ their value.) &DB83 Print2Digits: its last two. The digits are kept
+\ for each of the panel's four figures (a slot by the print row's bits 2
+\ and 3), with the value they are, as a memo: the division is most of a figure's
+\ cost, and it mostly shows the same value again (panel_put).
 .print5
 {
+    LDA PrintPos + 1 : LSR A : LSR A : AND #P5_SLOTS - 1 : STA slot
+    TAY
+    LDA rl : CMP p5_lo,Y : BNE divide
+    LDA rh : CMP p5_hi,Y : BEQ print
+.divide
+    LDA rl : STA p5_lo,Y
+    LDA rh : STA p5_hi,Y
     LDX #4
 .digit
     LDA #'0' : STA ch
 .sub
     LDA rl : SEC : SBC tens_lo,X : TAY
-    LDA rh : SBC tens_hi,X : BCC print
+    LDA rh : SBC tens_hi,X : BCC keep
     STA rh : STY rl
     INC ch
     BCS sub                         ; (always: no borrow)
-.print
-    TXA : PHA
-    LDA ch : JSR print_char
-    PLA : TAX
+.keep
+    TXA : ASL A : ASL A : ORA slot : TAY
+    LDA ch : STA p5_digits,Y
     DEX : BPL digit
-    LDA #0                          ; (&DB8F: XOR A, which the monsters' hit relies on)
-    RTS
+.print
+    \ the digits, the ten thousands' first
+    JSR panel_cell
+    LDA slot : ORA #4 * P5_SLOTS : STA slot
+.next
+    LDY slot : LDA p5_digits,Y
+    JSR panel_put
+    LDA slot : SEC : SBC #P5_SLOTS : STA slot : BCS next
+    LDA #0 : STA rl : STA rh        ; (as the division leaves them)
+    RTS                             ; (A = 0: &DB8F: XOR A, which the monsters' hit relies on)
     ZA_AUTO1 ch
+    ZA_AUTO1 slot
 }
+P5_SLOTS = 4
+\ print5's values, and their digits (digit k of slot s at 4k + s, k = 0
+\ the units): 0, which they are
+.p5_lo
+    EQUB 0, 0, 0, 0
+.p5_hi
+    EQUB 0, 0, 0, 0
+.p5_digits
+    FOR k = 1..5 * P5_SLOTS : EQUB '0' : NEXT
 .treasure_row
     EQUB 4, 12
 .tens_lo
