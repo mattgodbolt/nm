@@ -178,22 +178,22 @@ ENDMACRO
 \ &D2D0, &D2EF: a door, vertical or horizontal: spend a key, and the
 \ door and its run of the same code go, up and down (or left and right).
 .open_door_v
-    LDA #32 : STA rx
+    LDA #32 : STA door_step
     JMP open_door
 .open_door_h
-    LDA #1 : STA rx
+    LDA #1 : STA door_step
 .open_door
 {
     LDX prec
     LDA Player1 + R_KEYS,X : BEQ done
     DEC Player1 + R_KEYS,X
-    LDY #0 : LDA (rhl),Y : STA ra2  ; the door's code
+    LDY #0 : LDA (rhl),Y : STA door_code
     TYA : STA (rhl),Y
     LDA rl : PHA : LDA rh : PHA
-    JSR door_run                    ; forwards (+rx)
+    JSR door_run                    ; forwards
     PLA : STA rh : PLA : STA rl
     LDA rl : PHA : LDA rh : PHA
-    LDA rx : EOR #&FF : CLC : ADC #1 : STA rx   ; backwards
+    LDA door_step : EOR #&FF : CLC : ADC #1 : STA door_step  ; backwards
     JSR door_run
     PLA : STA rh : PLA : STA rl
     JMP redraw_tile
@@ -201,11 +201,12 @@ ENDMACRO
     RTS
 }
 
-\ &D499 DoorRun: from rhl, step by rx (1 or 32, or -1 or -32) while the
-\ cells hold the door's code (ra2), clearing and redrawing them.
+\ &D499 DoorRun: from rhl, step by door_step (1 or 32, or -1 or -32)
+\ while the cells hold the door's code (door_code), clearing and
+\ redrawing them.
 .door_run
 {
-    LDA rx : BMI back
+    LDA door_step : BMI back
     CLC : ADC rl : STA rl
     BCC c : INC rh
     BCS c
@@ -213,13 +214,16 @@ ENDMACRO
     CLC : ADC rl : STA rl
     BCS c : DEC rh
 .c
-    LDY #0 : LDA (rhl),Y : CMP ra2 : BNE done
+    LDY #0 : LDA (rhl),Y : CMP door_code : BNE done
     TYA : STA (rhl),Y
     JSR redraw_cell
     JMP door_run
 .done
     RTS
 }
+
+ZA_AUTO1 door_code
+ZA_AUTO1 door_step
 
 \ &D30E OpenChest: spend a key; it becomes a chest, tea, a scroll, or a
 \ monster that can't be killed (random: &0C + 0, 2, 4 or 6, &12 becoming
@@ -265,7 +269,7 @@ ENDMACRO
 \ diagonally too, if that tile is empty.
 .push_rock
 {
-    LDA rl : STA ra2 : LDA rh : STA rx  ; the rock's cell
+    LDA rl : STA rock : LDA rh : STA rock + 1   ; the rock's cell
     LDA StepV
     CMP #&FF : BNE not_up
     LDA rl : SEC : SBC #32 : STA rl
@@ -290,12 +294,13 @@ ENDMACRO
     LDY #0 : LDA (rhl),Y : BNE stays
     LDA #T_ROCK : STA (rhl),Y
     JSR redraw_cell
-    LDA ra2 : STA rl : LDA rx : STA rh
+    LDA rock : STA rl : LDA rock + 1 : STA rh
     LDA #0 : STA (rhl),Y
     JMP redraw_tile
 .stays
-    LDA ra2 : STA rl : LDA rx : STA rh
+    LDA rock : STA rl : LDA rock + 1 : STA rh
     JMP redraw_tile
+    ZA_AUTO2 rock
 }
 
 \ &D384 Teleport: to a random teleporter in the view, landing one tile

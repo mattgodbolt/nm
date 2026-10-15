@@ -23,3 +23,7 @@ kill-touch | right:4-59,down:66-122,left:66-122,right:139-191,fire:207-225,up:23
 crumble | right:4-79,right:95-144,right:152-227,right:243-264,fire:265-299 | 300 | --level 13
 # hell-hole: a hell hole's sparkle from A' (EX AF,AF')
 hell-hole | fire:0-46,up:54-74,right:54-74,fire:77-122,down:122-187,fire:199-209,up:212-265,up:275-295,p2up:2-81,p2up:82-159,p2fire:176-193,p2up:203-280,p2right:287-299 | 300 | --level 45 --two
+# door-run: a door's run goes with it (its code kept apart from the redraw's scratch)
+door-run | right:0-19,fire:26-69,down:26-69,left:84-117,right:124-170,fire:124-170,right:180-221,up:180-221,fire:229-257,left:229-257,down:269-299 | 300 | --level 5
+# p1-dies: player 1's strength runs out in a two-player game; GAME OVER, then play on
+p1-dies      | up:5-40,p2right:10-60            | 150 | --two --poke 2:0xBA52:2,2:0xBA53:0

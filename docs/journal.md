@@ -271,3 +271,11 @@ transcription had smoothed over or got wrong:
 They're in `tests/scenarios.txt` now. The panel's screen comparison also
 needed the panel's own colour map: on a level whose floor is blue, the
 logo's paper looked wrong to it.
+
+Seven more seeds of fuzzing (84 scenarios) found one more: a door's run
+didn't go with it, because `door_run` kept the door's code in `ra2`, which
+the redraw uses as scratch; `push_rock` had the same hazard. Both have
+their own variables now, and a scenario. Another checks a player's death
+in a two-player game: GAME OVER, then play on with the other, screens and
+all. The password route works on the release disc (SNOW starts level 5,
+its password shown).
