@@ -12,10 +12,11 @@ VIEW_LEFT = 8               ; the view's first screen column (the panel's left o
     ZA_AUTO1 col
     ZA_AUTO1 row
     \ &C574: the map's cell at the view's origin: map + 32 * (row / 2) +
-    \ column / 2, the row's bits shifted as the original's are
-    LDA ViewOrigin : LSR A : LSR A : LSR A : LSR A
-    CLC : ADC #HI(map) : STA cell+1
-    LDA ViewOrigin : ASL A : ASL A : ASL A : ASL A : AND #&E0 : STA cell
+    \ column / 2, the row's nibbles as map_cell takes them
+    LDY ViewOrigin
+    LDA lo_nibble,Y : AND #&E0 : STA cell       ; (the tile row's low three bits, times 32)
+    LDA hi_nibble,Y : AND #3
+    CLC : ADC #HI(map) : STA cell+1             ; (its top two)
     LDA ViewOrigin+1 : LSR A : AND #&1F : ORA cell : STA cell
     LDA #0 : STA row
 .rows
@@ -28,7 +29,7 @@ VIEW_LEFT = 8               ; the view's first screen column (the panel's left o
 .c
     LDA col : CLC : ADC #2 : STA col
     CMP #SCREEN_COLS : BCC cols
-    LDA cell : CLC : ADC #32 - 12 : STA cell
+    LDA cell : ADC #32 - 12 - 1 : STA cell      ; (C set: the CMP)
     BCC c2 : INC cell+1
 .c2
     LDA row : CLC : ADC #2 : STA row
