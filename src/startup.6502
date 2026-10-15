@@ -18,6 +18,7 @@ ENDIF
     LDA DATA_BANK_ZP : STA romshad : STA romsel
     JSR init_system
     JSR cls
+    JSR draw_panel
 IF DEFINED(VIEWCHECK)
     JMP view_check
 ENDIF

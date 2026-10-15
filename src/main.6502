@@ -38,6 +38,9 @@ SECTION Data, org = &8000, load = &FFFF3000, filename = "NDATA", guard = &C000
 .levels
     INCBIN "data/levels.bin"
     INCLUDE "data/levels.6502"
+    \ The status panel, drawn once (panel.6502)
+.panel
+    INCBIN "data/panel.bin"
 .data_end
     PRINT "sideways data &8000-&", ~data_end, " (", &C000 - data_end, " bytes free)"
 ENDSECTION
@@ -71,6 +74,7 @@ SECTION Code, org = &1900, load = &FFFF1900, exec = &FFFF0000 + start, filename 
     INCLUDE "level.6502"
     INCLUDE "view.6502"
     INCLUDE "colour.6502"
+    INCLUDE "panel.6502"
     INCLUDE "tables.6502"
     \ Data from the original (tools/mkgfx.py, tools/mklevels.py)
 .blocks

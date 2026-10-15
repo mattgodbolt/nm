@@ -1,0 +1,66 @@
+\ ***************************************************************************
+\ The status panel: the screen's left 8 columns. The original never draws
+\ it: it keeps the loading screen's (docs/research.md). The port draws it
+\ once, from panel.bin (tools/mkgfx.py), in colours that don't change with
+\ the level (decision 5): yellow as yellow, black as black, any other in
+\ logical 3.
+\ ***************************************************************************
+
+PANEL_COLS = 8
+
+.draw_panel
+{
+    ZA_AUTO2 src
+    ZA_AUTO2 dst
+    ZA_AUTO2 attr
+    ZA_AUTO1 col
+    ZA_AUTO1 pmask
+    ZA_AUTO1 ppaper
+    LDA #LO(panel) : STA src
+    LDA #HI(panel) : STA src+1
+    LDA #LO(panel + PANEL_COLS * 192) : STA attr
+    LDA #HI(panel + PANEL_COLS * 192) : STA attr+1
+    LDA #LO(screen) : STA dst
+    LDA #HI(screen) : STA dst+1
+.row
+    LDA #0 : STA col
+.cell
+    \ the cell's colours, from its attribute
+    LDY col : LDA (attr),Y : PHA
+    LSR A : LSR A : LSR A : AND #7 : TAX
+    LDA panel_ink,X : STA ppaper
+    PLA : AND #7 : TAX
+    LDA panel_ink,X : EOR ppaper : STA pmask
+    \ its 8 lines: line y's byte is at src + 8y + col
+    LDX #0
+.line
+    TXA : ASL A : ASL A : ASL A : ORA col : TAY
+    LDA (src),Y : STA tmp
+    \ the screen: dst + col * 16 + line (+8 for the right half)
+    LDA col : ASL A : ASL A : ASL A : ASL A : STA off
+    TXA : ORA off : TAY
+    LDA tmp : PHA : TAX : LDA hi_nibble,X : AND pmask : EOR ppaper : STA (dst),Y
+    TYA : ORA #8 : TAY
+    PLA : TAX : LDA lo_nibble,X : AND pmask : EOR ppaper : STA (dst),Y
+    TYA : AND #7 : TAX
+    INX : CPX #8 : BNE line
+    INC col : LDA col : CMP #PANEL_COLS : JNE cell
+    \ the next character row
+    LDA src : CLC : ADC #PANEL_COLS * 8 : STA src
+    BCC s : INC src+1
+.s
+    LDA attr : CLC : ADC #PANEL_COLS : STA attr
+    BCC a : INC attr+1
+.a
+    INC dst+1 : INC dst+1
+    BMI done                    ; (past the top of RAM: the last row done)
+    JMP row
+.done
+    RTS
+    ZA_AUTO1 tmp
+    ZA_AUTO1 off
+}
+
+\ Each Spectrum colour's MODE 1 byte in the panel.
+.panel_ink
+    EQUB cbyte(0), cbyte(3), cbyte(3), cbyte(3), cbyte(3), cbyte(3), cbyte(1), cbyte(3)
