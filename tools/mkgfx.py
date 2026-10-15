@@ -7,9 +7,12 @@ From the 48K load (build/nm48.z80, make zx). They stay one bit a pixel, as
 the original's are: the port colours them as it draws, as the original's
 attributes do (docs/research.md).
 
-- blocks.bin: the 192 graphics blocks at &DD00, 16 x 16, 32 bytes each,
-  two bytes a pixel line, top line first (the drawer at &C5FC: block n at
-  &DD00 + 32n)
+- blocks.bin: the 192 graphics blocks at &DD00, 16 x 16, 32 bytes each
+  (the drawer at &C5FC: block n at &DD00 + 32n). The original's are two
+  bytes a pixel line, top line first; here each block is its four 8 x 8
+  quarters, eight lines each, top left, top right, bottom left, bottom
+  right, so the port's drawer reads a line of all four with one index
+  (view.6502's draw_block_at)
 - font.bin: the font at &F500, 8 bytes a character from code 32 (the
   print routine indexes it from &F400, 8 bytes a code)
 - tileattr.bin: each tile type's attribute, &FF02 (40 bytes)
@@ -42,7 +45,13 @@ def main():
             f.write(bytes(data))
         print(f"{OUT}/{name}: {len(data)} bytes")
 
-    write("blocks.bin", m[0xDD00:0xF500])
+    blocks = bytearray()
+    for n in range(192):
+        block = m[0xDD00 + 32 * n:0xDD00 + 32 * n + 32]
+        for half in (0, 16):
+            for side in (0, 1):
+                blocks += bytes(block[half + 2 * line + side] for line in range(8))
+    write("blocks.bin", blocks)
     write("font.bin", m[0xF500:0xF6EE - (0xF6EE - 0xF500) % 8])
     write("tileattr.bin", m[0xFF02:0xFF2A])
     write("passwords.bin", m[0xFF62:0xFF8A])
