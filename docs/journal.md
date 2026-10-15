@@ -94,3 +94,11 @@ stars, and the monsters and items (`disasm/*.ctl`, `docs/research/`).
   two-digit number (&DB83) are transcribed, and with them the level's
   title screen (&C1A6, &C34F): NINJA MASSACRE, "LEVEL nn", and the pause,
   as a wait of the frames the original's loop took (decision 9).
+
+A slip: that commit went in with `make check` failing, because the
+command piped the check's output into `tail`, which succeeded. The test
+build warned (the title code was unreachable in it), `tools/asm.sh` failed
+the build after baron had written the disc, and the next run took that
+disc as up to date. Now the Makefile has `.DELETE_ON_ERROR`, the check's
+build runs each level's title too, and the check runs with its own exit
+status read.

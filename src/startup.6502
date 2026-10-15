@@ -21,7 +21,7 @@ ENDIF
     JSR draw_panel
 IF DEFINED(VIEWCHECK)
     JMP view_check
-ENDIF
+ELSE
     LDA #1 : STA seed
     LDA #START_LEVEL
     PHA : JSR level_colours : PLA
@@ -30,11 +30,12 @@ ENDIF
     JSR draw_view
 .idle
     JMP idle
+ENDIF
 }
 
 IF DEFINED(VIEWCHECK)
-\ The view check's build (tools/viewcheck.mjs): every level's first view,
-\ one after another, the random generator seeded as tools/zxviews.py
+\ The view check's build (tools/viewcheck.mjs): every level's title and
+\ first view, one after another, the random generator seeded as tools/zxviews.py
 \ seeds the original's. The tool dumps the screen at view_done.
 VIEW_SEED = 1
 .view_check
@@ -43,6 +44,7 @@ VIEW_SEED = 1
     PHA
     LDA #VIEW_SEED : STA seed
     PLA : PHA : JSR level_colours
+    PLA : PHA : JSR level_intro
     PLA : PHA : JSR level_load
     JSR draw_view
 .view_done

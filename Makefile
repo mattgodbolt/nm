@@ -28,6 +28,10 @@ TAPE     = original/Ninja Massacre (1989)(Code Masters)(48K-128K)[a].tzx
 # commit, with + if the tree had changes.
 BUILD   := $(shell date -u '+%Y-%m-%d %H:%M UTC') $(shell git rev-parse --short HEAD 2>/dev/null || echo NOGIT)$(shell git diff --quiet HEAD -- . 2>/dev/null || echo +)
 
+# A failed step leaves no half-made target behind (asm.sh fails on a
+# warning after baron has written the disc).
+.DELETE_ON_ERROR:
+
 .PHONY: all run check views fetch zx disasm venv music clean
 
 all: $(TARGET)
