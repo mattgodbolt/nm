@@ -1,16 +1,20 @@
 \ ***************************************************************************
-\ Tables. A byte of one-bit pixels becomes two MODE 1 bytes in colour 3:
+\ Tables, made at start-up in the OS workspace the game takes (decision
+\ 20). A byte of one-bit pixels becomes two MODE 1 bytes in colour 3:
 \ hi_nibble from its left four pixels, lo_nibble from its right four.
 \ MODE 1 keeps a pixel's two bits in bits 7 and 3 (the leftmost) down to 4
 \ and 0, so four one-bit pixels n make n * &11.
 \ ***************************************************************************
 
-    ALIGN &100
-.hi_nibble
-FOR b = 0..255
-    EQUB (b DIV 16) * &11
-NEXT
-.lo_nibble
-FOR b = 0..255
-    EQUB (b AND 15) * &11
-NEXT
+.make_tables
+{
+    LDX #0
+.next
+    TXA : AND #&0F : STA tmp : ASL A : ASL A : ASL A : ASL A : ORA tmp
+    STA lo_nibble,X
+    TXA : AND #&F0 : STA tmp : LSR A : LSR A : LSR A : LSR A : ORA tmp
+    STA hi_nibble,X
+    INX : BNE next
+    RTS
+    ZA_AUTO1 tmp
+}

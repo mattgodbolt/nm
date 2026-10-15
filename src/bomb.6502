@@ -1,0 +1,89 @@
+\ ***************************************************************************
+\ The smart bomb (&C4B0-&C54A; docs/research/core.md): a scroll's magic.
+\ ***************************************************************************
+
+BOMB_JACKPOT = 6                ; below this (random), the whole map changes (&C4B2)
+BOMB_FLASHES = 8                ; the floor's paper flashes this many times (&C4D8)
+T_TEA      = &0E
+
+\ &C4B0 SmartBomb: one time in about 43 (random below 6), every monster in
+\ the map becomes a locked chest, and every other thing from &20 tea.
+\ Otherwise the monsters and trap doors (not hell holes) in the scan's area
+\ (the view and a tile's margin) go. Then the floor flashes eight times,
+\ with a sweep of clicks each.
+.smart_bomb
+{
+    JSR random : CMP #BOMB_JACKPOT : BCS area
+    JMP bomb_jackpot
+.area
+    LDA #0 : STA rc
+    JSR scan_start
+    STA rows
+.row
+    LDA #SCAN_COLS : STA cols
+.tile
+    LDY #0 : LDA (rhl),Y
+    CMP #T_TRAP : BCC next
+    CMP #T_MONSTER : BCS monster
+    AND #7 : CMP #7 : BEQ next
+    LDA #0 : STA (rhl),Y
+    JMP next
+.monster
+    \ &C515 BombMonster: its four cells cleared
+    LDA rl : PHA : LDA rh : PHA
+    JSR cell_pos
+    LDY #0 : LDA (rhl),Y : AND #2 : BEQ r : INC rb
+.r
+    LDA (rhl),Y : AND #1 : BEQ c : INC rc
+.c
+    LDA #0 : STA MapStamp
+    JSR fill_cells
+    PLA : STA rh : PLA : STA rl
+.next
+    INC rl : BNE n : INC rh
+.n
+    DEC cols : BNE tile
+    LDA rl : CLC : ADC #&12 : STA rl
+    BCC m : INC rh
+.m
+    DEC rows : BNE row
+    \ (fall into bomb_flash)
+}
+
+\ &C4D8 BombFlash: the floor's paper colour + 1, eight times, the view
+\ redrawn and the sound each time; then the floor as it was.
+.bomb_flash
+{
+    LDA #BOMB_FLASHES : STA flashes
+.flash
+    LDA TileAttrs : CLC : ADC #8 : STA TileAttrs
+    JSR draw_view
+    JSR bomb_sound
+    DEC flashes : BNE flash
+    LDA TileAttrs : AND #7 : STA TileAttrs
+    RTS
+    ZA_AUTO1 flashes
+}
+
+\ &C531 BombJackpot: every monster's cell (from &7F) a locked chest, every
+\ other from &20 tea, and redrawn.
+.bomb_jackpot
+{
+    LDA #LO(map) : STA rl : LDA #HI(map) : STA rh
+.next
+    LDY #0 : LDA (rhl),Y
+    CMP #T_TRAP : BCC skip
+    TAX
+    LDA #T_CHEST
+    CPX #T_MARKER : BCS put
+    LDA #T_TEA
+.put
+    STA (rhl),Y
+    JSR redraw_cell
+.skip
+    INC rl : BNE next
+    INC rh : LDA rh : CMP #HI(map) + 4 : BNE next
+    JMP bomb_flash
+}
+ZA_AUTO1 rows
+ZA_AUTO1 cols

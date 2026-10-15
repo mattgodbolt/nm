@@ -23,6 +23,7 @@ ENDIF
     STA &00,X
     DEX : BPL zp
     JSR music_init                  ; (before the interrupt plays it)
+    JSR make_tables
     JSR init_system
     JSR cls
     JSR draw_panel

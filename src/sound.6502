@@ -1,0 +1,205 @@
+\ ***************************************************************************
+\ The game's sound effects: the original's beeper sounds on the SN76489
+\ (decision 19). Each holds mu_busy for its whole length, so the music
+\ (music.6502) leaves the chip alone, and takes as long as the original's
+\ did, the game waiting, as the original's beeper loops make it.
+\ Afterwards the music writes its whole state again (music_dirty).
+\
+\ The Spectrum's T-states become microseconds at 3.5469 MHz, the 128K's:
+\ each effect's loop is timed by the User VIA's T2.
+\ ***************************************************************************
+
+SN_TONE1   = &A0                ; latch: tone channel 1's period (its low four bits)
+SN_VOL1    = &B0                ; tone channel 1's attenuation
+SN_NOISE   = &E0                ; the noise's control
+SN_VOLN    = &F0                ; the noise's attenuation
+SN_LOUD    = 0
+SN_OFF     = 15
+NOISE_WHITE_FAST = 4            ; white noise, the fastest fixed rate
+
+\ T-states (the 128K's) as microseconds, times 256: for the effects' loops.
+FUNCTION us(t) = (t * 1000 + 1773) DIV 3547
+US_PER_T_256 = (256 * 1000 + 1773) DIV 3547
+
+\ Start an effect: the music off the chip.
+.effect_start
+    INC mu_busy
+    RTS
+
+\ End it: silence the effect's channels, the music back on the chip.
+.effect_end
+    LDA #SN_VOL1 OR SN_OFF : JSR mu_write_game
+    LDA #SN_VOLN OR SN_OFF : JSR mu_write_game
+    DEC mu_busy
+    JMP music_dirty
+
+\ A to the chip, with mu_busy held (the effect's).
+.mu_write_game
+{
+    PHA
+    LDA #&0B : STA sysvia_orb       ; the keyboard on auto-scan
+    LDA #&FF : STA sysvia_ddra
+    PLA
+    JMP mu_write
+}
+
+\ Tone channel 1 at SN period X (10 bits: X the low eight, A the top two).
+.tone1
+{
+    STA tmp
+    TXA : AND #&0F : ORA #SN_TONE1 : JSR mu_write_game
+    TXA : LSR A : LSR A : LSR A : LSR A : STA ra2
+    LDA tmp : ASL A : ASL A : ASL A : ASL A : ORA ra2
+    JMP mu_write_game
+    ZA_AUTO1 tmp
+}
+
+\ Wait YX microseconds (Y the high byte), by the User VIA's T2.
+.wait_us
+{
+    STX usrvia_t2cl : STY usrvia_t2ch
+.wait
+    LDA usrvia_ifr : AND #&20 : BEQ wait
+    LDA usrvia_t2cl                 ; (acknowledges it)
+    RTS
+}
+
+\ A half-cycle of A x 16 + 37 T-states (the throw's and the bomb's loops,
+\ &C50A-&C512 and &C4FB-&C504): tone channel 1 at that half-period, for
+\ that long. (An SN period is a quarter of a half-cycle in microseconds:
+\ 4 MHz / 32 / (2 x half-cycle).)
+.half_cycle
+{
+    \ microseconds = (16A + 37) x 1000 / 3547: about 4.51A + 10.4
+    STA n
+    LDA #0 : STA us_hi
+    LDA n : ASL A : ROL us_hi : ASL A : ROL us_hi : STA us_lo    ; 4A
+    LDA n : LSR A : CLC : ADC us_lo : STA us_lo                  ; + A/2
+    BCC c : INC us_hi
+.c
+    LDA us_lo : CLC : ADC #10 : STA us_lo
+    BCC d : INC us_hi
+.d
+    \ the SN period: a quarter of it
+    LDA us_hi : LSR A : STA ra2 : LDA us_lo : ROR A : LSR ra2 : ROR A
+    TAX : LDA ra2
+    JSR tone1
+    LDA #SN_VOL1 OR SN_LOUD : JSR mu_write_game
+    LDX us_lo : LDY us_hi
+    JMP wait_us
+    ZA_AUTO1 n
+    ZA_AUTO1 us_lo
+    ZA_AUTO1 us_hi
+}
+
+\ &C508: the throw's chirp: A half-cycles, each 16 T-states shorter.
+.chirp
+{
+    STA count
+    JSR effect_start
+.next
+    LDA count : JSR half_cycle
+    DEC count : BNE next
+    JMP effect_end
+    ZA_AUTO1 count
+}
+
+\ &C4F5 BombSound: 128 half-cycles growing, then 128 shrinking.
+BOMB_CLICKS = &80
+.bomb_sound
+{
+    JSR effect_start
+    LDA #1 : STA count
+.up
+    LDA count : JSR half_cycle
+    INC count : LDA count : CMP #BOMB_CLICKS + 1 : BNE up
+    LDA #BOMB_CLICKS : STA count
+.down
+    LDA count : JSR half_cycle
+    DEC count : BNE down
+    JMP effect_end
+    ZA_AUTO1 count
+}
+
+\ &CC8D: the step's click, the speaker on for 18 T-states: a step of
+\ tone channel 1 at period 1, which the SN holds as a level.
+CLICK_US = 20
+.click
+    JSR effect_start
+    LDX #1 : LDA #0 : JSR tone1
+    LDA #SN_VOL1 OR SN_LOUD : JSR mu_write_game
+    LDX #CLICK_US : LDY #0 : JSR wait_us
+    JMP effect_end
+
+\ &C8C4 HitNoise: A segments of noise, each on or off at random, held
+\ (random, 0 meaning 256) x 24 T-states. &CEED NoiseBurst: the same at 27
+\ T-states a count. The randomness is the sound's own (noise_random), not
+\ the game's (decision 7).
+.hit_noise
+    LDX #24
+    JMP noise
+.noise_burst
+    LDX #27
+.noise
+{
+    STA count : STX unit
+    JSR effect_start
+    LDA #SN_NOISE OR NOISE_WHITE_FAST : JSR mu_write_game
+.next
+    JSR noise_random : AND #&10 : BEQ off
+    LDA #SN_VOLN OR SN_LOUD
+    JMP set
+.off
+    LDA #SN_VOLN OR SN_OFF
+.set
+    JSR mu_write_game
+    \ held: count x unit T-states, as microseconds (x 256 / 907)
+    JSR noise_random : STA len
+    LDA unit : LDX len : JSR mul8          ; T-states, in t_hi:t_lo
+    \ microseconds: T-states x 1000 / 3547, about x 9/32
+    LDA t_lo : STA us_lo : LDA t_hi : STA us_hi
+    LSR us_hi : ROR us_lo : LSR us_hi : ROR us_lo           ; /4
+    LDA us_lo : LSR A : LSR A : LSR A : STA ra2              ; + /32
+    LDA us_lo : CLC : ADC ra2 : TAX
+    LDA us_hi : ADC #0 : TAY
+    JSR wait_us
+    DEC count : BNE next
+    JMP effect_end
+    ZA_AUTO1 count
+    ZA_AUTO1 unit
+    ZA_AUTO1 len
+    ZA_AUTO1 us_lo
+    ZA_AUTO1 us_hi
+}
+
+\ t_hi:t_lo = A x X (X = 0 meaning 256).
+.mul8
+{
+    STA m : STX k
+    LDA #0 : STA t_lo : STA t_hi
+    LDX #8
+.bit
+    ASL t_lo : ROL t_hi
+    ASL k : BCC no
+    LDA t_lo : CLC : ADC m : STA t_lo
+    BCC no : INC t_hi
+.no
+    DEX : BNE bit
+    LDA k : BNE done
+    \ (X was 0: 256 x A)
+.done
+    RTS
+    ZA_AUTO1 m
+    ZA_AUTO1 k
+}
+ZA_AUTO1 t_lo
+ZA_AUTO1 t_hi
+
+\ The sounds' own random numbers (an 8-bit generator, as random's).
+.noise_random
+{
+    LDA noise_seed : ASL A : BCC n : EOR #&1D
+.n
+    STA noise_seed
+    RTS
+}

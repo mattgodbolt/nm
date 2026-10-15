@@ -29,26 +29,6 @@ SECTION Loader, org = &7000, load = &FFFF7000, exec = &FFFF0000 + loader, filena
     INCLUDE "loader.6502"
 ENDSECTION
 
-\ What goes in sideways RAM (decision 6): loaded at &3000 and copied to
-\ the bank, which the game pages in for good.
-SECTION Data, org = &8000, load = &FFFF3000, filename = "NDATA", guard = &C000
-.data_magic
-    EQUS DATA_MAGIC
-    \ The levels (tools/mklevels.py)
-.levels
-    INCBIN "data/levels.bin"
-    INCLUDE "data/levels.6502"
-    \ The status panel, drawn once (panel.6502)
-.panel
-    INCBIN "data/panel.bin"
-    \ The music's songs (music.6502, tools/mkmusic.py)
-.music_data
-    INCLUDE "data/music.6502"
-.music_data_end
-    PRINT "music's songs: ", music_data_end - music_data, " bytes"
-.data_end
-    PRINT "sideways data &8000-&", ~data_end, " (", &C000 - data_end, " bytes free)"
-ENDSECTION
 
 \ The game's own state that lasts: fixed zero page (not baron's pool,
 \ which is the rest of zero page up to DATA_BANK_ZP). The original's
@@ -107,9 +87,11 @@ ENDSECTION
 \ OS workspace the game takes once it owns the machine (decision 11): the
 \ language's pages, and the sound and buffer pages, whose interrupts are
 \ stopped (install_irq).
-SECTION Work, org = &0400, guard = &0D00, virtual = TRUE
+SECTION Work, org = &0400, guard = &0D9F, virtual = TRUE
 .map        SKIP 32 * 32    ; the level being played (the original's &BC00)
 .attrs      SKIP SCREEN_ROWS * SCREEN_COLS  ; the original's attributes (&5800, text.6502)
+.hi_nibble  SKIP &100       ; tables.6502, made at start-up
+.lo_nibble  SKIP &100
 .ink_mask   SKIP 8          ; each Spectrum ink's MODE 1 byte (colour.6502)
     \ The music's driver (music.6502): what the original keeps in bank 1
 .mu_voices  SKIP 3 * MU_VOICE   ; the voices (&C069, &C08A, &C0AB)
@@ -127,7 +109,7 @@ SECTION Work, org = &0400, guard = &0D00, virtual = TRUE
 .mu_sn_noise SKIP 1         ; the noise's register
 .mu_bass    SKIP 3          ; octaves each tone went up to fit (decision 12)
 ENDSECTION
-    ASSERT LO(map) = 0 AND LO(attrs) = 0
+    ASSERT LO(map) = 0 AND LO(attrs) = 0 AND LO(hi_nibble) = 0
 
 \ NINJA loads at &1900, above the DFS's workspace, and the loader copies
 \ it down to CODE_BASE (loader.6502).
@@ -139,21 +121,14 @@ SECTION Code, org = CODE_BASE, load = &FFFF0000 OR CODE_LOAD, exec = &FFFF0000 +
     INCLUDE "startup.6502"
     INCLUDE "irq.6502"
     INCLUDE "screen.6502"
-    INCLUDE "unpack.6502"
-    INCLUDE "level.6502"
     INCLUDE "view.6502"
     INCLUDE "sprite.6502"
     INCLUDE "mapcell.6502"
-    INCLUDE "colour.6502"
-    INCLUDE "panel.6502"
-    INCLUDE "text.6502"
-    INCLUDE "game.6502"
     INCLUDE "keys.6502"
     INCLUDE "player.6502"
     INCLUDE "touch.6502"
     INCLUDE "monsters.6502"
     INCLUDE "stars.6502"
-    INCLUDE "status.6502"
     INCLUDE "shift.6502"
     INCLUDE "spread.6502"
     INCLUDE "songs.6502"
@@ -171,8 +146,6 @@ SECTION Code, org = CODE_BASE, load = &FFFF0000 OR CODE_LOAD, exec = &FFFF0000 +
 .tileattr
 TileAttrs = tileattr          ; (the original's &FF02)
     INCBIN "data/tileattr.bin"
-.font
-    INCBIN "data/font.bin"
 .title_attr
     INCBIN "data/titleattr.bin"
     \ The original's variables, as the tape leaves them (tools/mkvars.py)
@@ -183,4 +156,39 @@ TileAttrs = tileattr          ; (the original's &FF02)
     INCLUDE "data/vars.6502"
 .code_end
     PRINT "code &", ~code_start, "-&", ~code_end, " (", screen - code_end, " bytes free below the screen)"
+ENDSECTION
+
+\ What goes in sideways RAM (decision 6): loaded at &3000 and copied to
+\ the bank, which the game pages in for good.
+SECTION Data, org = &8000, load = &FFFF3000, filename = "NDATA", guard = &C000
+.data_magic
+    EQUS DATA_MAGIC
+    \ The levels (tools/mklevels.py)
+.levels
+    INCBIN "data/levels.bin"
+    INCLUDE "data/levels.6502"
+    \ The status panel, drawn once (panel.6502)
+.panel
+    INCBIN "data/panel.bin"
+    \ The music's songs (music.6502, tools/mkmusic.py)
+.music_data
+    INCLUDE "data/music.6502"
+.music_data_end
+    PRINT "music's songs: ", music_data_end - music_data, " bytes"
+    \ Code that needn't be in main RAM (decision 20): the bank is paged in
+    \ for good, so code runs from it as well as from main RAM.
+.banked_code
+    INCLUDE "unpack.6502"
+    INCLUDE "level.6502"
+    INCLUDE "colour.6502"
+    INCLUDE "panel.6502"
+    INCLUDE "text.6502"
+    INCLUDE "game.6502"
+    INCLUDE "status.6502"
+.font
+    INCBIN "data/font.bin"
+.banked_code_end
+    PRINT "code in the bank: ", banked_code_end - banked_code, " bytes"
+.data_end
+    PRINT "sideways data &8000-&", ~data_end, " (", &C000 - data_end, " bytes free)"
 ENDSECTION
