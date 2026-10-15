@@ -32,3 +32,5 @@ past-the-map | right:2-24,down:2-24,up:43-76,down:43-76,right:93-122,left:140-17
 # scroll-down and scroll-up: the view slides vertically
 scroll-down  | down:5-200 | 200 | --level 2
 scroll-up    | up:5-200   | 200 | --level 31
+# rock-push: a pushed rock's old cell cleared (a Y the redraw had changed)
+rock-push | right:1-70,left:1-70,down:72-142,right:143-151,down:158-204,right:212-258,down:212-258,fire:273-308,down:311-329,fire:335-352,down:356-365,right:381-393,right:408-481,down:487-535,left:536-599,magic:546 | 600 | --level 27 --poke 1:0xba5a:3

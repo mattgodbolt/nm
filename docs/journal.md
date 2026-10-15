@@ -299,3 +299,8 @@ monster scan reads one tile past its map, which is its own code at &C000:
 &31 there is a trap door to it. The port keeps that byte after its map
 (decision 23); `map_cell` now adds the map's page instead of ORing it, so
 the map needn't sit on a four-page boundary.
+
+Eight more 600-pass fuzz seeds: games that ended now end both logs at
+the same pass, and one difference turned up, mine: a pushed rock's old
+cell was cleared through a Y the redraw had changed, leaving two rocks.
+Fixed, with a scenario.

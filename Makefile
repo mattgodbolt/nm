@@ -7,6 +7,7 @@
 #   make views    every level's first view, against the original's
 #   make passes   tests/scenarios.txt on both, compared pass by pass
 #   make fuzz     random scenarios on both (SEED=n COUNT=n)
+#   make disc     the release disc from a clean tree, as ninja-massacre.ssd
 #   make music    the music's 6502 driver against the original's, every
 #                 song frame by frame, and the sound chip's bytes
 #   make fetch    download the Spectrum original into original/
@@ -30,13 +31,13 @@ SOURCES  = $(wildcard src/*.6502 src/data/*)
 TAPE     = original/Ninja Massacre (1989)(Code Masters)(48K-128K)[a].tzx
 # Stamped into !BOOT, so a disc says what it is: UTC build time and the
 # commit, with + if the tree had changes.
-BUILD   := $(shell date -u '+%Y-%m-%d %H:%M UTC') $(shell git rev-parse --short HEAD 2>/dev/null || echo NOGIT)$(shell git diff --quiet HEAD -- . 2>/dev/null || echo +)
+BUILD   := $(shell date -u '+%Y-%m-%d %H:%M UTC') $(shell git rev-parse --short HEAD 2>/dev/null || echo NOGIT)$(shell git diff --quiet HEAD -- . ':(exclude)ninja-massacre.ssd' 2>/dev/null || echo +)
 
 # A failed step leaves no half-made target behind (asm.sh fails on a
 # warning after baron has written the disc).
 .DELETE_ON_ERROR:
 
-.PHONY: all run check views passes fuzz music fetch zx disasm venv music-disc clean
+.PHONY: all run check views passes fuzz disc music fetch zx disasm venv music-disc clean
 
 all: $(TARGET) $(TEST)
 
@@ -60,6 +61,15 @@ build/viewcheck.ssd: $(SOURCES) | build
 # tests/scenarios.txt on both machines, compared pass by pass.
 passes: $(TEST) build/nm48.z80
 	PASSDIR=build/passes-$(MODEL) tools/passcheck.sh
+
+# The release disc, from a clean tree (so its stamp names the commit),
+# copied to ninja-massacre.ssd, which the README links.
+DISC = ninja-massacre.ssd
+disc:
+	@git diff --quiet HEAD -- . ':(exclude)$(DISC)' || { echo "commit first: the stamp would say +"; exit 1; }
+	rm -f $(TARGET)
+	$(MAKE) $(TARGET)
+	cp $(TARGET) $(DISC)
 
 # Random scenarios on both (tools/fuzz.py): COUNT of them from SEED.
 SEED  ?= 1
