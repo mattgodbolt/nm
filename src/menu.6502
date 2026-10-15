@@ -174,10 +174,10 @@ MENU_SWAPS = MENU_SETTLE_FRAMES DIV FLASH_FRAMES
     LDA MenuColour : EOR #MENU_SWAP : STA MenuColour
     \ its paper and ink as the BBC's colours
     PHA : LSR A : LSR A : LSR A : AND #7 : TAX
-    LDA zx_to_bbc,X : STA menu_phys + 2
+    LDA zx_to_bbc,X : STA pal_phys + 2
     PLA : AND #7 : TAX
-    LDA zx_to_bbc,X : STA menu_phys + 3
-    JMP set_palette
+    LDA zx_to_bbc,X : STA pal_phys + 3
+    JMP load_palette
 }
 
 \ Rows 4-23 of the playfield repainted for the flash: their paper in
@@ -216,31 +216,21 @@ MENU_SWAPS = MENU_SETTLE_FRAMES DIV FLASH_FRAMES
 }
 MENU_COLOUR0 = &0E              ; yellow on blue (&BA76's first)
 
-\ The menu's colours (decision 21): black, yellow, the flashing paper
-\ (blue, then red), the flashing ink (yellow, then white); A the
-\ attribute the playfield is cleared to.
+\ The menu's colours (decision 21): black, yellow (as pal_phys keeps
+\ them), the flashing paper (blue, then red), the flashing ink (yellow,
+\ then white).
 .menu_palette
 {
     LDX #7
 .inks
     LDA menu_inks,X : STA ink_mask,X
     DEX : BPL inks
-    LDA #MENU_PAPER : STA menu_phys + 2
-    LDA #MENU_INK : STA menu_phys + 3
-    \ (fall into set_palette)
-}
-.set_palette
-{
-    LDX #3
-.phys
-    LDA menu_phys,X : STA pal_phys,X
-    DEX : BPL phys
+    LDA #MENU_PAPER : STA pal_phys + 2
+    LDA #MENU_INK : STA pal_phys + 3
     JMP load_palette
 }
 MENU_PAPER = 4                  ; BBC blue
 MENU_INK   = 3                  ; BBC yellow
-.menu_phys
-    EQUB 0, 3, MENU_PAPER, MENU_INK
 \ Each Spectrum colour's MODE 1 byte on the menu's screens.
 .menu_inks
     EQUB cbyte(0), cbyte(2), cbyte(2), cbyte(3), cbyte(3), cbyte(3), cbyte(1), cbyte(3)
@@ -289,7 +279,7 @@ MENU_INK   = 3                  ; BBC yellow
     JMP key
 .p1
     LDA #5 : LDX #0
-    JMP redefine
+    BEQ redefine                    ; (always)
 .p2
     LDA #4 : LDX #CONTROLS
 .redefine

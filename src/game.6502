@@ -120,20 +120,17 @@ ENDIF
     LDX #&0D : LDY #&0D : JSR print_at
     EQUS "PASSWORD..", 0
     PLA : TAX
-    LDY #PASSWORD_LEN
+    LDA #PASSWORD_LEN : STA left
 .pchar
-    TYA : PHA : TXA : PHA
-    LDA passwords,X : JSR print_char
-    PLA : TAX : INX : PLA : TAY
-    DEY : BNE pchar
+    LDA passwords,X : JSR print_char_x
+    INX
+    DEC left : BNE pchar
 .pause_start
     \ &C390: two counts of 65,536 round a 34 T-state loop, as frames
-    LDX #LEVEL_PAUSE
-.pause_frames
-    JSR wait_vsync
-    DEX : BNE pause_frames
+    LDA #LEVEL_PAUSE : JSR wait_frames
     PLA
     RTS
+    ZA_AUTO1 left
 }
 INTRO_ATTR  = 7             ; white on black (&C366)
 \ &C390-&C396: 2 x 65,536 x 34 T-states, at the 128K's 70,908 a frame
@@ -167,7 +164,7 @@ TITLE_W = 10
 .tens
     CMP #10 : BCC units
     SBC #10 : INX
-    JMP tens
+    BCS tens                        ; (always: no borrow)
 .units
     PHA : TXA : JSR print_char
     PLA : ORA #'0' : JMP print_char
