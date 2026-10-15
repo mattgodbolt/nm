@@ -78,18 +78,16 @@ OP_CMP_ABSY = &D9
     \ the screen: screen + row * &200 + col * 16, the right quarters 16
     \ on, the bottom a character row (&200) on; each line's second byte 8
     \ on from its first (col * 16 is a multiple of 16: no carry)
-    LDA dt_col : ASL A : ASL A : ASL A : ASL A
+    LDA dt_col : ASL A : ASL A : ASL A : ASL A           ; (C: col / 16, as col < 32)
     STA dst0+1 : STA dst2+1
     ORA #8 : STA dst0b+1 : STA dst2b+1
-    AND #&F0 : CLC : ADC #16
-    STA dst1+1 : STA dst3+1
-    ORA #8 : STA dst1b+1 : STA dst3b+1
-    LDA dt_col : LSR A : LSR A : LSR A : LSR A : STA bhi
-    LDA dt_row : ASL A : CLC : ADC bhi
-    ADC #HI(screen)                                     ; (C clear: the ADC above made at most &FF)
+    TAX
+    LDA dt_row : ROL A : CLC : ADC #HI(screen)          ; (row * 2 + col / 16)
     STA dst0+2 : STA dst0b+2
     CLC : ADC #2 : STA dst2+2 : STA dst2b+2             ; (row -1 wraps below the screen: only its bottom half shows)
-    LDA dst0+1 : CMP #&F0                               ; (C set if the right quarters are a page on)
+    TXA : CLC : ADC #8                                  ; (C set if the right quarters are a page on)
+    STA dst1+1 : STA dst3+1
+    ORA #8 : STA dst1b+1 : STA dst3b+1
     LDA dst0+2 : ADC #0 : STA dst1+2 : STA dst1b+2
     ADC #2 : STA dst3+2 : STA dst3b+2                   ; (C clear: the screen's pages are below &80)
     \ which quarters show: STA, or CMP. Most pictures show whole, as the
