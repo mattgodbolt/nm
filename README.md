@@ -1,40 +1,22 @@
 # Ninja Massacre on the BBC Micro
 
 A port of Codemasters' *Ninja Massacre* (ZX Spectrum, 1989; code and
-graphics by Adam Waring, music by David Whittaker) to the BBC Micro, in
-6502 assembly built with [baron](https://github.com/waitingforvsync/baron).
-It is run the way the
-[Chuckie Egg 2 port](https://github.com/mattgodbolt/chuckie-egg-2-beeb)
-was: the Spectrum original is the specification, it runs headless as an
-oracle, and the port is checked against it in a headless
-[jsbeeb](https://github.com/mattgodbolt/jsbeeb).
+graphics by Adam Waring, music by David Whittaker) to the BBC Micro.
 
-Where it has got to (`docs/journal.md` has the story):
+**[Play it in jsbeeb](https://bbc.xania.org/?autoboot&disc1=github:mattgodbolt/nm/ninja-massacre.ssd)**
+(a Model B with sideways RAM), or write `ninja-massacre.ssd` to a disc and
+SHIFT-BREAK. It needs 16K of sideways RAM, or a Master.
 
-- The whole game is transcribed: the levels and the view, the players,
-  touching and every item, the monsters, trap doors and the spreading
-  tile, the stars, the smart bomb, the status, the menu, the password,
-  the controls, game over, the high score and the game's end.
-- It plays the same as the original, pass for pass: `make passes` replays
-  scripted games on both and compares every variable, the map and the
-  screen; `make fuzz` does the same with random ones.
-- The music is David Whittaker's own driver, transcribed to 6502 and
-  playing the original's songs on the SN76489 (from the 128K version,
-  which is the specification for sound); the beeper's effects are played
-  on the SN76489 too.
-- It needs 16K of sideways RAM (or a Master). A stock-B edition is
-  considered in `docs/streaming.md`.
-- The colours are a first attempt (decisions 5 and 21 in
-  `docs/decisions.md`), to be looked at, and the scroll's slide is slower
-  than the original's (decision 22).
+| | |
+|---|---|
+| ![Level 1: fighting the monsters](docs/images/level1.png) | ![Level 10, two players](docs/images/level10-two.png) |
+| ![Level 37](docs/images/level37.png) | ![The menu](docs/images/menu.png) |
 
 ## Playing
 
-[Play it in jsbeeb](https://bbc.xania.org/?autoboot&disc1=github:mattgodbolt/nm/ninja-massacre.ssd)
-(a Model B with sideways RAM), or write `ninja-massacre.ssd` to a disc and
-SHIFT-BREAK: it starts at the menu (1 one player, 2 two, 3 the controls,
-4 a password). The keys, as the original's where the BBC has them
-(decision 13):
+It starts at the menu: 1 one player, 2 two, 3 the controls, 4 a
+password (one every fifth level, shown on its LEVEL screen). The keys, as
+the original's where the BBC has them (decision 13):
 
 | | Player 1 | Player 2 |
 |---|---|---|
@@ -45,6 +27,33 @@ SHIFT-BREAK: it starts at the menu (1 one player, 2 two, 3 the controls,
 
 The menu's 3 redefines them. In play, with CTRL and SHIFT held (the
 Spectrum's EXTEND MODE): T turns the music off or on, P pauses, Q quits.
+
+## How it was made
+
+It's in 6502 assembly built with
+[baron](https://github.com/waitingforvsync/baron), and run the way the
+[Chuckie Egg 2 port](https://github.com/mattgodbolt/chuckie-egg-2-beeb)
+was: the Spectrum original is the specification, it runs headless as an
+oracle, and the port is checked against it in a headless
+[jsbeeb](https://github.com/mattgodbolt/jsbeeb). `docs/journal.md` has
+the story.
+
+- The whole game is transcribed from the original's code: the levels and
+  the view, the players, touching and every item, the monsters, trap
+  doors and the spreading tile, the stars, the smart bomb, the status,
+  the menu, the password, the controls, game over, the high score and the
+  game's end.
+- It plays the same as the original, pass for pass: `make passes` replays
+  scripted games on both and compares every variable, the map and the
+  screen; `make fuzz` does the same with random ones.
+- The music is David Whittaker's own driver, transcribed to 6502 and
+  playing the original's songs on the SN76489 (from the 128K version,
+  which is the specification for sound); the beeper's effects are played
+  on the SN76489 too.
+- The colours are a first attempt (decisions 5 and 21 in
+  `docs/decisions.md`), and the scroll's slide is slower than the
+  original's (decision 22): open questions are in the issues.
+- A stock-B edition is considered in `docs/streaming.md`.
 
 The project began as a conversion of the game's music alone, which is
 still here: [`music/README.md`](music/README.md) tells that story, and
