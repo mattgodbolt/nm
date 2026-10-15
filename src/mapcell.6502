@@ -5,27 +5,29 @@
 \ ***************************************************************************
 
 \ &D569 MapCell: rhl = the map's tile at (rb, rc); A = its code, Z if
-\ empty. Y = 0. (Rows wrap within the map's 32, as the original's do.)
+\ empty. Y = 0; X is kept. (Rows wrap within the map's 32, as the
+\ original's do.) hi_nibble and lo_nibble (tables.6502) give rb's top and
+\ bottom nibbles without shifts: each holds its nibble in both halves.
 .map_cell
 {
-    LDA rb : AND #&3E
-    ASL A : ASL A : ASL A : ASL A : STA rl      ; (the tile row's low three bits, times 32)
-    LDA rb : AND #&30 : LSR A : LSR A : LSR A : LSR A
-    CLC : ADC #HI(map) : STA rh
+    LDY rb
+    LDA lo_nibble,Y : AND #&E0 : STA rl         ; (the tile row's low three bits, times 32)
+    LDA hi_nibble,Y : AND #3
+    CLC : ADC #HI(map) : STA rh                 ; (its top two)
     LDA rc : LSR A : AND #&1F : ORA rl : STA rl
     LDY #0 : LDA (rhl),Y
     RTS
 }
 
-
-\ &D117 CellPos: the position (rb, rc) of the map tile at rhl.
+\ &D117 CellPos: the position (rb, rc) of the map tile at rhl. X is kept.
+\ (rh past the map, as the scan's reach of map_tail gives, takes its low
+\ two bits only, as a 16-bit shift and the AND of rows would.)
 .cell_pos
 {
     LDA rl : ASL A : AND #&3E : STA rc
-    LDA rh : SEC : SBC #HI(map) : STA rb        ; (the tile row's top two bits)
-    LDA rl
-    LSR rb : ROR A : LSR rb : ROR A : LSR rb : ROR A : LSR rb : ROR A
-    AND #&3E : STA rb
+    LDY rl : LDA hi_nibble,Y : AND #&0E : STA rb    ; (the tile row's low three bits)
+    LDY rh : LDA lo_nibble - HI(map),Y : AND #&30   ; (its top two)
+    ORA rb : STA rb
     RTS
 }
 
@@ -64,10 +66,7 @@
 \ four are empty.
 .cells_free
 {
-    JSR map_cell : BNE done
-    INC rb : JSR map_cell : BNE done
-    INC rc : JSR map_cell : BNE done
-    DEC rb : JSR map_cell : BNE done
+    JSR cells_empty : BNE done
     DEC rc
     LDA #0
 .done
@@ -77,17 +76,16 @@
 \ &D181 RedrawCell: redraw the map tile at rhl, if it's in view.
 .redraw_cell
 {
-    LDA rl : PHA : LDA rh : PHA
     LDA rb : PHA : LDA rc : PHA                 ; (cell_pos sets BC: the original's callers keep their own)
     JSR cell_pos
-    JSR redraw_tile
+    JSR redraw_tile                             ; (which keeps rhl)
     PLA : STA rc : PLA : STA rb
-    PLA : STA rh : PLA : STA rl
     RTS
 }
 
 \ &D267 RedrawTile: redraw the map tile at rhl, whose position is (rb,
-\ rc), if it's in the view.
+\ rc), if it's in the view. (draw_cell keeps rb, rc and rhl, which the
+\ original pushes round it.)
 .redraw_tile
 {
     LDA rb : SEC : SBC ViewOrigin
@@ -95,15 +93,11 @@
     AND #&1E : TAX
     LDA rc : SEC : SBC ViewOrigin+1
     CMP #SCREEN_ROWS : BCS done                 ; (the view is 24 characters square)
-    AND #&1E : CLC : ADC #VIEW_LEFT : TAY
-    LDA rb : PHA : LDA rc : PHA
-    LDA rl : PHA : LDA rh : PHA
+    AND #&1E : ADC #VIEW_LEFT : TAY             ; (C clear: in the view)
     STY ra2
     LDY #0 : LDA (rhl),Y
     LDY ra2
-    JSR draw_cell
-    PLA : STA rh : PLA : STA rl
-    PLA : STA rc : PLA : STA rb
+    JMP draw_cell
 .done
     RTS
 }
