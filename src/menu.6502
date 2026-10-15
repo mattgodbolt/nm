@@ -105,18 +105,14 @@ MENU_SWAPS = MENU_SETTLE_FRAMES DIV FLASH_FRAMES
 {
     LDA #MENU_ATTR : JSR menu_palette
     LDA #MENU_ATTR : JSR title
-    LDX #9 : LDY #7 : JSR print_at
-    EQUS "WRITTEN BY ADAM WARING", 0
-    LDX #&0B : LDY #8 : JSR print_at
-    EQUS "TAG COMPUTER GAMES", 0
-    LDX #&0B : LDY #&0B : JSR print_at
-    EQUS "1  ONE PLAYER GAME", 0
-    LDX #&0B : LDY #&0D : JSR print_at
-    EQUS "2  TWO PLAYER GAME", 0
-    LDX #&0B : LDY #&0F : JSR print_at
-    EQUS "3  SELECT CONTROLS", 0
-    LDX #&0B : LDY #&11 : JSR print_at
-    EQUS "4  ENTER  PASSWORD", 0
+    JSR print_lines
+    EQUB 9, 7 : EQUS "WRITTEN BY ADAM WARING", 0
+    EQUB &0B, 8 : EQUS "TAG COMPUTER GAMES", 0
+    EQUB &0B, &0B : EQUS "1  ONE PLAYER GAME", 0
+    EQUB &0B, &0D : EQUS "2  TWO PLAYER GAME", 0
+    EQUB &0B, &0F : EQUS "3  SELECT CONTROLS", 0
+    EQUB &0B, &11 : EQUS "4  ENTER  PASSWORD", 0
+    EQUB PRINT_END
     \ the high score, its 0, and its name
     LDA #9 : STA PrintPos : LDA #&15 : STA PrintPos + 1
     LDA HighScore : STA rl : LDA HighScore + 1 : STA rh
@@ -174,10 +170,10 @@ MENU_SWAPS = MENU_SETTLE_FRAMES DIV FLASH_FRAMES
     LDA MenuColour : EOR #MENU_SWAP : STA MenuColour
     \ its paper and ink as the BBC's colours
     PHA : LSR A : LSR A : LSR A : AND #7 : TAX
-    LDA zx_to_bbc,X : STA menu_phys + 2
+    LDA zx_to_bbc,X : STA pal_phys + 2
     PLA : AND #7 : TAX
-    LDA zx_to_bbc,X : STA menu_phys + 3
-    JMP set_palette
+    LDA zx_to_bbc,X : STA pal_phys + 3
+    JMP load_palette
 }
 
 \ Rows 4-23 of the playfield repainted for the flash: their paper in
@@ -186,22 +182,21 @@ MENU_SWAPS = MENU_SETTLE_FRAMES DIV FLASH_FRAMES
 \ in 2 is &F0 OR the lit pixels' low bits.)
 .menu_repaint
 {
-    LDA #LO(screen + MENU_FLASH_ROW * ROW_BYTES + PF_OFFSET) : STA rl
-    LDA #HI(screen + MENU_FLASH_ROW * ROW_BYTES + PF_OFFSET) : STA rh
-.row
+    \ every byte from the row to the top of RAM but each row's first
+    \ PF_OFFSET, the panel's: the first half of each even page
+    ASSERT ROW_BYTES = &200 AND PF_OFFSET = &80 AND (screen AND &1FF) = 0
+    LDA #LO(screen + MENU_FLASH_ROW * ROW_BYTES) : STA rl
+    LDA #HI(screen + MENU_FLASH_ROW * ROW_BYTES) : STA rh
     LDY #0
 .byte
+    LDA rh : LSR A : BCS playfield
+    TYA : BPL next
+.playfield
     LDA (rhl),Y : LSR A : LSR A : LSR A : LSR A : ORA (rhl),Y
     ORA #&F0 : STA (rhl),Y
+.next
     INY : BNE byte
-    INC rh
-    LDY #0
-.rest
-    LDA (rhl),Y : LSR A : LSR A : LSR A : LSR A : ORA (rhl),Y
-    ORA #&F0 : STA (rhl),Y
-    INY : CPY #LO(PF_BYTES - &100) : BNE rest
-    INC rh                          ; (the next row's playfield: 256 on)
-    LDA rh : BPL row
+    INC rh : BPL byte
     \ their attributes: the first colour (&0E)
     LDX #MENU_FLASH_ROW
 .arow
@@ -216,31 +211,21 @@ MENU_SWAPS = MENU_SETTLE_FRAMES DIV FLASH_FRAMES
 }
 MENU_COLOUR0 = &0E              ; yellow on blue (&BA76's first)
 
-\ The menu's colours (decision 21): black, yellow, the flashing paper
-\ (blue, then red), the flashing ink (yellow, then white); A the
-\ attribute the playfield is cleared to.
+\ The menu's colours (decision 21): black, yellow (as pal_phys keeps
+\ them), the flashing paper (blue, then red), the flashing ink (yellow,
+\ then white).
 .menu_palette
 {
     LDX #7
 .inks
     LDA menu_inks,X : STA ink_mask,X
     DEX : BPL inks
-    LDA #MENU_PAPER : STA menu_phys + 2
-    LDA #MENU_INK : STA menu_phys + 3
-    \ (fall into set_palette)
-}
-.set_palette
-{
-    LDX #3
-.phys
-    LDA menu_phys,X : STA pal_phys,X
-    DEX : BPL phys
+    LDA #MENU_PAPER : STA pal_phys + 2
+    LDA #MENU_INK : STA pal_phys + 3
     JMP load_palette
 }
 MENU_PAPER = 4                  ; BBC blue
 MENU_INK   = 3                  ; BBC yellow
-.menu_phys
-    EQUB 0, 3, MENU_PAPER, MENU_INK
 \ Each Spectrum colour's MODE 1 byte on the menu's screens.
 .menu_inks
     EQUB cbyte(0), cbyte(2), cbyte(2), cbyte(3), cbyte(3), cbyte(3), cbyte(1), cbyte(3)
@@ -273,14 +258,12 @@ MENU_INK   = 3                  ; BBC yellow
 .up
     JSR read_key : BNE up
     LDA #CONTROLS_ATTR : JSR title
-    LDX #9 : LDY #&0A : JSR print_at
-    EQUS "1  REDEFINE PLAYER ONE", 0
-    LDX #9 : LDY #&0C : JSR print_at
-    EQUS "2  REDEFINE PLAYER TWO", 0
-    LDX #9 : LDY #&0E : JSR print_at
-    EQUS "3  KEMPSTON PLAYER ONE", 0
-    LDX #9 : LDY #&10 : JSR print_at
-    EQUS "4  KEMPSTON PLAYER TWO", 0
+    JSR print_lines
+    EQUB 9, &0A : EQUS "1  REDEFINE PLAYER ONE", 0
+    EQUB 9, &0C : EQUS "2  REDEFINE PLAYER TWO", 0
+    EQUB 9, &0E : EQUS "3  KEMPSTON PLAYER ONE", 0
+    EQUB 9, &10 : EQUS "4  KEMPSTON PLAYER TWO", 0
+    EQUB PRINT_END
 .key
     LDX #K_1 : JSR key_down : BNE p1
     LDX #K_2 : JSR key_down : BNE p2
@@ -289,7 +272,7 @@ MENU_INK   = 3                  ; BBC yellow
     JMP key
 .p1
     LDA #5 : LDX #0
-    JMP redefine
+    BEQ redefine                    ; (always)
 .p2
     LDA #4 : LDX #CONTROLS
 .redefine
@@ -299,7 +282,8 @@ MENU_INK   = 3                  ; BBC yellow
     LDX #0
 .ask
     STX asked
-    LDA ask_row,X : TAY : JSR print_at_ask
+    TXA : ASL A : ADC #ASK_ROW : TAY     ; (C clear: X is small)
+    JSR print_at_ask
     LDX asked
     LDA ask_control,X : CLC : ADC at : TAY
     JSR read_key_for
@@ -313,9 +297,9 @@ MENU_INK   = 3                  ; BBC yellow
     ZA_AUTO1 at
     ZA_AUTO1 asked
 }
-\ The order the original asks in, each word's row, and its control.
-.ask_row
-    EQUB 4, 6, 8, &0A, &0C, &0E
+\ The order the original asks in, and each one's control. The words are
+\ on every other row from ASK_ROW.
+ASK_ROW = 4
 .ask_control
     EQUB C_UP, C_DOWN, C_LEFT, C_RIGHT, C_FIRE, C_MAGIC
 
@@ -324,21 +308,16 @@ ASK_COL = &14
 .print_at_ask
 {
     LDA #ASK_COL : STA PrintPos : STY PrintPos + 1
-    LDA ask_word_lo,X : STA aw : LDA ask_word_hi,X : STA aw + 1
-    LDY #0
-.char
-    LDA (aw),Y : BEQ done
-    STY ay : JSR print_char : LDY ay
-    INY : JMP char
-.done
-    RTS
-    ZA_AUTO2 aw
-    ZA_AUTO1 ay
+    \ (word X, less one: print_str starts after str)
+    TXA : ASL A : ASL A : ASL A
+    ADC #LO(w_up - 1) : STA str             ; (C clear: X is small)
+    LDA #HI(w_up - 1) : ADC #0 : STA str + 1
+    JMP print_str
 }
-.ask_word_lo
-    EQUB LO(w_up), LO(w_down), LO(w_left), LO(w_right), LO(w_fire), LO(w_magic)
-.ask_word_hi
-    EQUB HI(w_up), HI(w_down), HI(w_left), HI(w_right), HI(w_fire), HI(w_magic)
+\ The words, each ASK_WORD bytes.
+ASK_WORD = 8                    ; (print_at_ask shifts by three)
+    ASSERT w_down - w_up = ASK_WORD AND w_left - w_down = ASK_WORD AND w_right - w_left = ASK_WORD
+    ASSERT w_fire - w_right = ASK_WORD AND w_magic - w_fire = ASK_WORD
 .w_up    EQUS "UP.....", 0
 .w_down  EQUS "DOWN...", 0
 .w_left  EQUS "LEFT...", 0

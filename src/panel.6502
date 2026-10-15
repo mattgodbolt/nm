@@ -7,87 +7,42 @@
 \ logical 3.
 
 panel = map                         ; (unpacked here first)
-PANEL_BYTES = PANEL_COLS * (192 + SCREEN_ROWS)
-    ASSERT PANEL_BYTES <= 32 * 32 + SCREEN_ROWS * SCREEN_COLS
+PANEL_COLS = 8
+PANEL_CELLS = SCREEN_ROWS * PANEL_COLS
+panel_attrs = panel                 ; the cells' attributes, a row at a time
+panel_pixels = panel + PANEL_CELLS  ; then each cell's 8 lines, in the same order
 \ ***************************************************************************
 
-PANEL_COLS = 8
-
+\ Each cell is drawn as a glyph (text.6502's draw_glyph), which also sets
+\ its attribute in attrs, where print finds it. attrs is above the panel's
+\ start, and the cells go from the last: a cell's attribute lands past
+\ every byte of the unpacked panel still to be read, the last cell's
+\ worst of all.
+    ASSERT attrs + (SCREEN_ROWS - 1) * SCREEN_COLS + PANEL_COLS - 1 >= panel_pixels + PANEL_CELLS * 8
+    ASSERT PANEL_CELLS < 256 AND PANEL_COLS = 8
 .draw_panel
 {
-    LDA #&FF : LDX #SCREEN_ROWS * PANEL_COLS - 1
+    LDA #&FF : LDX #PANEL_CELLS - 1
 .unshown
     STA panel_shown,X
     DEX : CPX #&FF : BNE unshown
-    LDA #LO(attrs) : STA attr_dst : LDA #HI(attrs) : STA attr_dst + 1
+    JSR panel_inks                  ; (where draw_glyph finds them)
     LDA #LO(panel_packed) : STA zsrc : LDA #HI(panel_packed) : STA zsrc + 1
     LDA #LO(panel) : STA zdst : LDA #HI(panel) : STA zdst + 1
     JSR unzx02
-    ZA_AUTO2 src
-    ZA_AUTO2 dst
-    ZA_AUTO2 attr
-    ZA_AUTO1 col
-    ZA_AUTO1 pmask
-    ZA_AUTO1 ppaper
-    LDA #LO(panel) : STA src
-    LDA #HI(panel) : STA src+1
-    LDA #LO(panel + PANEL_COLS * 192) : STA attr
-    LDA #HI(panel + PANEL_COLS * 192) : STA attr+1
-    LDA #LO(screen) : STA dst
-    LDA #HI(screen) : STA dst+1
-.row
-    LDA #0 : STA col
+    LDA #LO(panel_pixels + PANEL_CELLS * 8) : STA gl_src
+    LDA #HI(panel_pixels + PANEL_CELLS * 8) : STA gl_src + 1
+    LDA #PANEL_CELLS : STA left
 .cell
-    \ the cell's colours, from its attribute
-    LDY col : LDA (attr),Y : PHA
-    LSR A : LSR A : LSR A : AND #7 : TAX
-    LDA panel_ink,X : STA ppaper
-    PLA : AND #7 : TAX
-    LDA panel_ink,X : EOR ppaper : STA pmask
-    \ its 8 lines: line y's byte is at src + 8y + col
-    LDX #0
-.line
-    TXA : ASL A : ASL A : ASL A : ORA col : TAY
-    LDA (src),Y : STA tmp
-    \ the screen: dst + col * 16 + line (+8 for the right half)
-    LDA col : ASL A : ASL A : ASL A : ASL A : STA off
-    TXA : ORA off : TAY
-    LDA tmp : PHA : TAX : LDA hi_nibble,X : AND pmask : EOR ppaper : STA (dst),Y
-    TYA : ORA #8 : TAY
-    PLA : TAX : LDA lo_nibble,X : AND pmask : EOR ppaper : STA (dst),Y
-    TYA : AND #7 : TAX
-    INX : CPX #8 : BNE line
-    INC col : LDA col : CMP #PANEL_COLS : JNE cell
-    \ the next character row
-    LDA src : CLC : ADC #PANEL_COLS * 8 : STA src
-    BCC s : INC src+1
+    LDA gl_src : SEC : SBC #8 : STA gl_src
+    BCS s : DEC gl_src + 1
 .s
-    LDA attr : CLC : ADC #PANEL_COLS : STA attr
-    BCC a : INC attr+1
-.a
-    INC dst+1 : INC dst+1
-    BMI done                    ; (past the top of RAM: the last row done)
-    JMP row
-.done
-    \ the panel's attributes into attrs, where print finds them (from
-    \ the front: the copy's source, the unpacked panel's attributes,
-    \ overlaps attrs' later rows, which it reaches only once read)
-    LDX #0
-.arow
-    LDY #0
-.acol
-    LDA panel + PANEL_COLS * 192,X : STA (attr_dst),Y
-    INX : INY : CPY #PANEL_COLS : BNE acol
-    LDA attr_dst : CLC : ADC #SCREEN_COLS : STA attr_dst
-    BCC n : INC attr_dst + 1
-.n
-    CPX #PANEL_COLS * SCREEN_ROWS : BNE arow
+    DEC left
+    LDX left : LDA panel_attrs,X : PHA
+    TXA : AND #PANEL_COLS - 1 : TAY
+    TXA : LSR A : LSR A : LSR A : TAX
+    PLA : JSR draw_glyph
+    LDA left : BNE cell
     RTS
-    ZA_AUTO1 tmp
-    ZA_AUTO1 off
-    ZA_AUTO2 attr_dst
+    ZA_AUTO1 left             ; cells left to draw
 }
-
-\ Each Spectrum colour's MODE 1 byte in the panel.
-.panel_ink
-    EQUB cbyte(0), cbyte(3), cbyte(3), cbyte(3), cbyte(3), cbyte(3), cbyte(1), cbyte(3)

@@ -19,23 +19,13 @@ FLOOR_TILES = {&00, &16, &1E}  ; the tiles whose ink is the level's floor colour
     CLC : ADC #1 : AND #3 : ADC #1 : STA floor_ink
     \ (&C357: tiles &00, &16 and &1E take it as their attribute)
     STA tileattr + &00 : STA tileattr + &16 : STA tileattr + &1E
-    \ the inks: black, yellow (the walls), the floor, and the rest in 3
-    LDX #7
-.inks
-    LDA #cbyte(3)
-    CPX #6 : BNE not_yellow
-    LDA #cbyte(1)
-.not_yellow
-    CPX floor_ink : BNE not_floor
-    LDA #cbyte(2)
-.not_floor
-    STA ink_mask,X
-    DEX : BNE inks
-    LDA #cbyte(0) : STA ink_mask
-    \ the palette: black, yellow, the floor, cyan
-    LDA #LEVEL_PHYS0 : STA pal_phys
-    LDA #LEVEL_PHYS1 : STA pal_phys + 1
-    LDX floor_ink : LDA zx_to_bbc,X : STA pal_phys + 2
+    \ the inks: black, yellow (the walls), the floor (never black or
+    \ yellow), and the rest in 3
+    JSR panel_inks
+    LDX floor_ink : LDA #cbyte(2) : STA ink_mask,X
+    \ the palette: black and yellow (as pal_phys keeps them), the floor,
+    \ cyan
+    LDA zx_to_bbc,X : STA pal_phys + 2
     LDA #LEVEL_PHYS3 : STA pal_phys + 3
     \ (fall into load_palette)
 }
@@ -56,10 +46,24 @@ FLOOR_TILES = {&00, &16, &1E}  ; the tiles whose ink is the level's floor colour
     ZA_AUTO1 tmp
 }
 
-\ A level's logical colours' physical ones (decision 5): black, yellow,
-\ the floor's, cyan.
-LEVEL_PHYS0 = 0
-LEVEL_PHYS1 = 3
+\ The logical colours' physical ones (decision 5): black and yellow on
+\ every screen, then two that a level or the menu sets (a level's floor
+\ and cyan; the menu's flashing paper and ink, menu.6502).
 LEVEL_PHYS3 = 6
 .pal_phys
-    EQUB 0, 3, 0, 6
+    EQUB 0, 3, 0, LEVEL_PHYS3
+
+\ The inks of the panel's colours (decision 5): yellow as yellow, black
+\ as black, any other in logical 3. A level's are these, with its floor's
+\ in logical 2.
+.panel_inks
+{
+    LDX #7
+.inks
+    LDA panel_ink,X : STA ink_mask,X
+    DEX : BPL inks
+    RTS
+}
+\ Each Spectrum colour's MODE 1 byte in them.
+.panel_ink
+    EQUB cbyte(0), cbyte(3), cbyte(3), cbyte(3), cbyte(3), cbyte(3), cbyte(1), cbyte(3)

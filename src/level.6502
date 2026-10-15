@@ -8,10 +8,15 @@
 {
     TAX
     LDA level_lo,X : STA zsrc
-    LDA level_hi,X : STA zsrc+1
+    LDA level_hi,X : PHA
+    AND #&FF - LEVEL_BY_ROWS : STA zsrc+1
     LDA #LO(map) : STA zdst
     LDA #HI(map) : STA zdst+1
     JSR unzx02
+    PLA : AND #LEVEL_BY_ROWS : BNE by_rows
+    JSR level_rows
+.by_rows
+    JSR level_walls
     \ &C39C: every byte of the map
     ZA_AUTO2 at
     LDA #LO(map) : STA at
@@ -31,10 +36,8 @@
 .swap
     \ &28 and up: the nibbles swapped, then random bits 2 and 3 (bits 0
     \ and 1 cleared)
-    CMP #&80 : ROL A                ; (rotate left: the top bit into bit 0)
-    CMP #&80 : ROL A
-    CMP #&80 : ROL A
-    CMP #&80 : ROL A
+    ASL A : ADC #&80 : ROL A        ; (each line rotates left by two: ADC
+    ASL A : ADC #&80 : ROL A        ; carries bit 6 out and puts bit 7 in bit 0)
     STA tmp
     JSR random : AND #&0C : ORA tmp : AND #&FC
     STA (at),Y
@@ -60,6 +63,91 @@
     JMP next
     ZA_AUTO1 tmp
 }
+
+LEVEL_SIDE  = 30            ; the level's interior: the map less its walls (tools/mklevels.py)
+LEVEL_BY_ROWS = &40         ; in level_hi: packed a row at a time (the bank's addresses have bit 6 clear)
+    ASSERT (HI(levels) AND LEVEL_BY_ROWS) = 0 AND (HI(levels_end - 1) AND LEVEL_BY_ROWS) = 0
+WALL_SIDE   = 5             ; the left and right walls' tile (&C418)
+WALL_BOTTOM = 4             ; the bottom wall's
+WALL_TOP_11 = &11           ; the top wall is WALL_SIDE over this tile and 1-5, else WALL_BOTTOM
+
+\ A level comes packed as its interior a column at a time (ZX02 packs
+\ most levels' columns smaller than their rows), LEVEL_SIDE square at
+\ map: swap it across its diagonal, so that it's a row at a time.
+.level_rows
+{
+    ZA_AUTO2 row                    ; row i
+    ZA_AUTO2 col                    ; column i, at row j
+    ZA_AUTO1 i
+    LDA #LO(map) : STA row
+    LDA #HI(map) : STA row+1
+    LDA #1 : STA i
+    LDX #0                          ; ((col,X) reads through col)
+.next_row
+    LDA row : CLC : ADC #LEVEL_SIDE : STA row
+    BCC r : INC row+1
+.r
+    ASSERT LO(map) = 0
+    LDA i : STA col
+    LDA #HI(map) : STA col+1
+    LDY #0
+.swap
+    \ row i, column j with row j, column i, for j < i
+    LDA (row),Y : PHA
+    LDA (col,X) : ZA_INDEXEDBY 0
+    STA (row),Y
+    PLA : STA (col,X) : ZA_INDEXEDBY 0
+    LDA col : CLC : ADC #LEVEL_SIDE : STA col
+    BCC c : INC col+1
+.c
+    INY : CPY i : BNE swap
+    INC i : LDA i : CMP #LEVEL_SIDE : BNE next_row
+    RTS
+}
+
+\ Then each row into its place in the map, with the walls round it, as
+\ &C418 leaves them: the last row first, as each moves up past the rows
+\ still to move.
+.level_walls
+{
+    ZA_AUTO2 from                   ; the row to move, less one (Y = 1 is its first)
+    ZA_AUTO2 to                     ; the map's row it goes to
+    LDA #LO(map + (LEVEL_SIDE - 1) * LEVEL_SIDE - 1) : STA from
+    LDA #HI(map + (LEVEL_SIDE - 1) * LEVEL_SIDE - 1) : STA from+1
+    LDA #LO(map + LEVEL_SIDE * 32) : STA to
+    LDA #HI(map + LEVEL_SIDE * 32) : STA to+1
+    LDX #LEVEL_SIDE
+.row
+    LDY #LEVEL_SIDE
+.move
+    LDA (from),Y : STA (to),Y
+    DEY : BNE move
+    LDA #WALL_SIDE : STA (to),Y
+    LDY #31 : STA (to),Y
+    LDA from : SEC : SBC #LEVEL_SIDE : STA from
+    BCS f : DEC from+1
+.f
+    LDA to : SEC : SBC #32 : STA to
+    BCS t : DEC to+1
+.t
+    DEX : BNE row
+    \ the bottom wall, and the top's from the row under it
+    LDY #31
+.edges
+    LDA #WALL_BOTTOM : STA map + 31 * 32,Y
+    TAX
+    LDA map + 32,Y
+    CMP #WALL_TOP_11 : BEQ side
+    CMP #WALL_SIDE + 1 : BCS top
+    CMP #1 : BCC top
+.side
+    INX                             ; (WALL_SIDE)
+.top
+    TXA : STA map,Y
+    DEY : BPL edges
+    RTS
+}
+    ASSERT WALL_SIDE = WALL_BOTTOM + 1
 
 \ &C3EA: the view's origin for a player at A (characters): ten
 \ characters before, within 0-40.
