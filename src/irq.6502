@@ -1,27 +1,11 @@
 \ ***************************************************************************
 \ The interrupt: the game owns IRQ1V, and services VSync, where it plays
-\ the music, and the pass clock.
+\ the music, and the pass clock. start sets it up (startup.6502).
 
 \ A pass's length (decision 12): the original's median, 1.22 frames of
 \ 70,908 T-states at 3.5469 MHz, in microseconds (docs/brief.md, D4).
 PASS_TICK = 24400
 \ ***************************************************************************
-
-    ASSERT install_irq = init_system_end
-.install_irq
-{
-    SEI
-    LDA #&7F : STA sysvia_ier : STA usrvia_ier  ; anything we don't service
-    \ The pass clock (decision 12): System VIA T1, free-running
-    LDA sysvia_acr : AND #&3F : ORA #&40 : STA sysvia_acr
-    LDA #LO(PASS_TICK - 2) : STA sysvia_t1ll : STA sysvia_t1cl
-    LDA #HI(PASS_TICK - 2) : STA sysvia_t1lh : STA sysvia_t1ch
-    LDA #&C2 : STA sysvia_ier                   ; T1 and VSync (CA1)
-    LDA #LO(irq_handler) : STA irq1v
-    LDA #HI(irq_handler) : STA irq1v + 1
-    CLI
-    RTS
-}
 
 .irq_handler
 {

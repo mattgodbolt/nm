@@ -33,7 +33,6 @@
 
 \ The driver's state for a voice: the original's &21 bytes at &C069,
 \ &C08A and &C0AB, at the same offsets (IX+n there, mu_voices+n,X here).
-.mu_voice_at    EQUB 0, MU_VOICE, 2 * MU_VOICE
 mv_flags  = mu_voices + &00     ; b0 frame parity, b1 drum, b2 portamento,
                                 ; b3 slide, b5 envelope running, b7 slide up
 mv_ptr    = mu_voices + &01     ; the pattern's next byte (2)
@@ -369,26 +368,28 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
 }
 
 \ &C0CD, each VSync (from irq.6502, which keeps X and Y): the driver's
-\ frame, then the chip. mu_tmp counts the voices.
+\ frame, then the chip. X is each voice's offset in mu_voices (mu_row
+\ and mu_render keep it), and mu_tmp counts the voices for mu_render.
 .music_tick
 {
     LDA mu_on : BEQ output
     LDA mu_noise_note : STA mu_noise    ; &C0D7
     DEC mu_rows : BNE render
-    LDY #0
+    LDX #0
 .row
-    STY mu_tmp : LDX mu_voice_at,Y
     JSR mu_row
     LDA mu_on : BEQ output              ; (&8E: the song stopped)
-    LDY mu_tmp : INY : CPY #3 : BNE row
+    TXA : CLC : ADC #MU_VOICE : TAX
+    CPX #3 * MU_VOICE : BNE row
     LDA mu_speed : STA mu_rows
 .render
     \ &C0FD: each voice's period and volume
-    LDY #0
+    LDX #0 : STX mu_tmp
 .voice
-    STY mu_tmp : LDX mu_voice_at,Y
     JSR mu_render
-    LDY mu_tmp : INY : CPY #3 : BNE voice
+    INC mu_tmp
+    TXA : CLC : ADC #MU_VOICE : TAX
+    CPX #3 * MU_VOICE : BNE voice
     LDA mu_noise : STA mu_ay + 6
 .output
     LDA mu_busy : BEQ mu_output         ; (unless the game is writing the chip)
@@ -408,8 +409,7 @@ MU_HIHAT_NOISE = &41            ; the hi-hat's noise period (&C476)
     \ The System VIA's port A as the interrupted code had it, after.
     LDA sysvia_ddra : PHA
     LDA sysvia_ora_nh : PHA
-    LDA #&0B : STA sysvia_orb           ; the keyboard on auto-scan, off port A's bit 7
-    LDA #&FF : STA sysvia_ddra
+    JSR sn_port
     LDA mu_ay + 7 : STA mu_tmp          ; (the mixer, a voice's bit at a time)
     LDX #0
 .channel

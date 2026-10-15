@@ -10,13 +10,15 @@
 //
 // A case is one of CASES' names or keys/level (left:5-120,fire:30/37).
 //
-// With --against, the same slides on the other disc too: the screen and
-// the attributes are compared at every step (each shift's entry, and the
-// scroll's end), and the times put side by side. The symbols are the
-// .json beside each disc.
+// With --against, the same slides on the other disc too: the screen is
+// compared at every step (each shift's entry, and the scroll's end), and
+// the attributes at the scroll's end (the port moves them once a slide:
+// shift.6502's slide_attrs), and the times put side by side. The symbols
+// are the .json beside each disc.
 import { startBeeb } from "./beeb.mjs";
 
 const FRAME = 40000;
+const SCREEN_BYTES = 0x3000;
 const KEYS = { up: "Q", down: "A", left: "O", right: "P", fire: "SPACE", magic: "RETURN" };
 // name: [keys held over passes, as tests/scenarios.txt's; the level;
 // pokes, [pass, symbol, value]]: each slides the view at least once. The
@@ -66,7 +68,7 @@ async function run(path, name) {
         for (const pc of kinds.keys()) await beeb.breakpoint(pc);
         let pass = -1, passStart = 0, cur = null;
         const held = new Set();
-        const screen = async () => [...(await beeb.read(0x5000, 0x3000)), ...(await beeb.read("attrs", 768))];
+        const screen = async () => [...(await beeb.read(0x5000, SCREEN_BYTES)), ...(await beeb.read("attrs", 768))];
         while (pass < last + 5) {
             const r = await beeb.cycles(40e6);
             if (r.stopped_reason !== "breakpoint" && r.stopped_reason !== "pending_breakpoint") throw new Error(`${name}: no pass for 20s`);
@@ -110,7 +112,8 @@ for (const name of cases) {
         const o = theirs?.[i];
         if (o) {
             line += `  [against: ${o.end - o.start} cycles, ${frames(o.end - o.start)} frames; pass ${frames(o.pass)}]`;
-            const bad = s.steps.findIndex((scr, k) => !o.steps[k] || scr.some((v, j) => v !== o.steps[k][j]));
+            const last = s.steps.length - 1;
+            const bad = s.steps.findIndex((scr, k) => !o.steps[k] || scr.some((v, j) => (k === last || j < SCREEN_BYTES) && v !== o.steps[k][j]));
             if (o.at !== s.at || o.steps.length !== s.steps.length || bad >= 0) {
                 line += `  DIFFERS${bad >= 0 ? ` at step ${bad}` : ""}`;
                 differs = true;

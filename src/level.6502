@@ -48,15 +48,16 @@
     RTS
 .found_start
     LDA #0 : STA (at),Y
-    STY rl : LDA at+1 : STA rh
-    JSR cell_pos                    ; &D117: the cell's row and column, in characters
-    LDA rc : STA Player1 : STA Player2
-    JSR view_from                   ; the view's column
-    STA ViewOrigin+1
+    \ &C3CF: its position (rb, rc) for both players, and the view's origin
+    STY rl : LDA at+1 : STA rh      ; (LO(map) is 0: at's low byte too)
+    JSR cell_pos
+    LDY rl
     LDA rb : STA Player1+1 : STA Player2+1
     JSR view_from
     STA ViewOrigin
-    LDY rl                          ; (cell_pos's)
+    LDA rc : STA Player1 : STA Player2
+    JSR view_from
+    STA ViewOrigin+1
     JMP next
     ZA_AUTO1 tmp
 }

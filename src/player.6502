@@ -292,8 +292,9 @@ SCROLL_LEFT  = 3
     LDX dir : LDY axis
     LDA ViewOrigin,Y : EOR scroll_flip,X : CMP scroll_edge,X : BCS edge
     DEC steps : BNE step
-    BEQ erase_old                   ; (always)
+    BEQ slide_end                   ; (always)
 .edge
+    JSR slide_attrs
     LDA #0                          ; (Z)
 .done
     RTS
@@ -312,6 +313,9 @@ SCROLL_LEFT  = 3
     EQUB 0, 0, &FF, &FF
 .scroll_edge
     EQUB VIEW_MAX, VIEW_MAX, &FF, &FF
+\ A slide's end: its attributes (shift.6502), then erase_old.
+.slide_end
+    JSR slide_attrs
 \ &CC75 EraseOld: floor at the moving player's old position, with the
 \ click. &CC79 EraseAt: at map position (rd, re).
 .erase_old

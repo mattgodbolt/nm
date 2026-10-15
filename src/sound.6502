@@ -27,7 +27,11 @@ US_PER_T_256 = (256 * 1000 + 1773) DIV 3547
 \ held the interrupt doesn't write the chip.
 .effect_start
     INC mu_busy
-    LDA #&0B : STA sysvia_orb       ; the keyboard on auto-scan, off port A's bit 7
+    \ (fall into sn_port)
+\ System VIA port A set up for the chip (mu_write): the keyboard on
+\ auto-scan, off port A's bit 7, and the port an output.
+.sn_port
+    LDA #&0B : STA sysvia_orb
     LDA #&FF : STA sysvia_ddra
     RTS
 
@@ -43,8 +47,10 @@ US_PER_T_256 = (256 * 1000 + 1773) DIV 3547
 {
     STA tmp
     TXA : AND #&0F : ORA #SN_TONE1 : JSR mu_write
-    TXA : LSR A : LSR A : LSR A : LSR A : STA ra2
-    LDA tmp : ASL A : ASL A : ASL A : ASL A : ORA ra2
+    \ the top six bits: the period shifted right by four (A has two)
+    TXA
+    LSR tmp : ROR A : LSR tmp : ROR A
+    LSR A : LSR A
     JMP mu_write
     ZA_AUTO1 tmp
 }
@@ -74,8 +80,8 @@ US_PER_T_256 = (256 * 1000 + 1773) DIV 3547
     BCC d : INC us_hi
 .d
     \ the SN period: a quarter of it
-    LDA us_hi : LSR A : STA ra2 : LDA us_lo : ROR A : LSR ra2 : ROR A
-    TAX : LDA ra2
+    LDA us_hi : LSR A : STA n : LDA us_lo : ROR A : LSR n : ROR A
+    TAX : LDA n
     JSR tone1
     LDA #SN_VOL1 OR SN_LOUD : JSR mu_write
     LDX us_lo : LDY us_hi
@@ -88,30 +94,31 @@ US_PER_T_256 = (256 * 1000 + 1773) DIV 3547
 \ &C508: the throw's chirp: A half-cycles, each 16 T-states shorter.
 .chirp
 {
-    STA count
+    STA sn_count
     JSR effect_start
-.next
-    LDA count : JSR half_cycle
-    DEC count : BNE next
-    JMP effect_end
-    ZA_AUTO1 count
+    \ (fall into half_cycles_down)
 }
+\ Half-cycles from sn_count's down to 1, then the effect's end.
+.half_cycles_down
+{
+.next
+    LDA sn_count : JSR half_cycle
+    DEC sn_count : BNE next
+    JMP effect_end
+}
+ZA_AUTO1 sn_count
 
 \ &C4F5 BombSound: 128 half-cycles growing, then 128 shrinking.
 BOMB_CLICKS = &80
 .bomb_sound
 {
     JSR effect_start
-    LDA #1 : STA count
+    LDA #1 : STA sn_count
 .up
-    LDA count : JSR half_cycle
-    INC count : LDA count : CMP #BOMB_CLICKS + 1 : BNE up
-    LDA #BOMB_CLICKS : STA count
-.down
-    LDA count : JSR half_cycle
-    DEC count : BNE down
-    JMP effect_end
-    ZA_AUTO1 count
+    LDA sn_count : JSR half_cycle
+    INC sn_count : LDA sn_count : CMP #BOMB_CLICKS + 1 : BNE up
+    DEC sn_count
+    JMP half_cycles_down
 }
 
 \ &CC8D: the step's click, the speaker on for 18 T-states: a step of
