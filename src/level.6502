@@ -8,11 +8,14 @@
 {
     TAX
     LDA level_lo,X : STA zsrc
-    LDA level_hi,X : STA zsrc+1
+    LDA level_hi,X : PHA
+    AND #&FF - LEVEL_BY_ROWS : STA zsrc+1
     LDA #LO(map) : STA zdst
     LDA #HI(map) : STA zdst+1
     JSR unzx02
+    PLA : AND #LEVEL_BY_ROWS : BNE by_rows
     JSR level_rows
+.by_rows
     JSR level_walls
     \ &C39C: every byte of the map
     ZA_AUTO2 at
@@ -62,13 +65,15 @@
 }
 
 LEVEL_SIDE  = 30            ; the level's interior: the map less its walls (tools/mklevels.py)
+LEVEL_BY_ROWS = &40         ; in level_hi: packed a row at a time (the bank's addresses have bit 6 clear)
+    ASSERT (HI(levels) AND LEVEL_BY_ROWS) = 0 AND (HI(levels_end - 1) AND LEVEL_BY_ROWS) = 0
 WALL_SIDE   = 5             ; the left and right walls' tile (&C418)
 WALL_BOTTOM = 4             ; the bottom wall's
 WALL_TOP_11 = &11           ; the top wall is WALL_SIDE over this tile and 1-5, else WALL_BOTTOM
 
 \ A level comes packed as its interior a column at a time (ZX02 packs
-\ columns smaller), LEVEL_SIDE square at map: swap it across its
-\ diagonal, so that it's a row at a time.
+\ most levels' columns smaller than their rows), LEVEL_SIDE square at
+\ map: swap it across its diagonal, so that it's a row at a time.
 .level_rows
 {
     ZA_AUTO2 row                    ; row i

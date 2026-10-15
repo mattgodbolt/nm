@@ -176,6 +176,7 @@ SECTION Data, org = &8000, load = &FFFF3000, filename = "NDATA", guard = &C000
     \ The levels (tools/mklevels.py)
 .levels
     INCBIN "data/levels.bin"
+.levels_end
     INCLUDE "data/levels.6502"
     \ The passwords and the title's colours (tools/mkgfx.py): only the
     \ bank's code reads them (game.6502)
