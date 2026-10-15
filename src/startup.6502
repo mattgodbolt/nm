@@ -46,7 +46,7 @@ IF DEFINED(DIRECT)
     LDA direct_players          ; one player unless a tool sets it to 3)
     JMP new_game
 ELSE
-    JMP start_game
+    JMP power_on
 ENDIF
 ENDIF
 ENDIF
@@ -156,8 +156,10 @@ ENDIF
     EQUB 8, CRTC_BLANK          ; blank until init_system is done
 .crtc_end
 
-\ For now black, red, yellow and white: the screen's test colours.
-PAL = {0, 1, 3, 7}
+\ The colours until a level or the menu sets its own: a level's, without
+\ its floor (decision 5): black, yellow, (black), cyan, as the panel
+\ wants them.
+PAL = {0, 3, 0, 6}
 .palette
 FOR l = 0..3
     FOR n = 0..3

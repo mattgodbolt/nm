@@ -79,7 +79,17 @@ MENU_SWAPS = MENU_SETTLE_FRAMES DIV FLASH_FRAMES
 {
     LDX #&FF : TXS
     JSR reset_game
-    \ (fall into menu)
+    JMP menu
+}
+
+\ At power-on, straight to the menu (decision 21): the original's first
+\ wait is on its loading screen, which the port doesn't keep, and a blank
+\ playfield waiting for a key looks like nothing happened.
+.power_on
+{
+    LDX #&FF : TXS
+    JSR reset_game
+    JMP main_menu
 }
 
 \ &C1E3 Menu: wait for a key and its release, then the menu.

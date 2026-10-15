@@ -304,3 +304,10 @@ Eight more 600-pass fuzz seeds: games that ended now end both logs at
 the same pass, and one difference turned up, mine: a pushed rock's old
 cell was cleared through a Y the redraw had changed, leaving two rocks.
 Fixed, with a scenario.
+
+Matt booted the branch's disc on a phone and saw a blank playfield and a
+red and white panel: the game was waiting for a key (the original's
+first wait, on its loading screen, which the port doesn't keep), and the
+start-up still loaded the screen's first test colours. At power-on the
+menu now comes straight up (decision 21), and the start-up palette is a
+level's.
