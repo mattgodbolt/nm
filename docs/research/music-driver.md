@@ -156,7 +156,7 @@ hand. What the port would need for it:
   is about 4.51P microseconds, which fits a timer's 16 bits for every
   note. `mu_bass,X` says which channels need it; `mu_ay` has the period.
 - **The interrupt** dispatching the timers as well as VSync, with
-  `install_irq` enabling them.
+  start-up (`start`, startup.6502) enabling them.
 - **The chip shared at a finer grain.** The bass interrupts write
   volumes many times a frame. A two-byte tone write anywhere (the music's
   or the game's) must keep them off between its bytes, or a volume's

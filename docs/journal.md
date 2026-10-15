@@ -349,3 +349,24 @@ for pass on the B and the Master.
 - Two fixes found on the way: `mul8` gave 0 for a length of 0 where the
   original's loop counts 256 (a noise segment went silent); and
   `make views` now depends on the 48K snapshot it reads.
+
+### A second round
+
+Three agents: the logic, the screen, and a fresh pair of eyes on the
+whole program. The screen and the logic both rewrote the scroll, so the
+logic's agent merged the two.
+
+- The slide's attributes move once, at its end (`slide_attrs`), rather
+  than at each of the eight steps: the pixels at every step and the
+  attributes at the end are as before (`tools/scrolltime.mjs` checks
+  both). Decision 22 has the new measurement.
+- Passes are much faster: a sampler showed that reprinting the panel on
+  every touch was a large share of a walking pass. `print5` now keeps
+  each figure's digits and skips the ones already shown.
+- The four scrolls are one `scroll`, with the direction in X, and the
+  shifts are programs for `shift_by`.
+- Start-up's run-once code sits in `panel_shown`'s bytes, which
+  `draw_panel` fills only after it has run. `blocks` is page-aligned at
+  the start of the code, with the copier after it.
+- `read_key`'s 128-byte table became a list of the keys that matter.
+- The views' rule depends on both snapshots, which `zxviews.py` reads.

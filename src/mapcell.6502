@@ -6,7 +6,7 @@
 
 \ &D569 MapCell: rhl = the map's tile at (rb, rc); A = its code, Z if
 \ empty. Y = 0; X is kept. (Rows wrap within the map's 32, as the
-\ original's do.) hi_nibble and lo_nibble (tables.6502) give rb's top and
+\ original's do.) hi_nibble and lo_nibble (made at start-up, startup.6502) give rb's top and
 \ bottom nibbles without shifts: each holds its nibble in both halves.
 .map_cell
 {
