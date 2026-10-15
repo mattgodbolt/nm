@@ -1,5 +1,6 @@
 \ ***************************************************************************
-\ The interrupt: the game owns IRQ1V, and services only VSync.
+\ The interrupt: the game owns IRQ1V, and services only VSync, where it
+\ plays the music.
 \ ***************************************************************************
 
 .install_irq
@@ -18,6 +19,13 @@
     LDA sysvia_ifr : AND #2 : BEQ done
     STA sysvia_ifr                              ; acknowledge VSync
     INC vsyncs
+IF NOT(DEFINED(MUSICCHECK))
+    \ The music's frame (music.6502). (The music check's build plays it
+    \ itself, as fast as it goes.)
+    TXA : PHA : TYA : PHA
+    JSR music_tick
+    PLA : TAY : PLA : TAX
+ENDIF
 .done
     LDA &FC                                     ; the OS saved A here
     RTI

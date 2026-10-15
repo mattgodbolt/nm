@@ -106,7 +106,7 @@ The fix is in `vgm-player-bbc-lz4fix.patch`.
 ### Build
 
 ```bash
-tools/music/build.sh (or `make music`)
+tools/music/build.sh (or `make music-disc`)
 ```
 
 This clones and patches the required tools, converts the included PSG files

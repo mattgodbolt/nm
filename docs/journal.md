@@ -82,3 +82,39 @@ stars, and the monsters and items (`disasm/*.ctl`, `docs/research/`).
   spreading one, is the only tile with a paper that isn't black (green on
   magenta, flashing), so the drawing now takes a paper colour too, and the
   check's floor colour for level 50 was wrong. Now all 50 match.
+
+### The music: Whittaker's driver on the 6502
+
+Route (b) of the brief's D3 (decision 8): the original's driver
+transcribed, on the original's song data.
+
+- `tools/mkmusic.py` takes the songs from bank 1 into
+  `src/data/music.6502`, every pointer a label. It finds what the driver
+  reads by playing every song on `dw_decode.py`'s Driver and noting each
+  byte read. A walk of the bytes from the song table was the first try,
+  and failed: the jingles' voices have no end of their own (no &87 or
+  &8E), their patterns running on into the next song's lists, and the
+  song stops on one voice before the others reach that far. Played, the
+  songs read only some of the instruments and arpeggios, and the note
+  table only so far up; `mkmusic.py` writes out what they read.
+- `src/music.6502` is the driver from the Z80 (&C00E init, &C0CD tick,
+  &C2AE the row, &C36E the frame, &C19D stop), read alongside
+  `dw_decode.py`: the voices' &21 bytes at the original's offsets, the
+  self-modified operands (the speed, the noise, the transpose, the
+  mixer's template) as variables, the commands through a table. The
+  shadow AY registers are then converted for the SN76489 (decisions 9-12)
+  and written where they changed, from the VSync interrupt. A game's
+  write to the chip will hold `mu_busy`, as in Chuckie Egg 2.
+- `make music`: a test build (`MUSICCHECK`) plays the songs one after
+  another as fast as it goes, recording each frame's shadow registers;
+  `tools/musicmodel.py` plays the same on `dw_decode.py`'s Driver (first
+  checking that against the captures in `music/`), and
+  `tools/musiccheck.mjs` compares. All seven songs matched every frame,
+  for each capture's length rounded up to the check's chunks of frames,
+  and the chip's bytes matched the model of the conversion. A change to
+  the vibrato's octave scaling, made on purpose, showed up at once in
+  song 1. Commands &83 (vibrato on alternate frames), &85 and &86 (the
+  slides) appear in no song, so nothing checks them.
+- The old `make music`, nm's music disc, is now `make music-disc`.
+- How long a frame of the driver and the chip takes is in decision 8.
+  That matters for a timer bass, whose interrupts would wait for it.
