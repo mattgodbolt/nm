@@ -60,6 +60,7 @@ rhl = rl
 .scan_at    SKIP 2          ; the monsters' scan (monsters.6502): fixed, as a hit's game over
 .scan_rows  SKIP 1          ; ... starts a new game from inside it
 .scan_cols  SKIP 1
+.scan_y     SKIP 1          ; ... the tile's offset in its row
 .st         SKIP 1          ; the star a routine is for: its offset from Star1 (stars.6502)
 .noise_seed SKIP 1          ; the sounds' own random numbers (sound.6502)
 .music_key_held SKIP 1      ; the music's key, until seen released (the original's &B8E0)

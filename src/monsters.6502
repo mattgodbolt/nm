@@ -53,28 +53,33 @@ BURST       = 50                ; the noise burst's segments (&CEF2)
     \ every fourth tile from the phase's column: (SCAN_COLS - phase) / 4
     \ of them, rounded up
     LDA #SCAN_COLS + 3 : SEC : SBC ScanPhase : LSR A : LSR A : STA scan_cols
+    LDY #0
 .tile
-    LDY #0 : LDA (scan_at),Y
+    LDA (scan_at),Y
     CMP #T_TRAP : BCC next          ; (most tiles: floor, walls and items)
-    LDX scan_at : STX rl : LDX scan_at + 1 : STX rh     ; (the handlers' rhl; A is the code)
+    \ the handlers' rhl (A is the code)
+    STY scan_y : TAX
+    TYA : CLC : ADC scan_at : STA rl
+    LDA scan_at + 1 : ADC #0 : STA rh
+    TXA
     CMP #T_MONSTER : BCC other
     JSR monster_move
-    JMP next
+    JMP handled
 .other
     CMP #&3F : BCS is_sparkle
     JSR trap_door
-    JMP next
+    JMP handled
 .is_sparkle
-    AND #&E0 : CMP #T_SPARKLE : BNE next
+    AND #&E0 : CMP #T_SPARKLE : BNE handled
     JSR sparkle
+.handled
+    LDY scan_y
 .next
-    LDA scan_at : CLC : ADC #4 : STA scan_at
-    BCC n : INC scan_at + 1
-.n
+    INY : INY : INY : INY
     DEC scan_cols : BNE tile
     \ the next row: the phase moves by two
     LDA ScanPhase : EOR #2 : STA ScanPhase
-    LDA scan_at : CLC : ADC #&12 : STA scan_at
+    TYA : CLC : ADC #&12 : ADC scan_at : STA scan_at   ; (C clear: Y is a row's tiles, under &100)
     BCC r : INC scan_at + 1
 .r
     DEC scan_rows : BNE row
