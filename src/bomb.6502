@@ -13,9 +13,7 @@ T_TEA      = &0E
 \ with a sweep of clicks each.
 .smart_bomb
 {
-    JSR random : CMP #BOMB_JACKPOT : BCS area
-    JMP bomb_jackpot
-.area
+    JSR random : CMP #BOMB_JACKPOT : BCC bomb_jackpot
     LDA #0 : STA rc
     JSR scan_start
     STA bomb_rows
@@ -23,19 +21,15 @@ T_TEA      = &0E
     LDA #SCAN_COLS : STA bomb_cols
 .tile
     LDY #0 : LDA (rhl),Y
+    BMI monster
     CMP #T_TRAP : BCC next
-    CMP #T_MONSTER : BCS monster
     AND #7 : CMP #7 : BEQ next
     LDA #0 : STA (rhl),Y
-    JMP next
+    BEQ next                        ; (always)
 .monster
     \ &C515 BombMonster: its four cells cleared
     LDA rl : PHA : LDA rh : PHA
-    JSR cell_pos
-    LDY #0 : LDA (rhl),Y : AND #2 : BEQ r : INC rb
-.r
-    LDA (rhl),Y : AND #1 : BEQ c : INC rc
-.c
+    JSR head_pos
     LDA #0 : STA MapStamp
     JSR fill_cells
     PLA : STA rh : PLA : STA rl

@@ -29,11 +29,10 @@ BURST       = 50                ; the noise burst's segments (&CEF2)
 .r0
     STA rb
     JSR map_cell
-    LDA rb : CMP #SCAN_BOTTOM : BCS bottom
-    LDA #SCAN_COLS
-    RTS
-.bottom
+    LDA rb : CMP #SCAN_BOTTOM
+    LDA #SCAN_COLS : BCC done
     LDA #SCAN_ROWS_BOTTOM
+.done
     RTS
 }
 
@@ -51,30 +50,28 @@ BURST       = 50                ; the noise burst's segments (&CEF2)
     STA scan_rows
     LDA rl : STA scan_at : LDA rh : STA scan_at + 1
 .row
-    LDA #SCAN_COLS : SEC : SBC ScanPhase : STA scan_cols
+    \ every fourth tile from the phase's column: (SCAN_COLS - phase) / 4
+    \ of them, rounded up
+    LDA #SCAN_COLS + 3 : SEC : SBC ScanPhase : LSR A : LSR A : STA scan_cols
 .tile
     LDY #0 : LDA (scan_at),Y
+    CMP #T_TRAP : BCC next          ; (most tiles: floor, walls and items)
+    LDX scan_at : STX rl : LDX scan_at + 1 : STX rh     ; (the handlers' rhl; A is the code)
     CMP #T_MONSTER : BCC other
-    LDX scan_at : STX rl : LDX scan_at + 1 : STX rh
     JSR monster_move
     JMP next
 .other
-    CMP #T_TRAP : BCC next
     CMP #&3F : BCS is_sparkle
-    LDX scan_at : STX rl : LDX scan_at + 1 : STX rh
     JSR trap_door
     JMP next
 .is_sparkle
     AND #&E0 : CMP #T_SPARKLE : BNE next
-    LDX scan_at : STX rl : LDX scan_at + 1 : STX rh
     JSR sparkle
 .next
     LDA scan_at : CLC : ADC #4 : STA scan_at
     BCC n : INC scan_at + 1
 .n
-    LDA scan_cols : SEC : SBC #5 : STA scan_cols
-    INC scan_cols
-    BCS tile
+    DEC scan_cols : BNE tile
     \ the next row: the phase moves by two
     LDA ScanPhase : EOR #2 : STA ScanPhase
     LDA scan_at : CLC : ADC #&12 : STA scan_at
@@ -89,27 +86,22 @@ BURST       = 50                ; the noise burst's segments (&CEF2)
 .burst
     \ &CEED NoiseBurst: a monster hit a player
     LDA HitFlag : BEQ done
-    LDA #BURST : JSR noise_burst
+    LDA #BURST : JMP noise_burst
 .done
     RTS
 }
 
-\ &CF0E MonsterMove: the monster whose head is at rhl: step it towards
-\ (or from) a player on move sweeps, and draw it.
+\ &CF0E MonsterMove: the monster whose head is at rhl, code A: step it
+\ towards (or from) a player on move sweeps, and draw it.
 .monster_move
 {
-    LDY #0 : LDA (rhl),Y : STA MonCode
-    \ its position: its tile's, plus its code's offset bits
-    JSR cell_pos
-    LDY #0 : LDA (rhl),Y : AND #2 : BEQ r : INC rb
-.r
-    LDA (rhl),Y : AND #1 : BEQ c : INC rc
-.c
+    STA MonCode
+    JSR head_pos
     LDA rc : STA MonNewPos : STA MonOldPos
     LDA rb : STA MonNewPos + 1 : STA MonOldPos + 1
     LDA #0 : STA MapStamp
     JSR fill_cells
-    LDA MonNewPos : STA rc : LDA MonNewPos + 1 : STA rb
+    DEC rc                          ; (fill_cells leaves it one more)
     JSR monster_chase
     LDA MoveSweep : BEQ stay
     JSR monster_try : BEQ place
@@ -126,29 +118,25 @@ BURST       = 50                ; the noise burst's segments (&CEF2)
     LDA rc : STA MonNewPos : LDA rb : STA MonNewPos + 1
     LDA #T_MARKER : STA MapStamp
     JSR fill_cells
-    LDA MonNewPos : STA rc : LDA MonNewPos + 1 : STA rb
+    DEC rc
     JSR map_cell
-    LDA rb : ASL A : STA ra2
-    LDA rc : AND #1 : ORA ra2 : AND #3 : STA ra2
+    LDA rc : LSR A                  ; (C: the column's bit 0)
+    LDA rb : ROL A : AND #3 : STA ra2   ; (the offset bits: the row's bit 0, the column's)
     LDA MonCode : AND #&FC : ORA ra2
-    LDY #0 : STA (rhl),Y
-    \ its picture and colour
-    PHA
-    AND #&70 : ORA MonFacing : ORA MoveSweep : CLC : ADC #PIC_MONSTER : STA pic
-    PLA : LSR A : LSR A : AND #3 : ORA #MON_INK : STA ink
+    STA (rhl),Y                     ; (Y = 0: map_cell's)
     \ moved: floor at the old place
-    LDA MonNewPos : CMP MonOldPos : BNE moved
-    LDA MonNewPos + 1 : CMP MonOldPos + 1 : BEQ draw
+    LDA rc : CMP MonOldPos : BNE moved
+    LDA rb : CMP MonOldPos + 1 : BEQ draw
 .moved
     LDA MonOldPos + 1 : STA rd : LDA MonOldPos : STA re
-    LDA TileAttrs : STA sp_attr
-    LDA #0 : JSR draw_at
+    JSR draw_floor_at
 .draw
-    LDA MonNewPos + 1 : STA rd : LDA MonNewPos : STA re
-    LDA ink : STA sp_attr
-    LDA pic : JMP draw_at
-    ZA_AUTO1 pic
-    ZA_AUTO1 ink
+    \ its picture and colour, from its code
+    LDA rb : STA rd : LDA rc : STA re
+    LDY #0 : LDA (rhl),Y
+    LSR A : LSR A : AND #3 : ORA #MON_INK : STA sp_attr
+    LDA (rhl),Y : AND #&70 : ORA MonFacing : ORA MoveSweep : CLC : ADC #PIC_MONSTER
+    JMP draw_at
 }
 
 \ &CFDF MonsterChase: step (rb, rc) towards the nearer player (by row
@@ -157,7 +145,9 @@ BURST       = 50                ; the noise burst's segments (&CEF2)
 \ StepV (the column's) and StepH (the row's), the facing in MonFacing.
 .monster_chase
 {
-    LDA FreezeTimer : JNE done
+    LDA FreezeTimer : BEQ chase
+    RTS
+.chase
     LDA InPlay : AND #3
     CMP #2 : BEQ p2
     CMP #1 : BEQ p1
@@ -166,7 +156,7 @@ BURST       = 50                ; the noise burst's segments (&CEF2)
     CMP d1 : BEQ p2 : BCS p1         ; (player 1 only when nearer)
 .p2
     LDX #R_SIZE
-    JMP step
+    BNE step                        ; (always)
 .p1
     LDX #0
 .step
@@ -194,7 +184,6 @@ BURST       = 50                ; the noise burst's segments (&CEF2)
     LDA dl : STA StepV
     LDA dh : STA StepH
     LDA face : STA MonFacing
-.done
     RTS
     ZA_AUTO1 d1
     ZA_AUTO1 dh
@@ -224,7 +213,7 @@ BURST       = 50                ; the noise burst's segments (&CEF2)
     LDA rb : PHA : LDA rc : PHA
     JSR cells_empty
     TAX : PLA : STA rc : PLA : STA rb : TXA
-    CMP #0 : BEQ done
+    BEQ done
     CMP #T_P2 + 1 : BCS done        ; (the Z80's CP &73: Z for &73 itself)
     CMP #T_P1 : BCC done
     \ a player: DE = -(kind + 1)
@@ -232,25 +221,19 @@ BURST       = 50                ; the noise burst's segments (&CEF2)
     LDA MonCode : AND #&70 : LSR A : LSR A : LSR A : LSR A : EOR #&FF
     STA re : STA HitFlag
     LDA #&FF : STA rd
-    LDA rb : PHA : LDA rc : PHA
-    LDA pl : PHA : LDA prec : PHA
+    LDA rb : PHA : LDA rc : PHA     ; (a death clears the player's cells)
     \ (The original hits player 1 if it's &71, then player 2 if A is
     \ &72, A being what player 1's hit left: so with player 1's heart at
-    \ &72, player 2 is hit too. Kept.)
-    LDA ra2 : CMP #T_P1 : BNE not_p1
-    LDA rd : PHA : LDA re : PHA
-    LDA #0 : JSR set_player
-    PLA : STA re : PLA : STA rd
+    \ &72, player 2 is hit too. Kept. Nothing after the scan reads pl
+    \ before setting it, so it isn't kept.)
+    LDA ra2 : CMP #T_P1 : BNE p2
+    LDA #0 : JSR set_player         ; (which keeps DE)
     JSR add_strength
-    JMP p2
-.not_p1
-    LDA ra2
 .p2
     CMP #T_P2 : BNE hit_done
     LDA #1 : JSR set_player
     JSR add_strength
 .hit_done
-    PLA : STA prec : PLA : STA pl
     PLA : STA rc : PLA : STA rb
     LDA #&FF                        ; (NZ)
 .done
@@ -263,7 +246,7 @@ BURST       = 50                ; the noise burst's segments (&CEF2)
 \ while the clock runs.
 .trap_door
 {
-    LDY #0 : LDA (rhl),Y : STA code
+    STA code                        ; (the scan's A: its code)
     LDA FreezeTimer : BNE done
     JSR random : AND #3 : BEQ spawn
     \ (The original keeps the code and the random number in A and A'
@@ -280,19 +263,14 @@ BURST       = 50                ; the noise burst's segments (&CEF2)
     LDA TrapPos + 1 : CLC : ADC SpawnOffsets,X : STA rb
     INX
     LDA SpawnOffsets,X : CMP #&FF : BEQ done
-    CLC : ADC TrapPos : STA rc
-    TXA : PHA
-    JSR map_cell
-    TAY : PLA : TAX : TYA
-    BNE next                        ; (the pairs overlap: the column is the next row)
-    LDA code : AND #7 : CMP #7 : BEQ any
-    LDA code : AND #&1F : ORA #T_SPARKLE
-    JMP put
-.any
-    \ a hell hole's: any kind and health
-    JSR random : AND #&1F : ORA #T_SPARKLE
+    ADC TrapPos : STA rc            ; (C clear: below &FF)
+    JSR map_cell : BNE next         ; (which keeps X) (the pairs overlap: the column is the next row)
+    LDA code : AND #7 : CMP #7
+    LDA code : BCC put              ; (C clear: not a hell hole)
+    JSR random                      ; a hell hole's: any kind and health
 .put
-    LDY #0 : STA (rhl),Y
+    AND #&1F : ORA #T_SPARKLE
+    STA (rhl),Y                     ; (Y = 0: map_cell's, which random keeps)
 .done
     RTS
     ZA_AUTO1 code
@@ -302,13 +280,11 @@ BURST       = 50                ; the noise burst's segments (&CEF2)
 \ ink 4 + its health); at frame 0 it becomes its monster.
 .sparkle
 {
-    LDA rl : PHA : LDA rh : PHA
     JSR cell_pos
     LDA rb : STA rd : LDA rc : STA re
     LDY #0 : LDA (rhl),Y : AND #&18 : LSR A : LSR A : LSR A : ORA #MON_INK : STA sp_attr
     LDA SparkleFrame : ORA #PIC_SPARKLE
-    JSR draw_at
-    PLA : STA rh : PLA : STA rl
+    JSR draw_at                     ; (which keeps rhl)
     LDA SparkleFrame : BNE done
     LDY #0 : LDA (rhl),Y : AND #7 : ASL A : ASL A : ASL A : ASL A : STA ra2
     LDA (rhl),Y : AND #&18 : LSR A : ORA ra2 : ORA #T_MONSTER
