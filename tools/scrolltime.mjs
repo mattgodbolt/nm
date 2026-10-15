@@ -33,8 +33,10 @@ const opt = (name, dflt) => { const i = args.indexOf(`--${name}`); if (i < 0) re
 const disc = opt("disc", "build/test.ssd");
 const against = opt("against", null);
 const cases = args.length ? args : Object.keys(CASES);
-const SCROLLS = ["scroll_up", "scroll_down", "scroll_left", "scroll_right"];
-const SHIFTS = ["shift_up", "shift_down", "shift_left", "shift_right"];
+// The scroll's entry: one routine, or (on an older disc) one a direction.
+// Every shift goes through shift_by.
+const SCROLLS = ["scroll", "scroll_up", "scroll_down", "scroll_left", "scroll_right"];
+const SHIFTS = ["shift_by"];
 
 // A case of its own: keys/level (right:5-300,fire:20/41).
 function parseCase(spec) {
@@ -54,8 +56,9 @@ async function run(path, name) {
     const beeb = await startBeeb({ disc: path, symbols: path.replace(/\.ssd$/, ".json"), bootUntil: "start" });
     const at = (s) => beeb.addr(s);
     const kinds = new Map([[at("pass_top"), "pass"], [at("main_loop"), "done"], [at("erase_old"), "erase"]]);
-    for (const s of SCROLLS) kinds.set(at(s), "scroll");
-    const names = new Map(SCROLLS.map((s) => [at(s), s]));
+    const scrollSyms = SCROLLS.filter((s) => s in beeb.syms);
+    for (const s of scrollSyms) kinds.set(at(s), "scroll");
+    const names = new Map(scrollSyms.map((s) => [at(s), s]));
     for (const s of SHIFTS) kinds.set(at(s), "shift");
     const scrolls = [];
     try {

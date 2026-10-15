@@ -207,17 +207,12 @@ CONTROLS = 6
     LDA Player1 + R_ROW,Y : STA rh
     LDA Player1 + R_COL,Y : STA rl
     LDA rd : SEC : SBC ViewOrigin : STA rc
-    CMP #PLACE_MAX + 1 : BCS scroll_down
-    CMP #PLACE_MIN : BCS not_up
-    JMP scroll_up
-.not_up
+    LDX #SCROLL_DOWN : CMP #PLACE_MAX + 1 : BCS scroll
+    LDX #SCROLL_UP : CMP #PLACE_MIN : BCC scroll
     LDA re : SEC : SBC ViewOrigin + 1
-    CMP #PLACE_MAX + 1 : BCC not_right
-    JMP scroll_right
-.not_right
-    CMP #PLACE_MIN : BCS not_left
-    JMP scroll_left
-.not_left
+    LDX #SCROLL_RIGHT : CMP #PLACE_MAX + 1 : BCS scroll
+    LDX #SCROLL_LEFT : CMP #PLACE_MIN : BCC scroll
+    \ in the view
     ADC #VIEW_LEFT - 1 : STA column ; the screen column (C set: from PLACE_MIN)
     LDY prec
     LDA re : STA Player1 + R_COL,Y
@@ -258,48 +253,65 @@ CONTROLS = 6
 \ and a new strip), as far as keeps the other player (rh, rl) in its
 \ rows or columns 2-20 when both are in play, stopping at the map's edge.
 \ The mover is drawn over (erase_old) and drawn next pass. Returns Z
-\ when it couldn't, or stopped at the edge.
+\ when it couldn't, or stopped at the edge. The original's four differ
+\ only in the axis, the way along it and the shift: here they are one,
+\ for direction X, the differences in the scroll_ tables.
 SCROLL_STEPS = 8
-.scroll_down
+SCROLL_DOWN  = 0                    ; (bit 0: the axis, ViewOrigin's row or column;
+SCROLL_RIGHT = 1                    ; bit 1: back, towards the map's top or left)
+SCROLL_UP    = 2
+SCROLL_LEFT  = 3
+.scroll
 {
+    STX dir
+    TXA : AND #1 : STA axis
     LDA #SCROLL_STEPS : STA steps
     LDA InPlay : CMP #3 : BNE step
-    LDA rh : SEC : SBC #2 : SEC : SBC ViewOrigin
-    LSR A : BEQ done
+    \ the other player's row (rh) or column (rl), less 2, less the view's,
+    \ halved: the steps forward; back, 9 less that rounded up
+    LDY axis : TYA : EOR #1 : TAX   ; (the Z80's pairs: the column first)
+    LDA rl,X : SEC : SBC #2 : SEC : SBC ViewOrigin,Y
+    LSR A
+    LDX dir : LDY scroll_delta,X : BPL forward  ; (C kept)
+    ADC #0 : STA steps
+    LDA #SCROLL_STEPS + 1 : SEC : SBC steps
+.forward
+    TAY : BEQ done                  ; (Z from A again: the LDY set it)
     STA steps
 .step
-    JSR shift_up
-    INC ViewOrigin : INC ViewOrigin
-    LDA #SCREEN_ROWS - 2 : STA rb
-    LDA #0 : STA rc
-    JSR view_strip_row
-    LDA ViewOrigin : CMP #VIEW_MAX : BCS edge
+    LDX dir : LDA scroll_shift,X : TAX
+    JSR shift_by
+    LDX dir : LDY axis
+    LDA ViewOrigin,Y : CLC : ADC scroll_delta,X : STA ViewOrigin,Y
+    \ the strip uncovered: a row for a vertical scroll, a column across
+    TYA : EOR #1 : TAY
+    LDA scroll_strip,X
+    JSR view_strip
+    \ the edge: going forward, ViewOrigin at VIEW_MAX or past it; back, at
+    \ 0 (flipped, &FF)
+    LDX dir : LDY axis
+    LDA ViewOrigin,Y : EOR scroll_flip,X : CMP scroll_edge,X : BCS edge
     DEC steps : BNE step
     BEQ erase_old                   ; (always)
 .edge
     LDA #0                          ; (Z)
 .done
     RTS
+    ZA_AUTO1 dir
+    ZA_AUTO1 axis
     ZA_AUTO1 steps
 }
-.scroll_up
-{
-    LDA #SCROLL_STEPS : STA steps
-    LDA InPlay : CMP #3 : BNE step
-    LDA rh : SEC : SBC #2 : SEC : SBC ViewOrigin
-    LSR A : ADC #0 : STA steps
-    LDA #SCROLL_STEPS + 1 : SEC : SBC steps : BEQ scroll_down.done
-    STA steps
-.step
-    JSR shift_down
-    DEC ViewOrigin : DEC ViewOrigin
-    LDA #0 : STA rb : STA rc
-    JSR view_strip_row
-    LDA ViewOrigin : BEQ scroll_down.done
-    DEC steps : BNE step
-    \ (fall into erase_old)
-    ZA_AUTO1 steps
-}
+\ By direction: down, right, up, left.
+.scroll_shift                       ; the screen's shift (shift_by's program)
+    EQUB prog_up - shift_progs, prog_left - shift_progs, prog_down - shift_progs, prog_right - shift_progs
+.scroll_delta                       ; ViewOrigin's step: a tile
+    EQUB 2, 2, -2, -2
+.scroll_strip                       ; where the strip uncovered is, in the view
+    EQUB SCREEN_ROWS - 2, SCREEN_ROWS - 2, 0, 0
+.scroll_flip
+    EQUB 0, 0, &FF, &FF
+.scroll_edge
+    EQUB VIEW_MAX, VIEW_MAX, &FF, &FF
 \ &CC75 EraseOld: floor at the moving player's old position, with the
 \ click. &CC79 EraseAt: at map position (rd, re).
 .erase_old
@@ -346,49 +358,6 @@ SCROLL_STEPS = 8
 ICON_KEY_COL = 1
 ICON_SCROLL_COL = 4
 
-.scroll_left
-{
-    LDA #SCROLL_STEPS : STA steps
-    LDA InPlay : CMP #3 : BNE step
-    LDA rl : SEC : SBC #2 : SEC : SBC ViewOrigin + 1
-    LSR A : ADC #0 : STA steps
-    LDA #SCROLL_STEPS + 1 : SEC : SBC steps : BEQ done
-    STA steps
-.step
-    JSR shift_right
-    DEC ViewOrigin + 1 : DEC ViewOrigin + 1
-    LDA #0 : STA rb : STA rc
-    JSR view_strip_col
-    LDA ViewOrigin + 1 : BEQ done
-    DEC steps : BNE step
-    JMP erase_old
-.done
-    RTS
-    ZA_AUTO1 steps
-}
-.scroll_right
-{
-    LDA #SCROLL_STEPS : STA steps
-    LDA InPlay : CMP #3 : BNE step
-    LDA rl : SEC : SBC #2 : SEC : SBC ViewOrigin + 1
-    LSR A : BEQ done
-    STA steps
-.step
-    JSR shift_left
-    INC ViewOrigin + 1 : INC ViewOrigin + 1
-    LDA #0 : STA rb
-    LDA #SCREEN_ROWS - 2 : STA rc
-    JSR view_strip_col
-    LDA ViewOrigin + 1 : CMP #VIEW_MAX : BCS edge
-    DEC steps : BNE step
-    JMP erase_old
-.edge
-    LDA #0
-.done
-    RTS
-    ZA_AUTO1 steps
-}
-
 \ &C574 ViewMapPtr: rhl = the map's tile at the view's origin plus (rb,
 \ rc) characters.
 .view_cell
@@ -398,41 +367,39 @@ ICON_SCROLL_COL = 4
     JMP map_cell
 }
 
-\ A row of the view's tiles, at view row rb (the strip a vertical scroll
-\ uncovers: &CB73-&CB86).
-.view_strip_row
+\ A line of the view's tiles, for the strip a scroll uncovers: a row
+\ (&CB73-&CB86) at view row A (Y = 1), or a column (&CBFC-&CC16) at view
+\ column A (Y = 0). Y indexes the Z80's pairs (rc, rb: the column first),
+\ and pos in the same order.
+.view_strip
 {
-    LDA rb : STA strip_row
+    LDX #0 : STX rc : STX rb : STX pos + 1  ; (the screen's row 0)
+    LDX #VIEW_LEFT : STX pos                ; (the view's column 0)
+    STA rc,Y
+    CLC : ADC pos,Y
+    ZA_INDEXEDBY 0..1
+    STA pos,Y
+    ZA_INDEXEDBY 0..1
+    TYA : EOR #1 : STA along        ; a row runs along the columns, a column along the rows
     JSR view_cell
-    LDA #VIEW_LEFT : STA strip_col
 .next
     LDY #0 : LDA (rhl),Y
-    LDX strip_row : LDY strip_col
+    LDX pos + 1 : LDY pos
     JSR draw_cell
-    INC rl
-    LDA strip_col : CLC : ADC #2 : STA strip_col
-    CMP #SCREEN_COLS : BCC next
-    RTS
-    ZA_AUTO1 strip_row
-    ZA_AUTO1 strip_col
-}
-
-\ A column of the view's tiles, at view column rc (&CBFC-&CC16).
-.view_strip_col
-{
-    LDA rc : CLC : ADC #VIEW_LEFT : STA strip_col
-    JSR view_cell
-    LDA #0 : STA strip_row
-.next
-    LDY #0 : LDA (rhl),Y
-    LDX strip_row : LDY strip_col
-    JSR draw_cell
-    LDA rl : CLC : ADC #32 : STA rl
+    LDX along
+    LDA rl : CLC : ADC map_step,X : STA rl
     BCC c : INC rh
 .c
-    LDA strip_row : CLC : ADC #2 : STA strip_row
-    CMP #SCREEN_ROWS : BCC next
+    LDA pos,X
+    ZA_INDEXEDBY 0..1
+    CLC : ADC #2 : STA pos,X
+    ZA_INDEXEDBY 0..1
+    CMP pos_end,X : BCC next
     RTS
-    ZA_AUTO1 strip_row
-    ZA_AUTO1 strip_col
+    ZA_AUTO 2, pos                  ; the screen's column and row
+    ZA_AUTO1 along
 }
+.map_step                           ; along the columns, then the rows
+    EQUB 1, 32
+.pos_end
+    EQUB SCREEN_COLS, SCREEN_ROWS
