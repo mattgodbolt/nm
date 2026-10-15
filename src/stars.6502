@@ -185,10 +185,8 @@ STAR_VIEW_MAX = &17             ; a star lives in the view's rows and columns 1-
 .not_trap
     AND #&E0 : CMP #T_SPARKLE : BEQ advance
     \ a wall: bounce while the bounces last, else stop
-    LDA Bounces : BEQ stop
+    LDA Bounces : BEQ star_hit_player.stop  ; (a JMP star_stop in reach)
     JMP star_bounce
-.stop
-    JMP star_stop
 .advance
     \ &C660 StarAdvance: there, and the star drawn
     LDY st
@@ -238,7 +236,7 @@ STAR_VIEW_MAX = &17             ; a star lives in the view's rows and columns 1-
 .star_hit_trap
 {
     STA code
-    AND #7 : CMP #7 : BEQ stop
+    AND #7 : CMP #7 : BEQ star_hit_player.stop  ; (star_stop)
     LDA P1Power + 1 : CLC : ADC #1 : STA hits
     LDA code
     SEC
@@ -250,8 +248,6 @@ STAR_VIEW_MAX = &17             ; a star lives in the view's rows and columns 1-
     JMP star_stop_redraw
 .gone
     LDA #0 : JMP star_put
-.stop
-    JMP star_stop
     ZA_AUTO1 code
     ZA_AUTO1 hits
 }

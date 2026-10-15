@@ -151,20 +151,19 @@ WALL_TOP_11 = &11           ; the top wall is WALL_SIDE over this tile and 1-5, 
 \ characters before, within 0-40.
 .view_from
 {
-    SEC : SBC #10 : BCC zero
+    SEC : SBC #10 : BCS above
+    LDA #0
+.above
     CMP #VIEW_MAX + 1 : BCC done
     LDA #VIEW_MAX
 .done
     RTS
-.zero
-    LDA #0
-    RTS
 }
-VIEW_MAX = 40
-LEVELS = 50                 ; (the original's &C352: level 50 is the end)               ; the view's furthest origin: 64 - 24 characters
+VIEW_MAX = 40               ; the view's furthest origin: 64 - 24 characters
+LEVELS = 50                 ; (the original's &C352: level 50 is the end)
 
-\ A random byte (for now a small generator: the original reads R, and the
-\ checks will want both machines to share one, docs/brief.md D5).
+\ A random byte. The original reads R; both machines take their numbers
+\ from this generator in the checks (decision 7).
 .random
 {
     LDA seed : ASL A : BCC n : EOR #&1D

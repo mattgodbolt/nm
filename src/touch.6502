@@ -486,18 +486,19 @@ T_SWITCH_WALL = &06
     JMP take_away
 .take_shield
     LDA #1 : STA Player1 + R_ARMOUR,X
-    JMP take_away
+    BNE taken                       ; (always)
 .take_heart
     INX                             ; (R_HEART is R_SKULL + 1)
 .take_idol
     LDA #&FF : STA Player1 + R_SKULL,X
-    JMP take_away
+    BNE taken                       ; (always)
     ASSERT R_HEART = R_SKULL + 1
 .take_ball
     INC Player1 + R_BOUNCES,X
     JMP take_away
 .take_clock
     LDA #&FF : STA FreezeTimer
+.taken
     JMP take_away
 
 \ Each player's record's offset from Player1, and its code in the map.
