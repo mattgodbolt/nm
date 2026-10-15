@@ -247,22 +247,17 @@ MENU_COLOUR0 = &0E              ; yellow on blue (&BA76's first)
 
 \ The menu's colours (decision 21): black, yellow (as pal_phys keeps
 \ them), the flashing paper (blue, then red), the flashing ink (yellow,
-\ then white).
+\ then white). The inks are the panel's, but blue and red in the paper's
+\ logical colour.
 .menu_palette
 {
-    LDX #7
-.inks
-    LDA menu_inks,X : STA ink_mask,X
-    DEX : BPL inks
-    LDA #MENU_PAPER : STA pal_phys + 2
-    LDA #MENU_INK : STA pal_phys + 3
-    JMP load_palette
+    JSR panel_inks
+    LDA #cbyte(2) : STA ink_mask + 1 : STA ink_mask + 2
+    LDA #MENU_PAPER : LDX #MENU_INK
+    JMP set_palette
 }
 MENU_PAPER = 4                  ; BBC blue
 MENU_INK   = 3                  ; BBC yellow
-\ Each Spectrum colour's MODE 1 byte on the menu's screens.
-.menu_inks
-    EQUB cbyte(0), cbyte(2), cbyte(2), cbyte(3), cbyte(3), cbyte(3), cbyte(1), cbyte(3)
 
 \ &D58B EnterCode: ENTER CODE, four keys into PasswordTyped, each shown
 \ with a click.
@@ -420,14 +415,15 @@ KEY_CLICK_HALF = (666 - 37) / 16    ; half_cycle's count for 666 T-states
     \ the Z80's borrow into the check: a tie with the high score counts)
     LDA P1Treasure : CMP P2Treasure
     LDA P1Treasure + 1 : SBC P2Treasure + 1
-    BCC p2
-    LDA P1Treasure : STA rl : LDA P1Treasure + 1 : STA rh
-    LDA #0 : JSR high_score_check
-    JMP restart
-.p2
-    LDA P2Treasure : STA rl : LDA P2Treasure + 1 : STA rh
-    LDA #1 : JSR high_score_check
-.restart
+    \ (C set: player 1's; the loads and branches keep it for the check)
+    LDX #0 : BCS better
+    LDX #P2Treasure - P1Treasure
+.better
+    LDA P1Treasure,X : STA rl : LDA P1Treasure + 1,X : STA rh
+    LDA #0 : BCS check
+    LDA #1
+.check
+    JSR high_score_check
     \ (&D8AA: both positions from OldPos)
     LDA OldPos : STA Player1 : STA Player2
     LDA OldPos + 1 : STA Player1 + 1 : STA Player2 + 1
@@ -435,13 +431,12 @@ KEY_CLICK_HALF = (666 - 37) / 16    ; half_cycle's count for 666 T-states
 }
 
 \ &D8B6 HighScoreCheck: treasure rhl, player A (0 or 1, with the carry
-\ the original brings: set for player 2): a new high score? Then YOUR
-\ NAME PLAYER n, and the name.
+\ the original brings: clear for player 2, its borrow): a new high
+\ score? Then YOUR NAME PLAYER n, and the name.
 .high_score_check
 {
     STA who
     \ (player 2's comes with the Z80's borrow: one more off)
-    LDA #0 : CMP who                ; (C clear for player 2, set for 1)
     LDA HighScore : SBC rl
     LDA HighScore + 1 : SBC rh
     BCS done
