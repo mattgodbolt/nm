@@ -145,9 +145,9 @@ ASSERT MU_STATE <= &80
 .mu_row
 {
     DEC mv_rows,X : BEQ new_row
-    \ &C308: the slide, a semitone a row
-    LDA mv_flags,X : AND #8 : BEQ done
-    LDA mv_flags,X : BMI up
+    \ &C308: the slide, a semitone a row (bit 7, up, comes only with bit 3)
+    LDA mv_flags,X : AND #&88 : BEQ done
+    BMI up
     DEC mv_note,X
     RTS
 .up
