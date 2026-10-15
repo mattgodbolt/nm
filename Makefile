@@ -37,7 +37,7 @@ BUILD   := $(shell date -u '+%Y-%m-%d %H:%M UTC') $(shell git rev-parse --short 
 
 .PHONY: all run check views passes music fetch zx disasm venv music-disc clean
 
-all: $(TARGET)
+all: $(TARGET) $(TEST)
 
 $(TARGET): $(SOURCES) | build
 	@python3 tools/lint_labels.py > /dev/null || python3 tools/lint_labels.py
@@ -46,12 +46,18 @@ $(TARGET): $(SOURCES) | build
 build:
 	mkdir -p build
 
+# The tests' disc: -D DIRECT=1 goes straight into a one-player game, so the
+# tools reach the main loop without the menu.
+TEST = build/test.ssd
+$(TEST): $(SOURCES) | build
+	$(ASM) -D DIRECT=1 -D 'BUILD="$(BUILD) test"' -o $@ --title NINJA --opt 3 --warn 2 --symbols $(@:.ssd=.json) src/main.6502
+
 # The view check's disc: every level's first view in turn (VIEWCHECK).
 build/viewcheck.ssd: $(SOURCES) | build
 	$(ASM) -D VIEWCHECK=1 -D 'BUILD="$(BUILD) viewcheck"' -o $@ --title NINJA --opt 3 --warn 2 --symbols $(@:.ssd=.json) src/main.6502
 
 # tests/scenarios.txt on both machines, compared pass by pass.
-passes: $(TARGET) build/nm48.z80
+passes: $(TEST) build/nm48.z80
 	PASSDIR=build/passes-$(MODEL) tools/passcheck.sh
 
 # Every level's first view, against the original's (tools/zxviews.py).
@@ -68,13 +74,13 @@ build/musiccheck.ssd: $(SOURCES) | build
 	$(ASM) -D MUSICCHECK=1 -D 'BUILD="$(BUILD) musiccheck"' -o $@ --title NINJA --opt 3 --warn 2 --symbols $(@:.ssd=.json) src/main.6502
 
 # The music against tools/music/dw_decode.py's driver (tools/musicmodel.py).
-music: $(TARGET) build/musiccheck.ssd build/nm128.z80
+music: $(TARGET) build/musiccheck.ssd build/nm128.z80 $(TEST)
 	node tools/musiccheck.mjs
 
 run: $(TARGET)
 	node tools/play.mjs '1,!run' shots/ --disc $(TARGET)
 
-check: $(TARGET) views disasm music passes
+check: $(TARGET) $(TEST) views disasm music passes
 
 fetch:
 	tools/fetch_original.sh

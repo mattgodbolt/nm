@@ -32,3 +32,25 @@ K_9      = &26
 .controls
     EQUB K_RETURN, K_Q, K_A, K_P, K_O, K_SPACE
     EQUB K_SHIFT, K_9, K_8, K_7, K_6, K_0
+
+\ Each BBC key's character, for the menus (menu.6502's read_key, as the
+\ original's ReadKey gives the Spectrum's): letters, digits, space and
+\ RETURN as ASCII, SHIFT as CAPS SHIFT's &E3, and &0E (SYMBOL SHIFT's,
+\ which nothing takes) for the rest. Indexed by internal key number.
+.key_chars
+    EQUB &E3, &0E, &0E, &0E, &0E, &0E, &0E, &0E    ; &00
+    EQUB &0E, &0E, &0E, &0E, &0E, &0E, &0E, &0E    ; &08
+    EQUB 'Q', '3', '4', '5', &0E, '8', &0E, &0E    ; &10
+    EQUB &0E, &0E, &0E, &0E, &0E, &0E, &0E, &0E    ; &18
+    EQUB &0E, 'W', 'E', 'T', '7', 'I', '9', '0'    ; &20
+    EQUB &0E, &0E, &0E, &0E, &0E, &0E, &0E, &0E    ; &28
+    EQUB '1', '2', 'D', 'R', '6', 'U', 'O', 'P'    ; &30
+    EQUB &0E, &0E, &0E, &0E, &0E, &0E, &0E, &0E    ; &38
+    EQUB &0E, 'A', 'X', 'F', 'Y', 'J', 'K', &0E    ; &40
+    EQUB &0E, &0D, &0E, &0E, &0E, &0E, &0E, &0E    ; &48
+    EQUB &0E, 'S', 'C', 'G', 'H', 'N', 'L', &0E    ; &50
+    EQUB &0E, &0E, &0E, &0E, &0E, &0E, &0E, &0E    ; &58
+    EQUB &0E, 'Z', ' ', 'V', 'B', 'M', &0E, &0E    ; &60
+    EQUB &0E, &0E, &0E, &0E, &0E, &0E, &0E, &0E    ; &68
+    EQUB &0E, &0E, &0E, &0E, &0E, &0E, &0E, &0E    ; &70
+    EQUB &0E, &0E, &0E, &0E, &0E, &0E, &0E, &0E    ; &78

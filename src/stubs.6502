@@ -3,13 +3,6 @@
 \ rest can be built and checked. Each goes as its part arrives.
 \ ***************************************************************************
 
-\ &C097 GameComplete, and &D85E's game over: for now, a new game.
-.game_complete
-.game_over
-    LDX #&FF : TXS
-    LDA #1
-    JMP new_game
-
 \ The star's record (Star1, Star2: row, column, drow, dcolumn, thrower).
 S_ROW     = 0
 S_COL     = 1

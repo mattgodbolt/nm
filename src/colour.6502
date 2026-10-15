@@ -33,7 +33,16 @@ FLOOR_TILES = {&00, &16, &1E}  ; the tiles whose ink is the level's floor colour
     DEX : BNE inks
     LDA #cbyte(0) : STA ink_mask
     \ the palette: black, yellow, the floor, cyan
+    LDA #LEVEL_PHYS0 : STA pal_phys
+    LDA #LEVEL_PHYS1 : STA pal_phys + 1
     LDX floor_ink : LDA zx_to_bbc,X : STA pal_phys + 2
+    LDA #LEVEL_PHYS3 : STA pal_phys + 3
+    \ (fall into load_palette)
+}
+
+\ The ULA's palette from pal_phys, the logical colours' physical ones.
+.load_palette
+{
     LDX #15
 .pal
     \ (MODE 1: a pixel's logical colour is index bits 3 and 1)
@@ -47,6 +56,10 @@ FLOOR_TILES = {&00, &16, &1E}  ; the tiles whose ink is the level's floor colour
     ZA_AUTO1 tmp
 }
 
-\ The logical colours' physical ones: black, yellow, (the floor), cyan.
+\ A level's logical colours' physical ones (decision 5): black, yellow,
+\ the floor's, cyan.
+LEVEL_PHYS0 = 0
+LEVEL_PHYS1 = 3
+LEVEL_PHYS3 = 6
 .pal_phys
     EQUB 0, 3, 0, 6

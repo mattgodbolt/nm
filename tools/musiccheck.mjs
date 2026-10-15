@@ -81,7 +81,7 @@ try {
 
 // 3: the game's build, the interrupt playing: in play, after the opening
 // jingle (song 1), the status tick starts the main theme.
-b = await startBeeb({ disc: "build/nm.ssd", symbols: "build/nm.json", bootUntil: "pass_top" });
+b = await startBeeb({ disc: "build/test.ssd", symbols: "build/test.json", bootUntil: "pass_top" });
 try {
     await b.frames(250);
     const v0 = await b.peek("vsyncs");

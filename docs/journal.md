@@ -224,3 +224,17 @@ compared yet.
   `print_grid`, which counts in rl, and `draw_glyph` took the screen
   column from Y after `attr_colours` had used it. Both are fixed, and every
   scenario's screens now match.
+
+### The front end
+
+The menu, the password, the controls (redefining a player's keys), game
+over, the high score and its name, the game's end with its tally, and
+the keys in play (pause, quit, the music) are transcribed (`menu.6502`,
+in the bank), with the gaps decision 21 lists. The release disc
+(`build/nm.ssd`) now starts at the menu; the tools use `build/test.ssd`
+(`-D DIRECT=1`), which goes straight into a one-player game.
+
+The menu's flash: the original rewrites the attributes of rows 4-23
+between yellow on blue and white on red twice a frame, for about 12.6 s.
+Here the rows are repainted once so that their paper is logical colour 2
+and their ink 3, and the flash swaps those two's physical colours.

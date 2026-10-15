@@ -1,0 +1,569 @@
+\ ***************************************************************************
+\ The front end: the menu, the password, the controls, game over, the high
+\ score and its name, the game's end, and the keys in play (&C000-&C11F,
+\ &C1E3-&C2FF, &D58B-&D970; docs/research/core.md, monsters.md).
+\ ***************************************************************************
+
+MENU_ATTR    = 7                ; white on black (&C1ED)
+MENU_FLASHES = &500             ; the menu flashes this many times, then settles (&C2B6)
+\ ... each flash 0.49 frames (docs/research/core.md, measured 2026-10-15):
+\ the menu settles after this many frames
+MENU_SETTLE_FRAMES = MENU_FLASHES * 49 DIV 100
+MENU_SWAP    = &19              ; MenuColour's flip: &0E (yellow on blue) and &17 (white on red) (&C2DD)
+MENU_FLASH_ROW = 4              ; the rows that flash: 4-23 (&C2E3)
+CODE_ATTR    = 3                ; the password's screen: magenta (&D58B)
+CONTROLS_ATTR = 7
+OVER_PAUSE   = 5                ; game over waits five of the 65,536 loops (&D885)
+NAME_LEN     = 10               ; the high score's name (&D8EA)
+K_ENTER_CH   = &0D              ; ReadKey's characters for ENTER and CAPS SHIFT (&D972)
+K_CAPS_CH    = &E3
+K_SYM_CH     = &0E
+K_DELETE     = &59              ; BBC internal key numbers
+K_CTRL       = &01
+K_T          = &23
+K_1          = &30
+K_2          = &31
+K_3          = &11
+K_4          = &12
+\ The 65,536-step loop (&C08F with BC = 0) in frames: 65,536 x 34
+\ T-states at 70,908 a frame (decision 9).
+DELAY_FRAMES = (65536 * 34 + 70908 / 2) / 70908
+\ A held key repeats in the name after &1000 polls of ReadKey (&D90B):
+\ about 400 T-states each, as frames.
+NAME_REPEAT = (&1000 * 400 + 70908 / 2) / 70908
+\ The menu's flash: swapped every this many frames (decision 21), for
+\ as long as the original's flashes take.
+FLASH_FRAMES = 8
+MENU_SWAPS = MENU_SETTLE_FRAMES DIV FLASH_FRAMES
+
+\ Wait A frames.
+.wait_frames
+{
+    TAX
+.next
+    JSR wait_vsync
+    DEX : BNE next
+    RTS
+}
+
+\ &D972 ReadKey: Z if no key is down; else X its BBC internal number and
+\ A its character (key_chars: letters, digits, space and RETURN as ASCII,
+\ SHIFT as CAPS SHIFT's &E3, any other &0E, SYMBOL SHIFT's: none).
+.read_key
+{
+    LDX #0
+.next
+    JSR key_down : BNE found
+    INX : BPL next
+    LDA #0
+    RTS
+.found
+    LDA key_chars,X
+    RTS
+}
+
+\ Wait for no key, then for one: X its number, A its character.
+.new_key
+{
+.up
+    JSR read_key : BNE up
+.down
+    JSR read_key : BEQ down
+    RTS
+}
+
+\ The C000 Start: the scores reset, the attract (here a key, then its
+\ release, on whatever is on the screen: the loading screen's legend isn't
+\ kept, decision 21), then the menu.
+.start_game
+{
+    LDX #&FF : TXS
+    JSR reset_game
+    \ (fall into menu)
+}
+
+\ &C1E3 Menu: wait for a key and its release, then the menu.
+.menu
+{
+.wait
+    JSR read_key : BEQ wait
+.release
+    JSR read_key : BNE release
+    \ (fall into main_menu)
+}
+.main_menu
+{
+    LDA #MENU_ATTR : JSR menu_palette
+    LDA #MENU_ATTR : JSR title
+    LDX #9 : LDY #7 : JSR print_at
+    EQUS "WRITTEN BY ADAM WARING", 0
+    LDX #&0B : LDY #8 : JSR print_at
+    EQUS "TAG COMPUTER GAMES", 0
+    LDX #&0B : LDY #&0B : JSR print_at
+    EQUS "1  ONE PLAYER GAME", 0
+    LDX #&0B : LDY #&0D : JSR print_at
+    EQUS "2  TWO PLAYER GAME", 0
+    LDX #&0B : LDY #&0F : JSR print_at
+    EQUS "3  SELECT CONTROLS", 0
+    LDX #&0B : LDY #&11 : JSR print_at
+    EQUS "4  ENTER  PASSWORD", 0
+    \ the high score, its 0, and its name
+    LDA #9 : STA PrintPos : LDA #&15 : STA PrintPos + 1
+    LDA HighScore : STA rl : LDA HighScore + 1 : STA rh
+    JSR print5
+    JSR print_inline
+    EQUS "0  BY  ", 0
+    LDX #0
+.name
+    LDA high_name,X : JSR print_char_x
+    INX : CPX #NAME_LEN : BNE name
+    \ the music off while it flashes (&C2B2)
+    JSR music_stop
+    LDA #LO(MENU_SWAPS) : STA flashes : LDA #HI(MENU_SWAPS) : STA flashes + 1
+    JSR menu_repaint
+    LDA #FLASH_FRAMES : STA flash_wait
+.keys
+    \ (&C2B9: each starts with 1,000 strength)
+    LDX #K_1 : JSR key_down : BEQ not1
+    LDA #1 : JMP new_game
+.not1
+    LDX #K_2 : JSR key_down : BEQ not2
+    LDA #3 : JMP new_game
+.not2
+    LDX #K_3 : JSR key_down : BEQ not3
+    JMP select_controls
+.not3
+    LDX #K_4 : JSR key_down : BEQ not4
+    JMP enter_code
+.not4
+    LDA flashes : ORA flashes + 1 : BEQ keys
+    JSR wait_vsync
+    DEC flash_wait : BNE keys
+    LDA #FLASH_FRAMES : STA flash_wait
+    JSR menu_flash
+    LDA flashes : BNE f : DEC flashes + 1
+.f
+    DEC flashes
+    LDA flashes : ORA flashes + 1 : BNE keys
+    \ the last: the theme (&C2FB)
+    LDA #0 : JSR play_song
+    JMP keys
+    ZA_AUTO2 flashes
+    ZA_AUTO1 flash_wait
+}
+
+\ print_char, keeping X.
+.print_char_x
+    STX ra2 : JSR print_char : LDX ra2
+    RTS
+
+\ &C2D9 MenuFlash: rows 4-23's colours swap, &0E and &17: here their
+\ logical colours' physical ones swap (decision 21).
+.menu_flash
+{
+    LDA MenuColour : EOR #MENU_SWAP : STA MenuColour
+    \ its paper and ink as the BBC's colours
+    PHA : LSR A : LSR A : LSR A : AND #7 : TAX
+    LDA zx_to_bbc,X : STA menu_phys + 2
+    PLA : AND #7 : TAX
+    LDA zx_to_bbc,X : STA menu_phys + 3
+    JMP set_palette
+}
+
+\ Rows 4-23 of the playfield repainted for the flash: their paper in
+\ logical 2 and their ink in 3, which menu_flash swaps (decision 21).
+\ (MODE 1: a pixel is lit if either of its bits is; lit in 3 and unlit
+\ in 2 is &F0 OR the lit pixels' low bits.)
+.menu_repaint
+{
+    LDA #LO(screen + MENU_FLASH_ROW * ROW_BYTES + PF_OFFSET) : STA rl
+    LDA #HI(screen + MENU_FLASH_ROW * ROW_BYTES + PF_OFFSET) : STA rh
+.row
+    LDY #0
+.byte
+    LDA (rhl),Y : LSR A : LSR A : LSR A : LSR A : ORA (rhl),Y
+    ORA #&F0 : STA (rhl),Y
+    INY : BNE byte
+    INC rh
+    LDY #0
+.rest
+    LDA (rhl),Y : LSR A : LSR A : LSR A : LSR A : ORA (rhl),Y
+    ORA #&F0 : STA (rhl),Y
+    INY : CPY #LO(PF_BYTES - &100) : BNE rest
+    INC rh                          ; (the next row's playfield: 256 on)
+    LDA rh : BPL row
+    \ their attributes: the first colour (&0E)
+    LDX #MENU_FLASH_ROW
+.arow
+    LDA attr_row_lo,X : STA rl : LDA attr_row_hi,X : STA rh
+    LDY #VIEW_LEFT : LDA #MENU_COLOUR0
+.acol
+    STA (rhl),Y
+    INY : CPY #SCREEN_COLS : BNE acol
+    INX : CPX #SCREEN_ROWS : BNE arow
+    STA MenuColour
+    RTS
+}
+MENU_COLOUR0 = &0E              ; yellow on blue (&BA76's first)
+
+\ The menu's colours (decision 21): black, yellow, the flashing paper
+\ (blue, then red), the flashing ink (yellow, then white); A the
+\ attribute the playfield is cleared to.
+.menu_palette
+{
+    LDX #7
+.inks
+    LDA menu_inks,X : STA ink_mask,X
+    DEX : BPL inks
+    LDA #MENU_PAPER : STA menu_phys + 2
+    LDA #MENU_INK : STA menu_phys + 3
+    \ (fall into set_palette)
+}
+.set_palette
+{
+    LDX #3
+.phys
+    LDA menu_phys,X : STA pal_phys,X
+    DEX : BPL phys
+    JMP load_palette
+}
+MENU_PAPER = 4                  ; BBC blue
+MENU_INK   = 3                  ; BBC yellow
+.menu_phys
+    EQUB 0, 3, MENU_PAPER, MENU_INK
+\ Each Spectrum colour's MODE 1 byte on the menu's screens.
+.menu_inks
+    EQUB cbyte(0), cbyte(2), cbyte(2), cbyte(3), cbyte(3), cbyte(3), cbyte(1), cbyte(3)
+
+\ &D58B EnterCode: ENTER CODE, four keys into PasswordTyped, each shown
+\ with a click.
+.enter_code
+{
+    LDA #CODE_ATTR : JSR title
+    LDX #&0F : LDY #&0A : JSR print_at
+    EQUS "ENTER CODE", 0
+    LDA #&12 : STA PrintPos : LDA #&0C : STA PrintPos + 1
+    LDX #0
+.key
+    STX ci
+    JSR new_key
+    LDX ci : STA PasswordTyped,X
+    JSR print_char
+    JSR key_click
+    LDX ci : INX : CPX #PASSWORD_LEN : BNE key
+    JMP menu
+    ZA_AUTO1 ci
+}
+
+\ &D5C9 SelectControls: redefine a player's keys (decision 13). The
+\ original's Kempston choices (3 and 4) have no BBC equivalent yet: they
+\ say so and leave the keys (decision 21).
+.select_controls
+{
+.up
+    JSR read_key : BNE up
+    LDA #CONTROLS_ATTR : JSR title
+    LDX #9 : LDY #&0A : JSR print_at
+    EQUS "1  REDEFINE PLAYER ONE", 0
+    LDX #9 : LDY #&0C : JSR print_at
+    EQUS "2  REDEFINE PLAYER TWO", 0
+    LDX #9 : LDY #&0E : JSR print_at
+    EQUS "3  KEMPSTON PLAYER ONE", 0
+    LDX #9 : LDY #&10 : JSR print_at
+    EQUS "4  KEMPSTON PLAYER TWO", 0
+.key
+    LDX #K_1 : JSR key_down : BNE p1
+    LDX #K_2 : JSR key_down : BNE p2
+    LDX #K_3 : JSR key_down : BNE kempston
+    LDX #K_4 : JSR key_down : BNE kempston
+    JMP key
+.p1
+    LDA #5 : LDX #0
+    JMP redefine
+.p2
+    LDA #4 : LDX #CONTROLS
+.redefine
+    STX at
+    JSR title
+    \ up, down, left, right, fire, then magic (&D664-&D69C)
+    LDX #0
+.ask
+    STX asked
+    LDA ask_row,X : TAY : JSR print_at_ask
+    LDX asked
+    LDA ask_control,X : CLC : ADC at : TAY
+    JSR read_key_for
+    LDX asked : INX : CPX #CONTROLS : BNE ask
+    JMP menu
+.kempston
+    LDA #5 : JSR title
+    LDX #&0B : LDY #&0A : JSR print_at
+    EQUS "KEMPSTON  SELECTED", 0
+    JMP menu
+    ZA_AUTO1 at
+    ZA_AUTO1 asked
+}
+\ The order the original asks in, each word's row, and its control.
+.ask_row
+    EQUB 4, 6, 8, &0A, &0C, &0E
+.ask_control
+    EQUB C_UP, C_DOWN, C_LEFT, C_RIGHT, C_FIRE, C_MAGIC
+
+\ &D79E-&D7F4: the word for ask X at row Y, column ASK_COL.
+ASK_COL = &14
+.print_at_ask
+{
+    LDA #ASK_COL : STA PrintPos : STY PrintPos + 1
+    LDA ask_word_lo,X : STA aw : LDA ask_word_hi,X : STA aw + 1
+    LDY #0
+.char
+    LDA (aw),Y : BEQ done
+    STY ay : JSR print_char : LDY ay
+    INY : JMP char
+.done
+    RTS
+    ZA_AUTO2 aw
+    ZA_AUTO1 ay
+}
+.ask_word_lo
+    EQUB LO(w_up), LO(w_down), LO(w_left), LO(w_right), LO(w_fire), LO(w_magic)
+.ask_word_hi
+    EQUB HI(w_up), HI(w_down), HI(w_left), HI(w_right), HI(w_fire), HI(w_magic)
+.w_up    EQUS "UP.....", 0
+.w_down  EQUS "DOWN...", 0
+.w_left  EQUS "LEFT...", 0
+.w_right EQUS "RIGHT..", 0
+.w_fire  EQUS "FIRE...", 0
+.w_magic EQUS "MAGIC..", 0
+
+\ &D7FC ReadKeyFor: KEY FOR, then a new key (not SHIFT: the original
+\ refuses CAPS and SYMBOL SHIFT) for control Y: shown (ENTER and SPACE by
+\ name), with a click.
+.read_key_for
+{
+    STY ctl
+    LDA #&0C : STA PrintPos
+    JSR print_inline
+    EQUS "KEY FOR", 0
+    LDA #&1B : STA PrintPos
+.again
+    JSR new_key
+    CMP #K_CAPS_CH : BEQ again
+    CMP #K_SYM_CH : BEQ again
+    LDY ctl : PHA : TXA : STA controls,Y : PLA
+    CMP #K_ENTER_CH : BEQ enter
+    CMP #' ' : BEQ space
+    JSR print_char
+    JMP key_click
+.enter
+    JSR print_inline
+    EQUS "ENTER", 0
+    JMP key_click
+.space
+    JSR print_inline
+    EQUS "SPACE", 0
+    JMP key_click
+    ZA_AUTO1 ctl
+}
+
+\ &D838 KeyClick: 256 half-waves of 666 T-states (decision 19).
+KEY_CLICK_HALVES = 0            ; (256)
+KEY_CLICK_HALF = (666 - 37) / 16    ; half_cycle's count for 666 T-states
+.key_click
+{
+    JSR effect_start
+    LDA #KEY_CLICK_HALVES : STA n
+.next
+    LDA #KEY_CLICK_HALF : JSR half_cycle
+    DEC n : BNE next
+    JMP effect_end
+    ZA_AUTO1 n
+}
+
+\ &D85E GameOver: player pl's strength ran out: GAME OVER PLAYER n, a
+\ pause; if the other is still in play, the view again and play on;
+\ else the better treasure to the high score, and a new game.
+.game_over
+{
+    LDA pl : EOR #1 : ORA #4 : JSR title    ; (cyan for player 1, green for 2)
+    LDX #&0B : LDY #&0E : JSR print_at
+    EQUS "GAME OVER PLAYER ", 0
+    LDA pl : CLC : ADC #'1' : JSR print_char
+    LDA #OVER_PAUSE * DELAY_FRAMES : JSR wait_frames
+    LDA InPlay : BEQ over
+    JMP draw_view
+.over
+    \ the better treasure: player 1's on a tie (and player 2's carries
+    \ the Z80's borrow into the check: a tie with the high score counts)
+    LDA P1Treasure : CMP P2Treasure
+    LDA P1Treasure + 1 : SBC P2Treasure + 1
+    BCC p2
+    LDA P1Treasure : STA rl : LDA P1Treasure + 1 : STA rh
+    LDA #0 : JSR high_score_check
+    JMP restart
+.p2
+    LDA P2Treasure : STA rl : LDA P2Treasure + 1 : STA rh
+    LDA #1 : JSR high_score_check
+.restart
+    \ (&D8AA: both positions from OldPos)
+    LDA OldPos : STA Player1 : STA Player2
+    LDA OldPos + 1 : STA Player1 + 1 : STA Player2 + 1
+    JMP start_game
+}
+
+\ &D8B6 HighScoreCheck: treasure rhl, player A (0 or 1, with the carry
+\ the original brings: set for player 2): a new high score? Then YOUR
+\ NAME PLAYER n, and the name.
+.high_score_check
+{
+    STA who
+    \ (player 2's comes with the Z80's borrow: one more off)
+    LDA #0 : CMP who                ; (C clear for player 2, set for 1)
+    LDA HighScore : SBC rl
+    LDA HighScore + 1 : SBC rh
+    BCS done
+    LDA rl : STA HighScore : LDA rh : STA HighScore + 1
+    LDA who : EOR #1 : ORA #4 : JSR title
+    LDX #&0B : LDY #8 : JSR print_at
+    EQUS "YOUR NAME PLAYER ", 0
+    LDA who : CLC : ADC #'1' : JSR print_char
+    JMP name_entry
+.done
+    RTS
+    ZA_AUTO1 who
+}
+
+\ &D8E7 NameEntry: up to 10 characters into the high score's name; a
+\ held key repeats; RETURN ends; DELETE (the original's CAPS SHIFT and
+\ 0) deletes.
+.name_entry
+{
+    LDX #NAME_LEN - 1 : LDA #' '
+.clear
+    STA high_name,X
+    DEX : BPL clear
+    LDA #&0F : STA PrintPos : LDA #&0C : STA PrintPos + 1
+    LDA #0 : STA at
+    LDA #NAME_REPEAT : STA repeat
+.poll
+    JSR read_key : BEQ new
+    DEC repeat : BNE poll_wait
+.new
+    LDA #NAME_REPEAT : STA repeat
+.wait
+    JSR read_key : BEQ wait
+    STX key : STA ch
+    JSR key_click
+    LDA ch
+    CMP #K_ENTER_CH : BEQ done
+    LDX key : CPX #K_DELETE : BEQ delete
+    CMP #&80 : BCS poll
+    CMP #K_SYM_CH : BEQ poll
+    LDX at : STA high_name,X
+    JSR print_char
+    INC at : LDA at : CMP #NAME_LEN : BCC poll
+    DEC at : DEC PrintPos               ; (at the end, the last again)
+    JMP poll
+.delete
+    LDA at : BEQ poll
+    DEC at : DEC PrintPos
+    LDA PrintPos : PHA
+    LDA #' ' : JSR print_char : LDA #' ' : JSR print_char
+    PLA : STA PrintPos
+    LDX at : LDA #' ' : STA high_name,X : STA high_name + 1,X
+    JMP poll
+.poll_wait
+    JSR wait_vsync
+    JMP poll
+.done
+    RTS
+    ZA_AUTO1 at
+    ZA_AUTO1 key
+    ZA_AUTO1 ch
+    ZA_AUTO1 repeat
+}
+
+\ The high score's name (the original's is its menu's inline string, &C2A7,
+\ which the name entry writes over): the tape's.
+.high_name
+    EQUS "TAG GAMES!"
+
+\ &C097 GameComplete: WELL DONE YOUNG MAN! (MEN! if both left the last
+\ level), then each strength counted into its treasure; then the timers,
+\ and back to the next level's set-up, which carries on on the old map
+\ with both strengths 0: they die at the next status tick.
+.game_complete
+{
+    LDA #6 : JSR title
+    LDX #&0A : LDY #6 : JSR print_at
+    EQUS "WELL DONE YOUNG MAN!", 0
+    LDA InPlay : AND #&0C : CMP #&0C : BNE tally
+    LDX #&1A : LDY #6 : JSR print_at
+    EQUS "MEN!", 0
+.tally
+    LDA #0 : JSR set_player : JSR tally_one : STA left
+    LDA #1 : JSR set_player : JSR tally_one : ORA left
+    BNE tally
+    JMP timers
+    ZA_AUTO1 left
+}
+
+\ &C0CB-&C11A: one of player pl's strength into its treasure, both
+\ printed. A = 0 if it had none.
+.tally_one
+{
+    LDX prec
+    LDA Player1 + R_STRENGTH,X : ORA Player1 + R_STRENGTH + 1,X : BEQ done
+    LDA Player1 + R_STRENGTH,X : BNE lo : DEC Player1 + R_STRENGTH + 1,X
+.lo
+    DEC Player1 + R_STRENGTH,X
+    LDA Player1 + R_STRENGTH,X : STA rl : LDA Player1 + R_STRENGTH + 1,X : STA rh
+    LDX pl : LDA strength_row,X : JSR print5_at
+    LDX prec
+    INC Player1 + R_TREASURE,X : BNE t : INC Player1 + R_TREASURE + 1,X
+.t
+    LDA Player1 + R_TREASURE,X : STA rl : LDA Player1 + R_TREASURE + 1,X : STA rh
+    LDX pl : LDA treasure_row,X : JSR print5_at
+    LDA #1
+.done
+    RTS
+}
+
+\ The keys in play (&C031-&C05A): with CTRL and SHIFT held (the
+\ Spectrum's EXTEND MODE, CAPS and SYMBOL SHIFT: decision 21): T the
+\ music off or on, Q a new game, P a pause.
+.extend_keys
+{
+    LDX #K_CTRL : JSR key_down : BEQ done
+    LDX #K_SHIFT : JSR key_down : BEQ done
+    LDX #K_T : JSR key_down : BNE music
+    LDX #K_Q : JSR key_down : BEQ not_q
+    JMP start_game
+.not_q
+    LDX #K_P : JSR key_down : BEQ released
+    JSR pause
+.released
+    LDA #0 : STA music_key_held
+.done
+    RTS
+.music
+    \ &C05C MusicToggle: once until T is seen released
+    LDA music_key_held : BNE done
+    DEC music_key_held
+    LDA music_off : EOR #&FF : STA music_off
+    BMI off
+    LDA #0 : JMP play_song
+.off
+    JMP music_stop
+}
+
+\ &C07B Pause: until P is released, pressed and released again.
+.pause
+{
+    JSR up
+.down
+    LDX #K_P : JSR key_down : BEQ down
+.up
+    LDX #K_P : JSR key_down : BNE up
+    RTS
+}

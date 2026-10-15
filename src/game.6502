@@ -13,10 +13,8 @@ PASSWORDS    = 8
 \ bits: 1, or 3 for two), from the level the password typed gives.
 .new_game
 {
-    PHA
-    JSR reset_game
-    PLA
-    \ &C30C NewGame
+    \ &C30C NewGame (start_game has reset the scores, and the menu may
+    \ have taken a password)
     STA InPlay
     LDA #LO(START_STRENGTH) : STA P1Strength
     LDA #HI(START_STRENGTH) : STA P1Strength + 1
@@ -69,6 +67,7 @@ PASSWORDS    = 8
     LDA InPlay : AND #3 : BNE in_play
     JSR next_level
 .in_play
+    JSR extend_keys
     JMP main_loop
 }
 
@@ -127,9 +126,9 @@ PASSWORDS    = 8
 .pause_start
     \ &C390: two counts of 65,536 round a 34 T-state loop, as frames
     LDX #LEVEL_PAUSE
-.pause
+.pause_frames
     JSR wait_vsync
-    DEX : BNE pause
+    DEX : BNE pause_frames
     PLA
     RTS
 }

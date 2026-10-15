@@ -21,7 +21,7 @@ const KEYS = {
 const args = process.argv.slice(2);
 const option = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? args.splice(i, 2)[1] : dflt; };
 const out = option("--out", "build/bbc_passes.json");
-const disc = option("--disc", "build/nm.ssd");
+const disc = option("--disc", "build/test.ssd");
 // --screens N: every N passes (and the last), the screen (12K) and the
 // attributes the port keeps, for tools/passcmp.py.
 const screens = parseInt(option("--screens", "0"));

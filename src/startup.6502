@@ -38,8 +38,13 @@ IF DEFINED(MUSICCHECK)
     JSR draw_view
     JMP music_check
 ELSE
-    LDA #1                      ; (one player, for now: the menu is to come)
+IF DEFINED(DIRECT)
+    JSR reset_game              ; (the tests' disc: straight into a one-player game)
+    LDA #1
     JMP new_game
+ELSE
+    JMP start_game
+ENDIF
 ENDIF
 ENDIF
 }
@@ -61,8 +66,7 @@ VIEW_SEED = 1
 .view_done
     PLA : CLC : ADC #1
     CMP #LEVELS : BNE vc_level
-    LDA #1                      ; (then a game, as the game's build starts one)
-    JMP new_game
+    JMP start_game              ; (then the game, as the game's build starts)
 ENDIF
 
 IF DEFINED(MUSICCHECK)
@@ -96,7 +100,7 @@ ASSERT MC_FRAMES * MC_RECORD <= 32 * 32
     DEC mc_left : BNE mc_frame
 .mc_full
     LDA mc_next : CMP #MC_PLAY : BNE mc_song
-    LDA #1 : JMP new_game       ; (a game, as the other test builds go on to)
+    JMP start_game              ; (the game, as the other test builds go on to)
 .mc_song
     LDA mc_next : BMI mc_chunk
     JSR music_start
