@@ -17,9 +17,9 @@
 \ and the noise, which the AY mixes into any voice and the SN has a
 \ channel of its own for. It writes only what changed since it last wrote.
 \
-\ The game's own writes to the chip go through sound_write, which holds
-\ mu_busy across them: the chip takes a register in one byte and its
-\ value in the next, and the interrupt's bytes mustn't land between. While
+\ The game's own writes to the chip (sound.6502's effects) hold mu_busy
+\ across them: the chip takes a register in one byte and its value in the
+\ next, and the interrupt's bytes mustn't land between. While
 \ mu_busy is set the interrupt plays the frame but doesn't write it; the
 \ next frame writes whatever changed meanwhile.
 \
@@ -595,8 +595,8 @@ ASSERT LO(MU_ROUND) = 0
 MU_SN_PERIODS = 1024            ; the SN's ten bits
 ASSERT LO(MU_SN_PERIODS) = 0
 
-\ A to the chip, from inside the interrupt or with mu_busy held: port A
-\ already an output, the keyboard off it. Keeps X.
+\ A to the chip, from inside the interrupt or with mu_busy held (sound.6502's
+\ effect_start): port A already an output, the keyboard off it. Keeps X.
 .mu_write
 {
     STA sysvia_ora_nh
@@ -608,18 +608,6 @@ ASSERT LO(MU_SN_PERIODS) = 0
     RTS
 }
 MU_WRITE_HOLD = 3               ; (a few microseconds of it: Chuckie Egg 2's)
-
-\ A to the chip, for the game's own sounds: mu_busy keeps the music's
-\ interrupt off the chip meanwhile. Keeps X.
-.sound_write
-{
-    INC mu_busy
-    LDY #&0B : STY sysvia_orb           ; the keyboard on auto-scan
-    LDY #&FF : STY sysvia_ddra
-    JSR mu_write
-    DEC mu_busy
-    RTS
-}
 
 \ Every chip register written again at the next frame: after the game's
 \ sounds have used the music's channels, and at start-up.

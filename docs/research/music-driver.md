@@ -129,7 +129,8 @@ that changed since it last wrote:
   mixed into (decision 17).
 
 While the song is stopped it writes silence. While `mu_busy` is set it
-writes nothing: the game's own writes hold it (`sound_write`).
+writes nothing: the game's own writes hold it (`sound.6502`'s
+`effect_start` to `effect_end`).
 
 `make music` checks it: every frame of every song, the shadow registers
 against `dw_decode.py`'s, and the SN's bytes against a Python model of
@@ -157,7 +158,7 @@ hand. What the port would need for it:
   volumes many times a frame. A two-byte tone write anywhere (the music's
   or the game's) must keep them off between its bytes, or a volume's
   latch byte lands between and the data byte goes to the volume. So
-  `mu_write`'s callers and `sound_write` would hold interrupts off (SEI)
+  `mu_write`'s callers, the music's and the effects', would hold interrupts off (SEI)
   across each pair, rather than `mu_busy` alone.
 - **Latency.** While `music_tick` runs, interrupts wait, and it takes up
   to a few thousand cycles (decision 14): a bass edge would be late by
