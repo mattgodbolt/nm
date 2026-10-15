@@ -1,0 +1,175 @@
+\ ***************************************************************************
+\ The playfield's shifts, a tile (16 pixels) at a time, for the scroll:
+\ the original's ShiftLeft (&DBE8), ShiftRight (&DC17), ShiftUp (&DC48)
+\ and ShiftDown (&DC7F), pixels and attributes. The strip they leave is
+\ redrawn by the scroll.
+\ ***************************************************************************
+
+PF_OFFSET  = VIEW_LEFT * 16     ; a character row's playfield, from its start
+PF_BYTES   = ROW_BYTES - PF_OFFSET
+TILE_BYTES = 32                 ; a tile's width in a character row's bytes
+PF_COLS    = SCREEN_COLS - VIEW_LEFT
+
+ZA_AUTO2 sh_src
+ZA_AUTO2 sh_dst
+ZA_AUTO2 sh_len
+
+\ Copy sh_len bytes from sh_src to sh_dst, forwards (for a copy down in
+\ memory, or one that doesn't overlap).
+.move_up
+{
+    LDY #0
+    LDX sh_len + 1 : BEQ part
+.page
+    LDA (sh_src),Y : STA (sh_dst),Y
+    INY : BNE page
+    INC sh_src + 1 : INC sh_dst + 1
+    DEX : BNE page
+.part
+    LDX sh_len : BEQ done
+.bytes
+    LDA (sh_src),Y : STA (sh_dst),Y
+    INY : DEX : BNE bytes
+.done
+    RTS
+}
+
+\ ... backwards, from the last byte (for a copy up in memory).
+.move_down
+{
+    LDA sh_src + 1 : CLC : ADC sh_len + 1 : STA sh_src + 1
+    LDA sh_dst + 1 : CLC : ADC sh_len + 1 : STA sh_dst + 1
+    LDY sh_len : BEQ pages
+.part
+    DEY
+    LDA (sh_src),Y : STA (sh_dst),Y
+    CPY #0 : BNE part
+.pages
+    LDX sh_len + 1 : BEQ done
+.page
+    DEC sh_src + 1 : DEC sh_dst + 1
+.bytes
+    DEY
+    LDA (sh_src),Y : STA (sh_dst),Y
+    CPY #0 : BNE bytes
+    DEX : BNE page
+.done
+    RTS
+}
+
+\ sh_src = character row X's playfield + A, sh_dst = row Y's + rx,
+\ sh_len = ra2 (under 256) or PF_BYTES (ra2 = 0).
+.rows_at
+{
+    PHA
+    TXA : ASL A : CLC : ADC #HI(screen) : STA sh_src + 1
+    TYA : ASL A : CLC : ADC #HI(screen) : STA sh_dst + 1
+    PLA : CLC : ADC #LO(PF_OFFSET) : STA sh_src
+    BCC s : INC sh_src + 1
+.s
+    LDA rx : CLC : ADC #LO(PF_OFFSET) : STA sh_dst
+    BCC d : INC sh_dst + 1
+.d
+    LDA ra2 : STA sh_len : LDA #0 : STA sh_len + 1
+    LDA ra2 : BNE done
+    LDA #LO(PF_BYTES) : STA sh_len : LDA #HI(PF_BYTES) : STA sh_len + 1
+.done
+    RTS
+}
+    ASSERT PF_BYTES - TILE_BYTES < &200
+
+\ sh_src = attribute row X's playfield + A, sh_dst = row Y's + rx, sh_len
+\ = ra2 (or PF_COLS for 0).
+.attr_rows_at
+{
+    CLC : ADC #VIEW_LEFT : ADC attr_row_lo,X : STA sh_src
+    LDA attr_row_hi,X : ADC #0 : STA sh_src + 1
+    LDA rx : CLC : ADC #VIEW_LEFT : ADC attr_row_lo,Y : STA sh_dst
+    LDA attr_row_hi,Y : ADC #0 : STA sh_dst + 1
+    LDA #0 : STA sh_len + 1
+    LDA ra2 : BNE n
+    LDA #PF_COLS
+.n
+    STA sh_len
+    RTS
+}
+
+\ &DBE8 ShiftLeft: columns 10-31 to 8-29.
+.shift_left
+{
+    LDX #0
+.row
+    STX shr
+    \ the pixels: PF_BYTES - TILE_BYTES from a tile on, to the start
+    LDA #0 : STA rx
+    LDA #LO(PF_BYTES - TILE_BYTES) : STA ra2
+    LDY shr : LDA #TILE_BYTES : JSR rows_at
+    LDA #HI(PF_BYTES - TILE_BYTES) : STA sh_len + 1
+    JSR move_up
+    \ the attributes
+    LDA #0 : STA rx
+    LDA #PF_COLS - 2 : STA ra2
+    LDX shr : LDY shr : LDA #2 : JSR attr_rows_at
+    JSR move_up
+    LDX shr : INX : CPX #SCREEN_ROWS : BNE row
+    RTS
+    ZA_AUTO1 shr
+}
+
+\ &DC17 ShiftRight: columns 8-29 to 10-31.
+.shift_right
+{
+    LDX #0
+.row
+    STX shr
+    LDA #TILE_BYTES : STA rx
+    LDA #LO(PF_BYTES - TILE_BYTES) : STA ra2
+    LDY shr : LDA #0 : JSR rows_at
+    LDA #HI(PF_BYTES - TILE_BYTES) : STA sh_len + 1
+    JSR move_down
+    LDA #2 : STA rx
+    LDA #PF_COLS - 2 : STA ra2
+    LDX shr : LDY shr : LDA #0 : JSR attr_rows_at
+    JSR move_down
+    LDX shr : INX : CPX #SCREEN_ROWS : BNE row
+    RTS
+    ZA_AUTO1 shr
+}
+
+\ &DC48 ShiftUp: rows 2-23 to 0-21.
+.shift_up
+{
+    LDY #0
+.row
+    STY shr
+    LDA #0 : STA rx : STA ra2
+    TYA : CLC : ADC #2 : TAX
+    LDA #0 : JSR rows_at
+    JSR move_up
+    LDA #0 : STA rx : STA ra2
+    LDA shr : CLC : ADC #2 : TAX : LDY shr
+    LDA #0 : JSR attr_rows_at
+    JSR move_up
+    LDY shr : INY : CPY #SCREEN_ROWS - 2 : BNE row
+    RTS
+    ZA_AUTO1 shr
+}
+
+\ &DC7F ShiftDown: rows 0-21 to 2-23 (from the bottom up).
+.shift_down
+{
+    LDY #SCREEN_ROWS - 1
+.row
+    STY shr
+    LDA #0 : STA rx : STA ra2
+    TYA : SEC : SBC #2 : TAX
+    LDA #0 : JSR rows_at
+    JSR move_up
+    LDA #0 : STA rx : STA ra2
+    LDA shr : SEC : SBC #2 : TAX : LDY shr
+    LDA #0 : JSR attr_rows_at
+    JSR move_up
+    LDY shr : DEY : CPY #1 : BNE row
+    RTS
+    ZA_AUTO1 shr
+}

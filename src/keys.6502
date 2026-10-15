@@ -1,0 +1,34 @@
+\ ***************************************************************************
+\ The keyboard, read straight from the System VIA, as Chuckie Egg 2's port
+\ does: the game makes no OS calls.
+\ ***************************************************************************
+
+\ Is a key down? X = its internal key number. NZ if it is.
+.key_down
+    LDA #&7F : STA sysvia_ddra      ; bits 0-6 the key, bit 7 its state
+    LDA #3 : STA sysvia_orb         ; auto-scan off: the matrix is ours
+    STX sysvia_ora_nh
+    LDA sysvia_ora_nh : AND #&80
+    RTS
+
+\ BBC internal key numbers
+K_SHIFT  = &00
+K_Q      = &10
+K_A      = &41
+K_O      = &36
+K_P      = &37
+K_SPACE  = &62
+K_RETURN = &49
+K_0      = &27
+K_6      = &34
+K_7      = &24
+K_8      = &15
+K_9      = &26
+
+\ The players' controls (decision 13): magic, up, down, right, left, fire.
+\ The original's defaults, the same keys where the BBC has them: player 1
+\ Q, A, P, O, SPACE, with RETURN for ENTER; player 2 the Sinclair
+\ joystick's 9, 8, 7, 6, 0, with SHIFT for CAPS SHIFT.
+.controls
+    EQUB K_RETURN, K_Q, K_A, K_P, K_O, K_SPACE
+    EQUB K_SHIFT, K_9, K_8, K_7, K_6, K_0

@@ -1,0 +1,251 @@
+\ ***************************************************************************
+\ The status: strength and treasure, the panel's figures and icons, the
+\ status tick every 25 passes, the timers, and the game's and the level's
+\ resets (&C121, &D9EC-&DBE7; docs/research/core.md).
+\ ***************************************************************************
+
+STATUS_EVERY = 25               ; passes between status ticks (&D9F4)
+IDLE_TICKS   = 100              ; status ticks in an idle period (&DA34, &DB4D)
+IDLE_STAGES  = 4                ; idle periods until the walls open (&DB52)
+T_BORDER_LO  = &04              ; the border walls' codes, &04 and &05 (&DA45)
+T_BORDER_HI  = &06
+T_ONE_WALL   = &07              ; a closed one-way tile (&DA6F)
+ICON_KEY     = &22              ; the panel's key and scroll icons (&CB19, &CB24)
+ICON_SCROLL  = &23
+
+\ &C121 Timers: count down the five per-pass timers that aren't 0.
+.timers
+{
+    LDX #0
+.next
+    LDY timer_index,X
+    LDA vars_ba,Y : BEQ zero
+    SEC : SBC #1 : STA vars_ba,Y
+.zero
+    INX : CPX #5 : BNE next
+    RTS
+}
+.timer_index
+    EQUB P1Skull - vars_ba, P2Skull - vars_ba, FreezeTimer - vars_ba, P1Heart - vars_ba, P2Heart - vars_ba
+
+\ &D9EC StatusTick: every 25 passes, the music's restart, a strength off
+\ each player in play, the one-way tiles, and the idle timer: when no
+\ treasure has been taken for a period, every key, door and chest goes;
+\ after the fourth, the border walls become exits.
+.status_tick
+{
+    DEC StatusPasses : BNE done
+    LDA #STATUS_EVERY : STA StatusPasses
+    JSR music_restart
+    LDA #0 : STA pl : STA prec
+    LDA InPlay : AND #1 : BEQ no1
+    JSR drain
+.no1
+    LDA #1 : STA pl : LDA #R_SIZE : STA prec
+    LDA InPlay : AND #2 : BEQ no2
+    JSR drain
+.no2
+    JSR close_one_ways
+    DEC IdleTicks : BNE done
+    \ keys, doors and chests (&08-&0B) go
+    LDA #T_KEY : LDX #T_CHEST : LDY #0
+    JSR replace_codes
+    LDA #IDLE_TICKS : STA IdleTicks
+    DEC IdleStage : BNE done
+    \ the walls open
+    LDA #T_BORDER_LO : LDX #T_BORDER_HI : LDY #T_EXIT
+    JSR replace_codes
+.done
+    RTS
+.drain
+    LDA #&FF : STA rd : STA re     ; (DE = -1)
+    JMP add_strength
+}
+
+\ Every map code from A up to X (not including it) becomes Y, and is
+\ redrawn (&DA1D, &DA41).
+.replace_codes
+{
+    STA lo : STX hi : STY new
+    LDA #LO(map) : STA rl : LDA #HI(map) : STA rh
+.next
+    LDY #0 : LDA (rhl),Y
+    CMP lo : BCC skip
+    CMP hi : BCS skip
+    LDA new : STA (rhl),Y
+    JSR redraw_cell
+.skip
+    INC rl : BNE next
+    INC rh : LDA rh : CMP #HI(map) + 4 : BNE next
+    RTS
+    ZA_AUTO1 lo
+    ZA_AUTO1 hi
+    ZA_AUTO1 new
+}
+
+\ &DA59 CloseOneWays: each one-way tile walked through (OneWays) becomes a
+\ wall (&07) once its cell is empty again.
+.close_one_ways
+{
+    LDX #0
+.next
+    LDA OneWays,X : BEQ skip
+    SEC : SBC #ZX_MAP_HI - HI(map) : STA rh  ; (the original's address, kept: take_one_way)
+    LDA OneWays + 1,X : STA rl
+    LDY #0 : LDA (rhl),Y : BNE skip
+    STA OneWays,X : STA OneWays + 1,X
+    LDA #T_ONE_WALL : STA (rhl),Y
+    TXA : PHA
+    JSR redraw_cell
+    PLA : TAX
+.skip
+    INX : INX : CPX #2 * ONE_WAYS : BNE next
+    RTS
+}
+
+\ &DA7E PrintGrid: the panel's icons, a 3 x 3 grid from row rd, column re:
+\ A's character as many times as the count (rl), then spaces.
+.print_grid
+{
+    STA icon
+    INC rl
+    LDA #3 : STA grid_rows
+.row
+    LDA re : STA PrintPos
+    LDA rd : STA PrintPos + 1
+    LDA #3 : STA grid_cols
+.col
+    DEC rl : BNE draw
+    LDA #' ' : STA icon             ; (spaces from there on: the count wraps past 0)
+.draw
+    LDA icon
+    JSR print_char
+    DEC grid_cols : BNE col
+    INC rd
+    DEC grid_rows : BNE row
+    RTS
+    ZA_AUTO1 icon
+    ZA_AUTO1 grid_rows
+    ZA_AUTO1 grid_cols
+}
+
+\ &DAA6 P1AddStrength, &DAF4 P2AddStrength: add DE (rd, re: high, low) to
+\ player pl's strength, and print it. Not while its heart runs; with its
+\ shield, one change in four (random AND &0C = 0) is skipped. Below 0, the
+\ player is out of play: game over for it.
+.add_strength
+{
+    LDX prec
+    LDA Player1 + R_HEART,X : BNE done
+    LDA Player1 + R_ARMOUR,X : BEQ apply
+    JSR random : AND #&0C : BEQ done
+.apply
+    LDX prec
+    LDA Player1 + R_STRENGTH,X : CLC : ADC re : STA rl
+    LDA Player1 + R_STRENGTH + 1,X : ADC rd : STA rh
+    BMI dead
+    JMP set_strength
+.dead
+    \ out of play (InPlay's bits 0 and 2, or 1 and 3, cleared), its cells
+    \ cleared, strength shown as 0, song 2, game over
+    LDX pl
+    LDA InPlay : AND dead_keep,X : STA InPlay
+    LDY prec
+    LDA Player1 + R_ROW,Y : STA rb
+    LDA Player1 + R_COL,Y : STA rc
+    LDA #0 : STA MapStamp
+    JSR fill_cells
+    LDA #0 : STA rl : STA rh
+    JSR set_strength
+    LDA #SONG_DEAD : JSR music_start
+    JMP game_over
+.done
+    RTS
+}
+.dead_keep
+    EQUB &0A, &05
+SONG_DEAD = 2
+
+\ &DAE8 P1SetStrength, &DB33: player pl's strength = rhl, printed.
+.set_strength
+{
+    LDX prec
+    LDA rl : STA Player1 + R_STRENGTH,X
+    LDA rh : STA Player1 + R_STRENGTH + 1,X
+    LDX pl
+    LDA strength_row,X
+    JMP print5_at
+}
+.strength_row
+    EQUB 2, 10
+
+\ &DB3F P1AddTreasure, &DB59: add DE to player pl's treasure, print it,
+\ and start the idle timers again.
+.add_treasure
+{
+    LDX prec
+    LDA Player1 + R_TREASURE,X : CLC : ADC re : STA Player1 + R_TREASURE,X : STA rl
+    LDA Player1 + R_TREASURE + 1,X : ADC rd : STA Player1 + R_TREASURE + 1,X : STA rh
+    LDA #IDLE_TICKS : STA IdleTicks
+    LDA #IDLE_STAGES : STA IdleStage
+    LDX pl
+    LDA treasure_row,X
+    \ (fall into print5_at)
+}
+\ Print rhl as 5 digits at row A, column 1 (the panel's figures).
+.print5_at
+    STA PrintPos + 1
+    LDA #1 : STA PrintPos
+    \ (fall into print5)
+
+\ &DB71 Print5Digits: rhl as 5 digits at the print position. (The panel's
+\ sixth digit is a 0 in the loading screen: the figures show ten times
+\ their value.) &DB83 Print2Digits: its last two.
+.print5
+{
+    LDX #4
+.digit
+    LDA #'0' : STA ch
+.sub
+    LDA rl : SEC : SBC tens_lo,X : TAY
+    LDA rh : SBC tens_hi,X : BCC print
+    STA rh : STY rl
+    INC ch
+    JMP sub
+.print
+    TXA : PHA
+    LDA ch : JSR print_char
+    PLA : TAX
+    DEX : BPL digit
+    RTS
+    ZA_AUTO1 ch
+}
+.treasure_row
+    EQUB 4, 12
+.tens_lo
+    EQUB LO(1), LO(10), LO(100), LO(1000), LO(10000)
+.tens_hi
+    EQUB HI(1), HI(10), HI(100), HI(1000), HI(10000)
+
+\ &DBA2 ResetGame: zero the scores and the game's counts, then the level's.
+.reset_game
+{
+    LDA #0
+    STA P1Strength : STA P1Strength + 1 : STA P2Strength : STA P2Strength + 1
+    STA P1Treasure : STA P1Treasure + 1 : STA P2Treasure : STA P2Treasure + 1
+    STA PasswordTyped : STA PasswordTyped + 1 : STA PasswordTyped + 2 : STA PasswordTyped + 3
+    STA P1Keys : STA P2Keys : STA P1Magic : STA P2Magic
+    STA P1Power : STA P1Power + 1 : STA P2Power : STA P2Power + 1
+    \ (fall into reset_level)
+}
+\ &DBCA ResetLevel: the level's counts, and the one-way tiles' list.
+.reset_level
+{
+    LDA #0
+    STA P1Bounces : STA P2Bounces : STA P1Armour : STA P2Armour : STA P1Ring : STA P2Ring
+    LDX #2 * ONE_WAYS - 1
+.clear
+    STA OneWays,X
+    DEX : BPL clear
+    RTS
+}

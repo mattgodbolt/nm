@@ -1,0 +1,29 @@
+\ ***************************************************************************
+\ Parts of the game not transcribed yet: each does nothing for now, so the
+\ rest can be built and checked. Each goes as its part arrives.
+\ ***************************************************************************
+
+.stars_update                   ; &C632 StarsUpdate
+.monsters_update                ; &CE77 MonsterScan
+.launch_star                    ; &C60E LaunchStar
+.smart_bomb                     ; &C4B0 SmartBomb
+.chirp                          ; &C508 the throw's chirp (A: its length)
+.click                          ; &CC8D the step's click
+.hit_noise                      ; &C8C4 HitNoise (A: its segments)
+.music_start                    ; &B8E1 (A: the song)
+.music_restart                  ; &B907
+    RTS
+
+\ &C097 GameComplete, and &D85E's game over: for now, a new game.
+.game_complete
+.game_over
+    LDX #&FF : TXS
+    LDA #1
+    JMP new_game
+
+\ The star's record (Star1, Star2: row, column, drow, dcolumn, thrower).
+S_ROW     = 0
+S_COL     = 1
+S_THROWER = 4
+.star_offset
+    EQUB 0, Star2 - Star1

@@ -120,3 +120,26 @@ them, so the port keeps both blocks in the original's layout, from the
 tape's bytes, named from the ctl files (`tools/mkvars.py`, decision 10).
 The code now loads at &1900 and the loader copies it down to &0E00, and
 the map and the attributes are in OS workspace (decision 11).
+
+### The players walk, pass for pass
+
+The players, touching and the status are transcribed: `player.6502` (the
+two players' code is the same in the original apart from their variables,
+keys and colours, so here it is once, for the player in `pl`), `touch.6502`
+(every item, doors, chests, the teleporters, the shove, the exits, hitting
+a monster), `status.6502` (strength, treasure, the panel's figures and
+icons, the status tick, the idle timers, the one-way tiles), `shift.6502`
+(the scroll's block moves) and `spread.6502`. The original's routines
+pass positions and map cells in registers, so the transcription keeps
+the Z80's registers in zero page by their names (`regs.6502`: rb, rc, rd,
+re, rh, rl), and each routine reads beside its original. The parts not
+yet transcribed are stubs (`stubs.6502`). The main loop runs at a pass
+clock (decision 12); the keys are a table (decision 13).
+
+`tools/passlog.py` plays the original pass by pass from the menu's 1,
+with keys held over ranges of passes, and logs both variable blocks and
+the map at the top of every pass; `tools/passlog.mjs` does the same on
+the port, and `tools/passcmp.py` names what differs. On the first try,
+walking right then down into the wall on level 1 matched every player
+variable for 70 passes. What differs is the monsters' (not transcribed
+yet): their scan's variables and the trap doors' sparkles in the map.

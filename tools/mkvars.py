@@ -21,6 +21,9 @@ sys.path.insert(0, os.path.dirname(__file__))
 from nmsnap import mem48
 
 BLOCKS = [("vars_ba", 0xBA29, 0xBAA0), ("vars_ff", 0xFF2A, 0xFF62)]
+# Variables the ctl files describe inside a larger block, without a label
+# of their own.
+EXTRA = {0xBA6E: "HighScore", 0xFF4B: "OneWays"}
 
 
 def main():
@@ -31,6 +34,8 @@ def main():
             mo = re.match(r"@ \$([0-9A-F]{4}) label=(\w+)", line)
             if mo:
                 labels[int(mo.group(1), 16)] = mo.group(2)
+    for addr, name in EXTRA.items():
+        labels.setdefault(addr, name)
     out = ["\\ The original's variables (tools/mkvars.py, decision 10): each",
            "\\ label from disasm/*.ctl, at its offset in the port's copy of the block.", ""]
     for name, start, end in BLOCKS:

@@ -72,6 +72,7 @@ rhl = rl
 .sp_bottom  SKIP 1
 .sp_left    SKIP 1
 .sp_right   SKIP 1
+.pass_sp    SKIP 1          ; the stack at a player's pass, for its exit (player.6502)
 ENDSECTION
 
 \ OS workspace the game takes once it owns the machine (decision 11): the
@@ -103,11 +104,21 @@ SECTION Code, org = CODE_BASE, load = &FFFF0000 OR CODE_LOAD, exec = &FFFF0000 +
     INCLUDE "panel.6502"
     INCLUDE "text.6502"
     INCLUDE "game.6502"
+    INCLUDE "keys.6502"
+    INCLUDE "player.6502"
+    INCLUDE "touch.6502"
+    INCLUDE "status.6502"
+    INCLUDE "shift.6502"
+    INCLUDE "spread.6502"
+    INCLUDE "stubs.6502"
     INCLUDE "tables.6502"
     \ Data from the original (tools/mkgfx.py, tools/mklevels.py)
+.passwords
+    INCBIN "data/passwords.bin"
 .blocks
     INCBIN "data/blocks.bin"
 .tileattr
+TileAttrs = tileattr          ; (the original's &FF02)
     INCBIN "data/tileattr.bin"
 .font
     INCBIN "data/font.bin"

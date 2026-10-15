@@ -1,7 +1,100 @@
 \ ***************************************************************************
-\ The game's flow: the level's start.
+\ The game's flow: a new game, the main loop, the levels' start
+\ (&C000-&C165, &C30A-&C415; docs/research/core.md).
 \ ***************************************************************************
 
+LEVELS_END   = 50               ; level 50 (from 0) is the game's end (&C352)
+START_STRENGTH = 1000           ; each player's strength at the start (&C2B9)
+SONG_START   = 1                ; the game's opening jingle (&C00F)
+PASSWORD_LEN = 4
+PASSWORDS    = 8
+
+\ &C000 Start (after the menu): a new game for the players in A (InPlay's
+\ bits: 1, or 3 for two), from the level the password typed gives.
+.new_game
+{
+    PHA
+    JSR reset_game
+    PLA
+    \ &C30C NewGame
+    STA InPlay
+    LDA #LO(START_STRENGTH) : STA P1Strength
+    LDA #HI(START_STRENGTH) : STA P1Strength + 1
+    LDA InPlay : CMP #3 : BNE one
+    LDA #LO(START_STRENGTH) : STA P2Strength
+    LDA #HI(START_STRENGTH) : STA P2Strength + 1
+.one
+    JSR find_password
+    JSR start_level
+    \ &C00C: the view, and the opening jingle
+    JSR draw_view
+    LDA #SONG_START : JSR music_start
+    JMP main_loop
+}
+
+\ &C322 FindPassword: A = the level the password typed (PasswordTyped)
+\ starts, or 0.
+.find_password
+{
+    LDX #0
+.next
+    LDY #0
+.char
+    LDA PasswordTyped,Y : CMP passwords,X : BNE miss
+    INX : INY : CPY #PASSWORD_LEN : BNE char
+    LDA passwords,X
+    RTS
+.miss
+    \ the next: past the rest of this one and its level
+    INX : INY : CPY #PASSWORD_LEN + 1 : BNE miss
+    CPX #PASSWORDS * (PASSWORD_LEN + 1) : BNE next
+    LDA #0
+    RTS
+}
+
+\ The main loop (&C014): a pass, at the pass clock's rate (decision 12).
+.main_loop
+    LDA passes
+.ml_wait
+    CMP passes : BEQ ml_wait
+.pass_top                       ; (the pass logs' breakpoint: tools/passlog.mjs)
+{
+    LDA #0 : JSR player_pass
+    LDA #1 : JSR player_pass
+    JSR stars_update
+    JSR monsters_update
+    JSR status_tick
+    JSR timers
+    JSR spread_tick
+    LDA InPlay : AND #3 : BNE in_play
+    JSR next_level
+.in_play
+    JMP main_loop
+}
+
+\ &C153 NextLevel: both players are out of play: the next level, and the
+\ players who left by the exit (InPlay's bits 2 and 3) are in play.
+.next_level
+{
+    LDA Level : CLC : ADC #1
+    JSR start_level
+    LDA InPlay : LSR A : LSR A : STA InPlay      ; (bits 0 and 1 are clear here)
+    JSR reset_level
+    JMP draw_view
+}
+
+\ &C34F StartLevel: set up level A (0-49): its colours, the title screen
+\ (with the password every fifth level), and the map.
+.start_level
+{
+    STA Level
+    CMP #LEVELS_END : BNE not_end
+    JMP game_complete
+.not_end
+    PHA : JSR level_colours : PLA
+    PHA : JSR level_intro : PLA
+    JMP level_load
+}
 \ &C34F (the display part): the level's title screen, "LEVEL nn", and the
 \ pause before the level's set-up. A = the level (0-49).
 .level_intro
@@ -12,7 +105,26 @@
     EQUS "LEVEL ", 0
     PLA : PHA : CLC : ADC #1
     JSR print_dec2
-    \ (the password, every fifth level: to come)
+    \ &C37E: the password, if a level that one starts
+    PLA : PHA
+    LDX #PASSWORD_LEN
+.find
+    CMP passwords,X : BEQ password
+    INX : INX : INX : INX : INX
+    CPX #PASSWORDS * (PASSWORD_LEN + 1) + PASSWORD_LEN : BNE find
+    JMP pause_start
+.password
+    TXA : SEC : SBC #PASSWORD_LEN : PHA
+    LDX #&0D : LDY #&0D : JSR print_at
+    EQUS "PASSWORD..", 0
+    PLA : TAX
+    LDY #PASSWORD_LEN
+.pchar
+    TYA : PHA : TXA : PHA
+    LDA passwords,X : JSR print_char
+    PLA : TAX : INX : PLA : TAY
+    DEY : BNE pchar
+.pause_start
     \ &C390: two counts of 65,536 round a 34 T-state loop, as frames
     LDX #LEVEL_PAUSE
 .pause

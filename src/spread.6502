@@ -1,0 +1,54 @@
+\ ***************************************************************************
+\ The spreading tile (&13), one tile checked a pass (&D132, &D157).
+\ ***************************************************************************
+
+T_SPREAD = &13
+
+\ &D132 SpreadTick: the cursor (SpreadCursor: column, then row) visits
+\ every fourth column of every other row, from the bottom up.
+.spread_tick
+{
+    LDA SpreadCursor : STA rc
+    LDA SpreadCursor + 1 : STA rb
+    JSR spread
+    LDA SpreadCursor : STA rc
+    LDA SpreadCursor + 1 : STA rb
+    LDA rc : CLC : ADC #4 : STA rc
+    CMP #&40 : BCC store
+    AND #2 : EOR #2 : STA rc
+    DEC rb : DEC rb : BNE store
+    LDA #&3C : STA rb
+    LDA rc : EOR #2 : STA rc
+.store
+    LDA rc : STA SpreadCursor
+    LDA rb : STA SpreadCursor + 1
+    RTS
+}
+
+\ &D157 Spread: if the tile at (rb, rc) is &13, it spreads into its empty
+\ neighbours: left, right, below, then above.
+.spread
+{
+    JSR map_cell : CMP #T_SPREAD : BNE done
+    LDA rl : PHA : LDA rh : PHA
+    LDA rl : SEC : SBC #1 : STA rl  ; (the Z80's DEC L: within the page)
+    JSR into
+    INC rl : INC rl : JSR into      ; (INC L)
+    LDA rl : CLC : ADC #&1F : STA rl
+    BCC b : INC rh
+.b
+    JSR into
+    LDA rl : SEC : SBC #&40 : STA rl
+    BCS a : DEC rh
+.a
+    JSR into
+    PLA : STA rh : PLA : STA rl
+.done
+    RTS
+.into
+    LDY #0 : LDA (rhl),Y : BNE no
+    LDA #T_SPREAD : STA (rhl),Y
+    JMP redraw_cell
+.no
+    RTS
+}

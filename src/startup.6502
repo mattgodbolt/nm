@@ -23,13 +23,8 @@ IF DEFINED(VIEWCHECK)
     JMP view_check
 ELSE
     LDA #1 : STA seed
-    LDA #START_LEVEL
-    PHA : JSR level_colours : PLA
-    JSR level_intro
-    JSR level_load
-    JSR draw_view
-.idle
-    JMP idle
+    LDA #1                      ; (one player, for now: the menu is to come)
+    JMP new_game
 ENDIF
 }
 
@@ -50,8 +45,8 @@ VIEW_SEED = 1
 .view_done
     PLA : CLC : ADC #1
     CMP #LEVELS : BNE vc_level
-.vc_done
-    JMP vc_done
+    LDA #1                      ; (then a game, as the game's build starts one)
+    JMP new_game
 ENDIF
 
 \ MODE 1's pixels on the narrowed CRTC, set in the hardware: an OS mode

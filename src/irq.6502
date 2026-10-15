@@ -1,5 +1,10 @@
 \ ***************************************************************************
-\ The interrupt: the game owns IRQ1V, and services only VSync.
+\ The interrupt: the game owns IRQ1V, and services VSync and the pass
+\ clock.
+
+\ A pass's length (decision 12): the original's median, 1.22 frames of
+\ 70,908 T-states at 3.5469 MHz, in microseconds (docs/brief.md, D4).
+PASS_TICK = 24400
 \ ***************************************************************************
 
 .install_irq
@@ -7,6 +12,11 @@
     SEI
     LDA #&7F : STA sysvia_ier : STA usrvia_ier  ; anything we don't service
     LDA #&82 : STA sysvia_ier                   ; VSync (CA1)
+    \ The pass clock (decision 12): System VIA T1, free-running
+    LDA sysvia_acr : AND #&3F : ORA #&40 : STA sysvia_acr
+    LDA #LO(PASS_TICK - 2) : STA sysvia_t1ll : STA sysvia_t1cl
+    LDA #HI(PASS_TICK - 2) : STA sysvia_t1lh : STA sysvia_t1ch
+    LDA #&C0 : STA sysvia_ier                   ; T1
     LDA #LO(irq_handler) : STA irq1v
     LDA #HI(irq_handler) : STA irq1v + 1
     CLI
@@ -15,6 +25,10 @@
 
 .irq_handler
 {
+    LDA sysvia_ifr : AND #&40 : BEQ not_t1
+    LDA sysvia_t1cl                             ; acknowledge T1
+    INC passes
+.not_t1
     LDA sysvia_ifr : AND #2 : BEQ done
     STA sysvia_ifr                              ; acknowledge VSync
     INC vsyncs
