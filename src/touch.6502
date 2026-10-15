@@ -420,6 +420,7 @@ ZA_AUTO1 door_step
     BCC f : INC rh
 .f
     LDA #0
+.done
     RTS                             ; (Z)
     ZA_AUTO1 count
     ZA_AUTO1 counting
@@ -434,19 +435,17 @@ VIEW_TILES = 12                     ; the view is 12 x 12 tiles
     JSR cell_pos
     LDA StepV : ASL A : CLC : ADC rb : STA rb
     LDA StepH : ASL A : CLC : ADC rc : STA rc
-    JSR map_cell : BNE done
-    LDA rb : SEC : SBC ViewOrigin
-    CMP #PLACE_MAX + 1 : BCS done
-    CMP #PLACE_MIN : BCC done
-    LDA rc : SEC : SBC ViewOrigin + 1
-    CMP #PLACE_MAX + 1 : BCS done
-    CMP #PLACE_MIN : BCC done
+    JSR map_cell : BNE pick_teleporter.done
+    \ (each of the place's row and column less the view's, less PLACE_MIN:
+    \ a borrow from the first leaves it far out of range)
+    LDA rb : SEC : SBC ViewOrigin : SBC #PLACE_MIN
+    CMP #PLACE_MAX - PLACE_MIN + 1 : BCS pick_teleporter.done
+    LDA rc : SEC : SBC ViewOrigin + 1 : SBC #PLACE_MIN
+    CMP #PLACE_MAX - PLACE_MIN + 1 : BCS pick_teleporter.done
     LDX prec
     LDA rc : STA Player1 + R_COL,X
     LDA rb : STA Player1 + R_ROW,X
-    JMP clear_step
-.done
-    RTS
+    \ (fall into clear_step)
 }
 
 \ Clear the step (StepV, StepH): a trap door, a teleport and a shove do.
