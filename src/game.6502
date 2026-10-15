@@ -16,11 +16,10 @@ PASSWORDS    = 8
     \ &C30C NewGame (start_game has reset the scores, and the menu may
     \ have taken a password)
     STA InPlay
-    LDA #LO(START_STRENGTH) : STA P1Strength
-    LDA #HI(START_STRENGTH) : STA P1Strength + 1
-    LDA InPlay : CMP #3 : BNE one
-    LDA #LO(START_STRENGTH) : STA P2Strength
-    LDA #HI(START_STRENGTH) : STA P2Strength + 1
+    LDX #LO(START_STRENGTH) : LDY #HI(START_STRENGTH)
+    STX P1Strength : STY P1Strength + 1
+    CMP #3 : BNE one
+    STX P2Strength : STY P2Strength + 1
 .one
     JSR find_password
 IF DEFINED(DIRECT)
@@ -94,11 +93,11 @@ ENDIF
     JMP game_complete
 .not_end
     PHA : JSR level_colours : PLA
-    PHA : JSR level_intro : PLA
+    JSR level_intro                 ; (which keeps A)
     JMP level_load
 }
 \ &C34F (the display part): the level's title screen, "LEVEL nn", and the
-\ pause before the level's set-up. A = the level (0-49).
+\ pause before the level's set-up. A = the level (0-49), kept.
 .level_intro
 {
     PHA

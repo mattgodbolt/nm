@@ -138,15 +138,14 @@ ZA_AUTO2 str
     LDA gl_src + 1 : ADC #HI(font - 8 * FONT_FIRST) : STA gl_src + 1
     \ in the cell's colours
     LDX PrintPos + 1 : LDY PrintPos
-    LDA attr_row_lo,X : STA gl_at
-    LDA attr_row_hi,X : STA gl_at + 1
+    JSR glyph_attrs
     LDA (gl_at),Y
-    JSR draw_glyph
+    JSR draw_glyph_attr
 .advance
     \ the cursor
-    INC PrintPos
-    LDA PrintPos : CMP #SCREEN_COLS : BNE done
-    LDA #0 : STA PrintPos
+    LDA PrintPos : CLC : ADC #1 : AND #SCREEN_COLS - 1 : STA PrintPos
+    BNE done
+    ASSERT SCREEN_COLS = 32         ; (a power of two: the AND wraps it)
     INC PrintPos+1
     LDA PrintPos+1 : CMP #SCREEN_ROWS : BNE done
     LDA #0 : STA PrintPos+1
@@ -158,12 +157,13 @@ ZA_AUTO2 str
 \ attribute becomes A (the original's StarCell writes the attribute;
 \ print writes the one the cell has, as it leaves it).
 .draw_glyph
+    PHA : JSR glyph_attrs : PLA
+    \ (fall into draw_glyph_attr)
+\ ... with gl_at already row X's attributes (glyph_attrs).
+.draw_glyph_attr
 {
+    STA (gl_at),Y
     STX gl_row : STY gl_col
-    PHA
-    LDA attr_row_lo,X : STA gl_at
-    LDA attr_row_hi,X : STA gl_at + 1
-    PLA : STA (gl_at),Y
     JSR attr_colours                ; (which uses X and Y)
     \ the screen: screen + row * &200 + col * 16 (the column's bit 4 is
     \ the carry the shifts leave, which ROL takes into the high byte)
@@ -180,6 +180,12 @@ ZA_AUTO2 str
     LDY gl_tmp : INY : CPY #8 : BNE line
     RTS
 }
+\ gl_at = row X's attributes.
+.glyph_attrs
+    LDA attr_row_lo,X : STA gl_at
+    LDA attr_row_hi,X : STA gl_at + 1
+    RTS
+
 ZA_AUTO2 gl_at
 ZA_AUTO2 gl_src
 ZA_AUTO1 gl_tmp
