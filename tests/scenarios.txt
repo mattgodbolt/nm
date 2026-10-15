@@ -8,3 +8,6 @@ walk-blocked | right:5-30,down:31-60            | 120
 walk-right   | right:5-300                      | 320
 walk-up      | up:5-250                         | 270
 monsters     | up:5-60,right:61-300             | 320
+throw        | fire:10,right:20-25,fire:30-60   | 90
+throw-walk   | up:5-40,fire:41-200,right:150-250 | 260
+shoot        | up:5-60,right:61-160,fire:161-400,left:200-210 | 420

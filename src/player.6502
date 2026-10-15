@@ -109,6 +109,10 @@ CONTROLS = 6
     SEC : SBC #1 : STA Player1 + R_POWER,Y
 .no_power
     LDA Player1 + R_BOUNCES,Y : STA Bounces
+    LDA Player1 + R_ROW,Y : STA rd
+    LDA Player1 + R_COL,Y : STA re
+    LDX pl : LDA P1Facing,X
+    PHA : LDA player_code,X : TAX : PLA
     JSR launch_star
     LDA #THROW_CHIRP : JSR chirp
 .stay

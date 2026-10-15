@@ -3,8 +3,6 @@
 \ rest can be built and checked. Each goes as its part arrives.
 \ ***************************************************************************
 
-.stars_update                   ; &C632 StarsUpdate
-.launch_star                    ; &C60E LaunchStar
 .smart_bomb                     ; &C4B0 SmartBomb
 .chirp                          ; &C508 the throw's chirp (A: its length)
 .click                          ; &CC8D the step's click

@@ -546,14 +546,15 @@ T_SWITCH_WALL = &06
 \ &C86C HitMonster: the monster at rhl takes a hit (its code's bits 2-3,
 \ its health, wrap from 0 to 3 when it dies), with the hit noise. Kind 7
 \ (bits 4-6) can't be hurt. Dead, its four cells are cleared and floor is
-\ drawn there. (rb, rc) is a cell it covers. Returns A = 0.
+\ drawn there. (rb, rc) is a cell it covers. Z when it died or can't be
+\ hurt, NZ when it lives on.
 .hit_monster
 {
     LDA #HIT_NOISE : JSR hit_noise
     LDY #0 : LDA (rhl),Y
     AND #&70 : CMP #&70 : BEQ done
     LDA (rhl),Y : SEC : SBC #4 : STA (rhl),Y
-    AND #&0C : CMP #&0C : BNE done
+    AND #&0C : CMP #&0C : BNE lives
     \ dead: its position from its code's bits 0-1 (which of its tile's
     \ cells it starts at)
     LDA rb : AND #&FE : STA rb
@@ -571,6 +572,9 @@ T_SWITCH_WALL = &06
     JSR draw_at
 .done
     LDA #0
+    RTS
+.lives
+    LDA #&FF
     RTS
 }
 HIT_NOISE = 50                      ; the hit noise's segments (&C86C)

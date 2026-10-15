@@ -1,0 +1,314 @@
+\ ***************************************************************************
+\ The throwing stars (&C60E-&C86B; docs/research/players.md). Each player
+\ has one: Star1 and Star2, each row, column, drow, dcolumn, thrower (&71
+\ or &72; 0 = none). In the original the star's record is IX; here Y =
+\ its offset from Star1, kept in st.
+\ ***************************************************************************
+
+S_DROW = 2
+S_DCOL = 3
+STAR_TREASURE = 2               ; a star's hit on a monster (&C6CF)
+STAR_VIEW_MAX = &17             ; a star lives in the view's rows and columns 1-22 (&C81E)
+
+\ &C632 StarsUpdate: each star in flight, one cell on.
+.stars_update
+    LDA #0 : STA st
+    JSR star_move
+    LDA #Star2 - Star1 : STA st
+    \ (fall into star_move)
+
+\ &C63D StarMove: erase the star's cell, then look at the next.
+.star_move
+{
+    LDY st
+    LDA Star1 + S_THROWER,Y : BEQ done
+    LDA Star1 + S_ROW,Y : STA rd
+    LDA Star1 + S_COL,Y : STA re
+    CLC : ADC Star1 + S_DCOL,Y : STA rc
+    LDA Star1 + S_ROW,Y : CLC : ADC Star1 + S_DROW,Y : STA rb
+    LDA #LO(FloorQuarter) : STA rl : LDA #HI(FloorQuarter) : STA rh
+    JSR star_cell : BNE done
+    JMP star_look
+.done
+    RTS
+}
+
+\ &C60E LaunchStar: player pl's star from its position (rd, re), facing
+\ A, thrower code X: it starts two cells out (the doubling is RLCA, so
+\ -1 stays -1: one cell out going up or left), and looks at that cell.
+.launch_star
+{
+    STX ra2 : STA rx
+    LDX pl : LDY star_offset,X : STY st
+    LDA ra2 : STA Star1 + S_THROWER,Y
+    LDA rx : AND #&0E : TAX
+    LDA StarDirs,X : STA Star1 + S_DROW,Y
+    CMP #&80 : ROL A                ; (RLCA)
+    CLC : ADC rd : STA rb : STA Star1 + S_ROW,Y
+    LDA StarDirs + 1,X : STA Star1 + S_DCOL,Y
+    CMP #&80 : ROL A
+    CLC : ADC re : STA rc : STA Star1 + S_COL,Y
+    \ (fall into star_look)
+}
+
+\ &C659 StarLook: the star's next cell, (rb, rc): empty, or the
+\ thrower's own, it moves there; anything else is a hit.
+.star_look
+{
+    JSR map_cell : BEQ advance
+    LDY st
+    CMP Star1 + S_THROWER,Y : BEQ advance
+    CMP #&04 : BCS not_crumble
+    JMP star_hit_crumble
+.not_crumble
+    CMP #T_WALL11 : BNE not11
+    JMP star_hit_wall11
+.not11
+    CMP #&0E : BEQ destroy
+    CMP #T_SCROLL : BNE not_scroll
+    JMP star_hit_magic
+.not_scroll
+    CMP #T_CREEPER : BNE not_creeper
+    JMP star_hit_creeper
+.not_creeper
+    CMP #T_ROCK : BEQ destroy
+    CMP #T_TELEPORT : BNE not_teleport
+    JMP star_transport
+.not_teleport
+    CMP #&1F : BNE not1f
+    JMP star_hit_wall1f
+.not1f
+    CMP #T_TRAP : BCC not_trap
+    CMP #&40 : BCS not_trap
+    JMP star_hit_trap
+.not_trap
+    CMP #T_MARKER : BNE not_marker
+    JMP hit_marker
+.not_marker
+    BCC not_monster
+    JMP star_hit_monster
+.not_monster
+    CMP #&70 : BCC not_player
+    JMP star_hit_player
+.not_player
+    AND #&E0 : CMP #T_SPARKLE : BEQ advance
+    \ a wall: bounce while the bounces last, else stop
+    LDA Bounces : BEQ stop
+    JMP star_bounce
+.stop
+    LDA #0 : STA Star1 + S_THROWER,Y
+    RTS
+.destroy
+    JMP star_destroy
+.advance
+    \ &C660 StarAdvance: there, and the star drawn
+    LDY st
+    LDA rb : STA Star1 + S_ROW,Y : STA rd
+    LDA rc : STA Star1 + S_COL,Y : STA re
+    LDA #LO(StarPattern) : STA rl : LDA #HI(StarPattern) : STA rh
+    JMP star_cell
+}
+
+\ &C6C1 StarHitMonster: power + 1 hits (the power is player 1's, whoever
+\ threw: kept), stopping when it dies or can't be hurt; 2 treasure to the
+\ thrower.
+.star_hit_monster
+{
+    LDA P1Power + 1 : CLC : ADC #1 : STA hits
+.hit
+    JSR hit_monster : BEQ paid
+    DEC hits : BNE hit
+.paid
+    LDA #0 : STA rd : LDA #STAR_TREASURE : STA re
+    LDY st : LDA Star1 + S_THROWER,Y : SEC : SBC #T_P1
+    JSR set_player
+    JSR add_treasure
+    LDY st : LDA #0 : STA Star1 + S_THROWER,Y
+    RTS
+    ZA_AUTO1 hits
+}
+
+\ &C6E4 StarHitTrapDoor: power + 1 hits (player 1's again) of 8 off the
+\ code; below &20 it's gone. Kind 7 can't be hurt. Its 50 points are
+\ never paid: the original compares the thrower with &F1 and &F2. Kept.
+.star_hit_trap
+{
+    STA code
+    AND #7 : CMP #7 : BEQ stop
+    LDA P1Power + 1 : CLC : ADC #1 : STA hits
+    LDA code
+.hit
+    SEC : SBC #8
+    CMP #T_TRAP : BCC gone
+    LDY #0 : STA (rhl),Y
+    DEC hits : BNE hit
+    JMP drawn
+.gone
+    LDA #0 : TAY : STA (rhl),Y
+.drawn
+    JSR redraw_tile
+.stop
+    LDY st : LDA #0 : STA Star1 + S_THROWER,Y
+    RTS
+    ZA_AUTO1 code
+    ZA_AUTO1 hits
+}
+
+\ &C717 StarHitWall1F: the wall becomes &27, a hell hole.
+.star_hit_wall1f
+    LDA #0 : STA Star1 + S_THROWER,Y
+    LDA #&27 : LDY #0 : STA (rhl),Y
+    JMP redraw_tile
+
+\ &C720 StarBounce: one bounce used; each axis whose next cell isn't
+\ empty is reversed, and the star steps back along it, undrawn.
+.star_bounce
+{
+    SEC : SBC #1 : STA Bounces
+    LDY st
+    LDA Star1 + S_ROW,Y : CLC : ADC Star1 + S_DROW,Y : STA rb
+    LDA Star1 + S_COL,Y : STA rc
+    JSR map_cell : BEQ cols
+    LDY st
+    LDA #0 : SEC : SBC Star1 + S_DROW,Y : STA Star1 + S_DROW,Y
+    CLC : ADC Star1 + S_ROW,Y : STA Star1 + S_ROW,Y
+.cols
+    LDY st
+    LDA Star1 + S_COL,Y : CLC : ADC Star1 + S_DCOL,Y : STA rc
+    LDA Star1 + S_ROW,Y : STA rb
+    JSR map_cell : BEQ done
+    LDY st
+    LDA #0 : SEC : SBC Star1 + S_DCOL,Y : STA Star1 + S_DCOL,Y
+    CLC : ADC Star1 + S_COL,Y : STA Star1 + S_COL,Y
+.done
+    RTS
+}
+
+\ &C762 StarHitCrumble: a crumbling wall (&01-&03) goes a stage; after
+\ &03 it's gone, and the wall above is mended.
+.star_hit_crumble
+{
+    CLC : ADC #1 : AND #3
+    LDY #0 : STA (rhl),Y
+    BNE stop
+    \ &C770 CrumbleAbove: &05 above becomes &04, &11 above &01
+    LDA rl : PHA : LDA rh : PHA
+    LDA rl : SEC : SBC #32 : STA rl
+    BCS c : DEC rh
+.c
+    LDA (rhl),Y
+    CMP #&05 : BNE not5
+    LDA #&04 : JMP mend
+.not5
+    CMP #T_WALL11 : BNE back
+    LDA #&01
+.mend
+    STA (rhl),Y
+    DEC rb : DEC rb
+    JSR redraw_tile
+    INC rb : INC rb
+.back
+    PLA : STA rh : PLA : STA rl
+.stop
+    LDY st : LDA #0 : STA Star1 + S_THROWER,Y
+    JMP redraw_tile
+}
+
+\ &C78E StarHitMagic: the scroll goes off as a smart bomb.
+.star_hit_magic
+    LDA #0 : TAY : STA (rhl),Y
+    LDY st : STA Star1 + S_THROWER,Y
+    JSR smart_bomb
+    JMP draw_view
+
+\ &C79A StarHitWall11: the wall becomes crumbling (&02).
+.star_hit_wall11
+    LDA #&02 : LDY #0 : STA (rhl),Y
+    LDY st : LDA #0 : STA Star1 + S_THROWER,Y
+    JMP redraw_tile
+
+\ &C7A3 StarHitCreeper: the creeper goes on every Nth hit, N random 1-32
+\ (CreeperHits, shared by every creeper tile).
+.star_hit_creeper
+{
+    LDA #0 : STA Star1 + S_THROWER,Y
+    DEC CreeperHits : BNE done
+    JSR random : AND #&1F : CLC : ADC #1 : STA CreeperHits
+    JMP star_destroy
+.done
+    RTS
+}
+
+\ &C7B7 StarDestroy: the tile it hit goes (food, a rock, the creeper).
+.star_destroy
+    LDA #0 : TAY : STA (rhl),Y
+    LDY st : STA Star1 + S_THROWER,Y
+    JMP redraw_tile
+
+\ &C7C0 StarTransport: out of a random teleporter in the view, two cells
+\ on, and on it flies.
+.star_transport
+{
+    JSR pick_teleporter
+    JSR cell_pos
+    LDY st
+    LDA Star1 + S_DROW,Y : CMP #&80 : ROL A : CLC : ADC rb : STA Star1 + S_ROW,Y : STA rb
+    LDA Star1 + S_DCOL,Y : CMP #&80 : ROL A : CLC : ADC rc : STA Star1 + S_COL,Y : STA rc
+    JMP star_look
+}
+
+\ &C7DB StarHitPlayer: if the other player holds the freeze ring, the
+\ player hit is frozen (or freed). (The thrower isn't checked: kept.)
+.star_hit_player
+{
+    CMP #T_P1 : BNE p2
+    LDX #0 : LDA P2Ring : JSR freeze
+    JMP stop
+.p2
+    CMP #T_P2 : BNE stop
+    LDX #1 : LDA P1Ring : JSR freeze
+.stop
+    LDY st : LDA #0 : STA Star1 + S_THROWER,Y
+    RTS
+.freeze
+    BEQ done
+    LDA P1Frozen,X : BNE thaw
+    LDA #&FF : STA P1Frozen,X
+    RTS
+.thaw
+    LDA #0 : STA P1Frozen,X
+.done
+    RTS
+}
+
+\ &C816 StarCell: an 8 x 8 pattern (rhl: StarPattern, or FloorQuarter to
+\ erase) at map cell (rd, re), if inside the view's rows and columns
+\ 1-22; else the star is gone. Its attribute is the floor's when the
+\ byte after the pattern is 0 (FloorQuarter's), else the star's ink, the
+\ next of 0-7 (StarInk). Z if drawn.
+.star_cell
+{
+    LDA rd : SEC : SBC ViewOrigin : BEQ off
+    CMP #STAR_VIEW_MAX : BCS off
+    TAX
+    LDA re : SEC : SBC ViewOrigin + 1 : BEQ off
+    CMP #STAR_VIEW_MAX : BCS off
+    CLC : ADC #VIEW_LEFT : TAY
+    STX cell_row : STY cell_col
+    LDY #8 : LDA (rhl),Y : BEQ floor
+    LDA StarInk : CLC : ADC #1 : AND #7 : STA StarInk
+    JMP attr
+.floor
+    LDA TileAttrs
+.attr
+    LDX cell_row : LDY cell_col
+    JSR draw_glyph
+    LDA #0
+    RTS
+.off
+    LDY st : LDA #0 : STA Star1 + S_THROWER,Y
+    LDA #&FF
+    RTS
+    ZA_AUTO1 cell_row
+    ZA_AUTO1 cell_col
+}
