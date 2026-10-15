@@ -30,7 +30,7 @@ Where it has got to (`docs/journal.md` has the story):
 
 ## Playing
 
-[Play it in jsbeeb](https://bbc.xania.org/?autoboot&disc1=https://raw.githubusercontent.com/mattgodbolt/nm/main/ninja-massacre.ssd)
+[Play it in jsbeeb](https://bbc.xania.org/?autoboot&disc1=github:mattgodbolt/nm/ninja-massacre.ssd)
 (a Model B with sideways RAM), or write `ninja-massacre.ssd` to a disc and
 SHIFT-BREAK: it starts at the menu (1 one player, 2 two, 3 the controls,
 4 a password). The keys, as the original's where the BBC has them
@@ -49,7 +49,7 @@ Spectrum's EXTEND MODE): T turns the music off or on, P pauses, Q quits.
 The project began as a conversion of the game's music alone, which is
 still here: [`music/README.md`](music/README.md) tells that story, and
 `ninja_music.ssd`
-[plays in jsbeeb](https://bbc.xania.org?autoboot&model=master&disc1=https://raw.githubusercontent.com/mattgodbolt/nm/main/ninja_music.ssd).
+[plays in jsbeeb](https://bbc.xania.org?autoboot&model=master&disc1=github:mattgodbolt/nm/ninja_music.ssd).
 
 ## Building
 

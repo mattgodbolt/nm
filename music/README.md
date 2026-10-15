@@ -4,7 +4,7 @@ This was the project's first part, before it became a port of the whole
 game: Ninja Massacre's music, taken from the Spectrum and converted to
 play on the BBC Micro's SN76489. The disc is `ninja_music.ssd`, at the
 top of the repository, and
-[plays in jsbeeb](https://bbc.xania.org?autoboot&model=master&disc1=https://raw.githubusercontent.com/mattgodbolt/nm/main/ninja_music.ssd)
+[plays in jsbeeb](https://bbc.xania.org?autoboot&model=master&disc1=github:mattgodbolt/nm/ninja_music.ssd)
 (as a BBC Master).
 
 The main theme is a personal favourite: my friend
