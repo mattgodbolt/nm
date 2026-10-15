@@ -120,20 +120,16 @@ TIMERS = 5
     LDA #3 : STA grid_rows
 .row
     LDA rd : STA PrintPos + 1
-    ASL A : ASL A : ASL A : ORA re : TAX    ; (panel_cell's index, in X)
+    ASL A : ASL A : ASL A : ORA re : TAX    ; (panel_shown's index)
     LDA #3 : STA grid_cols
 .col
     DEC rl : BNE draw
     LDA #' ' : STA icon             ; (spaces from there on: the count wraps past 0)
 .draw
-    \ print_char's, unless the cell shows it (panel_cell); the cursor's
-    \ column is only set for print_char, and at the end
+    \ print_char's, unless the cell shows it (panel_print)
     LDA icon
     CMP panel_shown,X : BEQ shown
-    STX put_at
-    PHA : TXA : AND #PANEL_COLS - 1 : STA PrintPos : PLA
-    JSR print_char
-    LDX put_at
+    JSR panel_print
 .shown
     INX
     DEC grid_cols : BNE col
@@ -150,11 +146,16 @@ TIMERS = 5
 \ The figures and icons are reprinted on every touch, up to three times a
 \ pass, and mostly show what they did. print_char skips a panel cell
 \ that shows its character already (decision 22); print_grid and print5
-\ make the same check before calling it, from put_at, the cursor's index
-\ in panel_shown, moving along a row of the panel: a character shown
-\ already only moves the cursor (never at a row's end there).
-.panel_cell
-    LDA PrintPos + 1 : ASL A : ASL A : ASL A : ORA PrintPos : STA put_at
+\ make the same check before calling it, along a row of the panel by
+\ panel_shown's index (row * PANEL_COLS + column) in X, and set the
+\ cursor only when print_char needs it and at the end.
+\ print_char for A at the panel cell X, the cursor's column from X. X is
+\ kept.
+.panel_print
+    STX put_at
+    PHA : TXA : AND #PANEL_COLS - 1 : STA PrintPos : PLA
+    JSR print_char
+    LDX put_at
     RTS
     ASSERT PANEL_COLS = 8
 ZA_AUTO1 put_at
@@ -230,8 +231,8 @@ SONG_DEAD = 2
 \ sixth digit is a 0 in the loading screen: the figures show ten times
 \ their value.) &DB83 Print2Digits: its last two. The digits are kept
 \ for each of the panel's four figures (a slot by the print row's bits 2
-\ and 3), with the value they are, as a memo: the division is most of a figure's
-\ cost, and it mostly shows the same value again (panel_cell).
+\ and 3), with the value they are, as a memo: the division is most of a
+\ figure's cost, and it mostly shows the same value again (panel_print).
 .print5
 {
     LDA PrintPos + 1 : LSR A : LSR A : AND #P5_SLOTS - 1 : STA slot
@@ -255,21 +256,25 @@ SONG_DEAD = 2
     LDA ch : STA p5_digits,Y
     DEX : BPL digit
 .print
-    \ the digits, the ten thousands' first
-    JSR panel_cell
+    \ the digits, the ten thousands' first, as print_grid's icons (the
+    \ menu's high score, not in the panel, each by print_char)
     LDA slot : ORA #4 * P5_SLOTS : STA slot
+    LDA PrintPos : CMP #PANEL_COLS : BCS outside
+    LDA PrintPos + 1 : ASL A : ASL A : ASL A : ORA PrintPos : TAX   ; (panel_shown's index)
 .next
     LDY slot : LDA p5_digits,Y
-    LDX put_at : INC put_at
-    LDY PrintPos : CPY #PANEL_COLS : BCS draw   ; (the menu's high score isn't in the panel)
     CMP panel_shown,X : BEQ shown
-.draw
-    JSR print_char
-    JMP on
+    JSR panel_print
 .shown
-    INC PrintPos
-.on
+    INX
     LDA slot : SEC : SBC #P5_SLOTS : STA slot : BCS next
+    TXA : AND #PANEL_COLS - 1 : STA PrintPos    ; (as print_char leaves it)
+    BPL done                        ; (always)
+.outside
+    LDY slot : LDA p5_digits,Y
+    JSR print_char
+    LDA slot : SEC : SBC #P5_SLOTS : STA slot : BCS outside
+.done
     LDA #0 : STA rl : STA rh        ; (as the division leaves them)
     RTS                             ; (A = 0: &DB8F: XOR A, which the monsters' hit relies on)
     ZA_AUTO1 ch
