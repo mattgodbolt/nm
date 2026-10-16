@@ -41,6 +41,9 @@ BUILD   := $(shell date -u '+%Y-%m-%d %H:%M UTC') $(shell git rev-parse --short 
 
 .PHONY: all run check views passes front fuzz disc music fetch zx disasm venv music-disc clean
 
+# Defined before all: make expands a rule's prerequisites when it reads it.
+TEST = build/test.ssd
+
 all: $(TARGET) $(TEST)
 
 $(TARGET): $(SOURCES) | build
@@ -52,7 +55,6 @@ build:
 
 # The tests' disc: -D DIRECT=1 goes straight into a one-player game, so the
 # tools reach the main loop without the menu.
-TEST = build/test.ssd
 $(TEST): $(SOURCES) | build
 	$(ASM) -D DIRECT=1 -D 'BUILD="$(BUILD) test"' -o $@ --title NINJA --opt 3 --warn 2 --symbols $(@:.ssd=.json) src/main.6502
 
