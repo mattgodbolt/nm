@@ -128,6 +128,7 @@ IF DEFINED(VIEWCHECK)
     JMP view_check
 ELSE
     LDA #1 : STA seed
+    STA noise_seed              ; (an LFSR left at 0 stays there: silent noise)
 IF DEFINED(MUSICCHECK)
     LDA #START_LEVEL
     PHA : JSR level_colours : PLA

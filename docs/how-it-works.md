@@ -314,6 +314,25 @@ Things that stop the original inside a pass still do here, each for its
 own time: the slide, the sounds, the level's title screen (a wait for as
 many frames as the original's busy loop took: decision 9).
 
+### Random numbers
+
+A 6502 has no R register, and R's value depends on the exact count of
+instructions run, which a port can't reproduce. The port draws its
+numbers from an 8-bit generator instead (`random`, decision 7): shift the
+byte left, and if a bit falls off the top, EOR it with `&1D`. That steps
+through all 255 non-zero bytes before it repeats. It draws one wherever
+the original reads R.
+
+The generator is seeded with 1 at start-up and never again. So the
+numbers depend only on how many have been drawn, which depends on how the
+game has gone, not on time: from power-on, the same keys on the same
+passes play the same game, which on the Spectrum they wouldn't.
+
+The two noises take their numbers from a second generator of the same
+kind (`noise_random`), with its own state, so playing a sound never moves
+the game's numbers. It's seeded at start-up as well: a generator left at
+0 stays at 0, and the noises would be silent.
+
 ### The scroll
 
 The slide moves the playfield a tile at a time, as the original does
@@ -401,15 +420,12 @@ the same kind of key script as the port in jsbeeb (`tools/play.mjs`).
 `make disasm` builds a labelled disassembly from `disasm/*.ctl`, and
 every routine the port transcribes has a name there.
 
-The random numbers would part the two at once: R depends on the exact
-instruction count, which no 6502 can reproduce. So the port has an 8-bit
-generator of its own (`random`), and for the checks
-`tools/zx.py`'s `share_random` makes the original use it too, by turning
-each `LD A,R` into a call to the same generator, placed in the
-publisher's mastering code, which never runs (decision 7). The two
-noises' random numbers stay out of the shared stream: they only shape a
-sound, and drawing them would make the game's numbers depend on the
-sound's.
+The random numbers would part the two at once, so for the checks
+`tools/zx.py`'s `share_random` makes the original use the port's
+generator too (decision 7). It turns each `LD A,R` into a call to the
+same generator, placed in the publisher's mastering code, which never
+runs. The noises' numbers stay out of the shared stream, as they do in
+the port.
 
 ### The views
 

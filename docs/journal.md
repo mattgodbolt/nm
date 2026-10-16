@@ -418,3 +418,13 @@ is a write late. It's also why a tone's two bytes had looked a frame
 apart in earlier captures. jsbeeb 2.6.0 stamps each write with its own
 time (mattgodbolt/jsbeeb#1277), and the check reads the stamps as they
 are.
+
+## The noises were silent
+
+Start-up clears the fixed zero page, and nothing set `noise_seed` after
+it. The noises' generator only shifts and EORs, so from 0 it stays at 0:
+every segment of the hit noise and the monsters' burst was off, leaving
+only the gaps. No check listens to the effects. A probe that walks into
+the monsters on level 1 and captures the chip between `effect_start`
+and `effect_end` found it. The seed is now set with the game's at
+start-up, and the same probe hears the segments switching on and off.
