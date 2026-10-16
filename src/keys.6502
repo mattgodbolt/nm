@@ -14,21 +14,26 @@
 \ BBC internal key numbers
 K_SHIFT  = &00
 K_Q      = &10
-K_A      = &41
-K_O      = &36
 K_P      = &37
 K_SPACE  = &62
 K_RETURN = &49
-K_0      = &27
-K_6      = &34
-K_7      = &24
-K_8      = &15
-K_9      = &26
+K_A      = &41
+K_Z      = &61
+K_X      = &42
+K_C      = &52
+K_F      = &43
+K_G      = &53
+K_COMMA  = &66
+K_STOP   = &67
+K_SLASH  = &68
+K_SEMI   = &57
+K_COLON  = &48
 
 \ The players' controls (decision 13): magic, up, down, right, left, fire.
-\ The original's defaults, the same keys where the BBC has them: player 1
-\ Q, A, P, O, SPACE, with RETURN for ENTER; player 2 the Sinclair
-\ joystick's 9, 8, 7, 6, 0, with SHIFT for CAPS SHIFT.
+\ Chosen for a laptop's keyboard in an emulator, where jsbeeb puts each of
+\ these BBC keys on the laptop's key in the same place: player 1 Z and X
+\ left and right, C down, F up, G fire and A magic; player 2 the same
+\ shape on the right, with , . / ; RETURN, and : (a laptop's ') magic.
 .controls
-    EQUB K_RETURN, K_Q, K_A, K_P, K_O, K_SPACE
-    EQUB K_SHIFT, K_9, K_8, K_7, K_6, K_0
+    EQUB K_A, K_F, K_C, K_X, K_Z, K_G
+    EQUB K_COLON, K_SEMI, K_SLASH, K_STOP, K_COMMA, K_RETURN

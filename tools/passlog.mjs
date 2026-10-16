@@ -14,8 +14,8 @@ import { startBeeb } from "./beeb.mjs";
 
 // The Spectrum's keys (tools/passlog.py) as the port's (src/keys.6502).
 const KEYS = {
-    up: "Q", down: "A", left: "O", right: "P", fire: "SPACE", magic: "RETURN",
-    p2up: "K9", p2down: "K8", p2left: "K6", p2right: "K7", p2fire: "K0", p2magic: "SHIFT",
+    up: "F", down: "C", left: "Z", right: "X", fire: "G", magic: "A",
+    p2up: "SEMICOLON_PLUS", p2down: "SLASH", p2left: "COMMA", p2right: "PERIOD", p2fire: "RETURN", p2magic: "COLON_STAR",
 };
 
 const args = process.argv.slice(2);

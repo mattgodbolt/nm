@@ -15,15 +15,16 @@ SHIFT-BREAK. It needs 16K of sideways RAM, or a Master.
 ## Playing
 
 It starts at the menu: 1 one player, 2 two, 3 the controls, 4 a
-password (one every fifth level, shown on its LEVEL screen). The keys, as
-the original's where the BBC has them (decision 13):
+password (one every fifth level, shown on its LEVEL screen). The keys
+are laid out for a laptop in an emulator, each player's in one hand
+(decision 13):
 
 | | Player 1 | Player 2 |
 |---|---|---|
-| up, down | Q, A | 9, 8 |
-| left, right | O, P | 6, 7 |
-| fire | SPACE | 0 |
-| magic (a smart bomb) | RETURN | SHIFT |
+| up, down | F, C | ;, / |
+| left, right | Z, X | `,` `.` |
+| fire | G | RETURN |
+| magic (a smart bomb) | A | : (a laptop's ') |
 
 The menu's 3 redefines them. In play, with CTRL and SHIFT held (the
 Spectrum's EXTEND MODE): T turns the music off or on, P pauses, Q quits.

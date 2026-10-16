@@ -19,7 +19,7 @@ import { startBeeb } from "./beeb.mjs";
 
 const FRAME = 40000;
 const SCREEN_BYTES = 0x3000;
-const KEYS = { up: "Q", down: "A", left: "O", right: "P", fire: "SPACE", magic: "RETURN" };
+const KEYS = { up: "F", down: "C", left: "Z", right: "X", fire: "G", magic: "A" };
 // name: [keys held over passes, as tests/scenarios.txt's; the level;
 // pokes, [pass, symbol, value]]: each slides the view at least once. The
 // sideways slides move player 1 in its record to beyond the view's

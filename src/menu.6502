@@ -354,7 +354,9 @@ ASK_WORD = 8                    ; (print_at_ask shifts by three)
 
 \ &D7FC ReadKeyFor: KEY FOR, then a new key (not SHIFT: the original
 \ refuses CAPS and SYMBOL SHIFT) for control Y: shown (ENTER and SPACE by
-\ name), with a click.
+\ name), with a click. Of the keys with no character, the punctuation the
+\ default keys use is taken too, shown by name (decision 13): the font has
+\ the game's pictures where some of their characters would be.
 .read_key_for
 {
     STY ctl
@@ -365,7 +367,7 @@ ASK_WORD = 8                    ; (print_at_ask shifts by three)
 .again
     JSR new_key
     CMP #K_CAPS_CH : BEQ again
-    CMP #K_SYM_CH : BEQ again
+    CMP #K_SYM_CH : BEQ punctuation
     LDY ctl : PHA : TXA : STA controls,Y : PLA
     CMP #K_ENTER_CH : BEQ enter
     CMP #' ' : BEQ space
@@ -379,8 +381,37 @@ ASK_WORD = 8                    ; (print_at_ask shifts by three)
     JSR print_inline
     EQUS "SPACE", 0
     JMP key_click
+.punctuation
+    LDY #KEY_NAMES - 1
+.find
+    TXA : CMP key_named,Y : BEQ named
+    DEY : BPL find
+    BMI again                       ; (always: no other key is taken)
+.named
+    STY ni
+    LDY ctl : STA controls,Y
+    \ its name: str at the name less one (print_str starts after str)
+    LDA ni : ASL A : ADC ni : ASL A                     ; x KEY_NAME (C clear: ni is small)
+    ADC #LO(key_names - 1) : STA str
+    LDA #HI(key_names - 1) : ADC #0 : STA str + 1
+    JSR print_str
+    JMP key_click
     ZA_AUTO1 ctl
+    ZA_AUTO1 ni
 }
+\ The punctuation keys read_key_for takes, and their names, each KEY_NAME
+\ bytes.
+.key_named
+    EQUB K_COMMA, K_STOP, K_SLASH, K_SEMI, K_COLON
+KEY_NAMES = P% - key_named
+KEY_NAME = 6                    ; (read_key_for multiplies by it as x3 x2)
+.key_names
+    EQUS "COMMA", 0
+    EQUS "STOP", 0, 0
+    EQUS "SLASH", 0
+    EQUS "SEMI", 0, 0
+    EQUS "COLON", 0
+    ASSERT P% - key_names = KEY_NAMES * KEY_NAME
 
 \ &D838 KeyClick: 256 half-waves of 666 T-states (decision 19).
 KEY_CLICK_HALVES = 0            ; (256)

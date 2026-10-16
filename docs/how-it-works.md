@@ -396,9 +396,11 @@ register, so those keep interrupts off between them.
 The menu, passwords, redefining the keys, game over, the high score and
 its name, and the game's end are transcribed (`menu.6502`). The original
 redefines keys by rewriting its own key-reading code; the port keeps a
-table of keys per player (decision 13). The original's keys are the
-defaults where the BBC has them, with RETURN and SHIFT for the Spectrum's
-ENTER and CAPS SHIFT, and CTRL with SHIFT for EXTEND MODE.
+table of keys per player (decision 13). The default keys are chosen for
+a laptop in an emulator rather than taken from the original: each
+player's keys are under one hand, Z X C F G and A for player 1, and the
+same shape on the right for player 2. CTRL with SHIFT stands in for
+EXTEND MODE.
 
 ![The port's menu, with the panel beside it.](images/menu.png)
 
