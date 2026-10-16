@@ -263,14 +263,13 @@ blue, red and magenta things that aren't the floor) is cyan.
 That costs something. Player 2's green is cyan too unless the floor is
 green; the items lose their colours; the creeper's flash isn't shown; and
 the menu's flash (decision 21) takes two of the four colours, so the
-panel and the title flash with it. It was a first mapping, made so that
-the screens could be compared with the original's, and is still to be
-chosen with the two side by side.
+panel and the title flash with it. The checks compare the screens in
+this mapping (`tools/viewcmp.py`).
 
 ### Memory
 
-There are three places to put things, and all are close to full (the
-build's `PRINT`s say how close).
+There are three places to put things (the build's `PRINT`s say how much
+room each has left).
 
 - **Main RAM**, from `CODE_BASE` up to the screen: the code that runs
   every pass (the players, touching, the monsters, the stars, drawing, the
@@ -286,8 +285,7 @@ build's `PRINT`s say how close).
   (the level's set-up, text, the colours, the front end), which runs from
   there as fast as from main RAM.
 
-So the game needs 16K of sideways RAM, or a Master. docs/streaming.md
-considers a stock-B edition.
+So the game needs 16K of sideways RAM, or a Master.
 
 The original's 50 levels, run-length packed, wouldn't fit. The port keeps
 each as the 32 x 32 map the original's decoder makes, packed with ZX02,
@@ -323,9 +321,10 @@ The slide moves the playfield a tile at a time, as the original does
 `shift.6502`), then draws the strip that came into view. MODE 1 has twice
 the Spectrum's bytes for the same picture, and the Spectrum's LDIR is hard
 to beat, so the block moves copy sixteen bytes at a time through
-addresses written into the loop. It's still slower than the original's
-slide (decision 22 has the measurements). Sliding in fewer, bigger steps
-would match its length but not its look.
+addresses written into the loop. The slide takes longer than the
+original's (decision 22 has the measurements). Hardware scrolling can't
+help: the CRTC splits the screen into bands of rows, so the panel down
+the left would move with the playfield.
 
 The same decision made the panel quicker: the original reprints the
 panel's figures and icons on every touch, cheap on the Spectrum and not
@@ -383,12 +382,13 @@ ENTER and CAPS SHIFT, and CTRL with SHIFT for EXTEND MODE.
 
 ![The port's menu, with the panel beside it.](images/menu.png)
 
-Decision 21 lists where the front end differs for now. The loading
+Decision 21 lists where the front end differs. The loading
 screen's legend of items and nasties, which the original keeps as its
 attract screen, isn't kept, so the menu comes straight up. The menu's
 flash swaps two colours in the palette every few frames, where the
 original rewrites the attributes twice a frame and shows both colours at
-once in rolling bands. The Kempston options have nothing behind them yet.
+once in rolling bands. The Kempston options say KEMPSTON SELECTED and
+leave the keys as they were.
 
 ## How the port is checked
 
@@ -429,6 +429,10 @@ the monsters) and, every 50 passes, the screen. Keeping the original's
 variable layout is what makes the comparison straightforward: the same
 addresses mean the same things on both.
 
+Among the scenarios are coverage runs, taken from random games on the
+original and chosen so that every touch, star and bomb handler runs at
+least three times.
+
 The screens are in the comparison because a bug once got past everything
 else: a change to the printing broke the panel's icons while every
 variable still matched.
@@ -461,30 +465,17 @@ captures from the real game; it compares the bytes sent to the SN76489
 with a model of the conversion (`tools/musicmodel.py`) too. All seven
 songs match every frame.
 
+Then it plays the game until each channel has bass, and measures that
+channel's edges in jsbeeb's capture of the chip's writes: they must
+switch between the note's volume and silence, a half-cycle apart.
+
 `make check` runs the lot: the build, the views, the disassembly, the
 music and the scenarios. `make check MODEL=Master` runs it on a Master
 128, and CI runs both.
 
-## What's still open
+## What's open
 
-The GitHub issues hold the open questions. Most are choices for a person
-with the two games side by side, not bugs:
-
-- **Colours**: the per-level palette, the menu's and the panel's
-  (decision 5), and the creeper's flash.
-- **The scroll's slide** is slower than the original's (decision 22).
-- **The pace of a pass**: the original's passes vary with what they do,
-  the port's are all the median (decision 12).
-- **Sound**: the volume table and the noise's level (decisions 16 and
-  17), and how the timer bass sounds on real hardware (decision 18).
-- **The front end**: the attract screen's legend, the Kempston options,
-  and the keys standing in for EXTEND MODE (with SHIFT also player 2's
-  magic).
-- **BREAK** isn't handled.
-- **Memory** is close to full in main RAM and the bank, which any new
-  feature runs into first.
-- **A stock Model B** edition, streaming the levels from disc
-  (docs/streaming.md).
-- **Real hardware**: so far it has run only in jsbeeb.
-- **Testing**: scenarios for the items the fuzzer rarely reaches, the
-  fuzzer in CI, and the front end tested automatically.
+The open questions are [GitHub issues](https://github.com/mattgodbolt/nm/issues):
+mostly choices to make with the two games side by side (the colours,
+the slide, the sound, the keys), and real hardware, on which nothing has
+run yet.
