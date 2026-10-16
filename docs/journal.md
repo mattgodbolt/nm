@@ -415,4 +415,6 @@ Measuring the edges turned up a quirk of jsbeeb's sound capture: it
 stamps a write with the time the chip last caught up to, which is the
 write before's. The chip takes each byte at the right time; only the log
 is a write late. It's also why a tone's two bytes had looked a frame
-apart in earlier captures.
+apart in earlier captures. jsbeeb 2.6.0 stamps each write with its own
+time (mattgodbolt/jsbeeb#1277), and the check reads the stamps as they
+are.

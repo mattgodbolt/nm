@@ -123,11 +123,7 @@ try {
         await b.frames(BASS_FRAMES);
         const busyLog = (await b.call("stop_sound_capture", { session_id: b.session_id, max_entries: 1e6 })).content[0].text;
         await b.write("mu_busy", [0]);
-        // (jsbeeb's capture stamps a write with the cycle the chip last
-        // caught up to, which is the write before's: a write's time is the
-        // next one's stamp, so the last has none.)
-        const stamped = [...busyLog.matchAll(/^(\d+): 0x([0-9a-f]{2}) /gm)].map((m) => [Number(m[1]), parseInt(m[2], 16)]);
-        const entries = stamped.slice(0, -1).map(([, v], i) => [stamped[i + 1][0], v]);
+        const entries = [...busyLog.matchAll(/^(\d+): 0x([0-9a-f]{2}) /gm)].map((m) => [Number(m[1]), parseInt(m[2], 16)]);
         const ours = (v, c) => halves[c] && (v & 0xF0) === (lvl[c] & 0xF0);
         for (const [c, half] of halves.entries()) {
             if (!half) continue;

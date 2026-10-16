@@ -95,9 +95,6 @@ local one.
   `effect_end`, sound.6502). The bass's timer interrupts (bass.6502)
   write it at any time, a byte at once: a tone's two bytes keep
   interrupts off between them.
-- jsbeeb's sound capture stamps a write with the time of the write
-  before it: take a write's time from the next entry's stamp
-  (`tools/musiccheck.mjs`).
 - Speed: `node tools/scrolltime.mjs [--against old.ssd]` times each
   direction's slide (and compares the screen at every step);
   `node tools/passtime.mjs [--against old.ssd]` gives each pass's busy
