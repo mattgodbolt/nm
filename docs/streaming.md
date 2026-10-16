@@ -19,7 +19,9 @@ the disc would carry. Nothing here is built yet.
   main RAM: the level's set-up, text, the colours, the front end, the
   music's entries (decision 20).
 
-The build's `PRINT`s say how full each is. Both are close to full.
+The build's `PRINT`s say how much room each has left. Four rounds of
+optimisation (docs/journal.md) left some in both, more in main RAM than
+in the bank.
 
 ## What a stock B would need
 
@@ -41,16 +43,19 @@ ways to make room, roughly in the order they'd pay:
    (and at game over). Chuckie Egg 2 made its front end a separate program
    (`MENU`); here it could be read from the disc into the map's room, since
    no level is in play then, and the game's state kept where both see it.
-2. **The panel drawn by the loader**, not the game: it's drawn once.
+2. **The panel off the disc**, not kept in memory. The panel is drawn
+   once, at start-up, and never cleared, so its packed copy is never read
+   again. It can be a file of its own, which the loader loads into the
+   screen's memory (free until the game draws there) for start-up to
+   unpack and draw from (Matt, 2026-10-16).
 3. **The music** only where it fits: Chuckie Egg 2's streaming edition
    has none. The driver and the songs together are the largest single
    thing that could go.
-4. **The mirrored ninja frames**: 30 of the character frames are mirror
-   images of others (docs/research.md). Drawing them flipped needs a
-   reversing table, which needs a page of its own, so this saves less than
-   it looks.
-5. **Smaller code**: the transcription keeps the Z80's registers in zero
-   page by name (`regs.6502`), which is clear but not small.
+Two other ideas have been tried and dropped. The optimisation rounds
+rejected the mirrored ninja frames (drawing a frame flipped costs about
+what the frames save, and slows the drawer). They also took the code
+through four rounds, the last finding only single bytes, so there is
+little left there.
 
 The order to try them: the overlay first, as it frees the most and keeps
 everything the game does; then measure. If the music still doesn't fit,
