@@ -407,8 +407,8 @@ screen's legend of items and nasties, which the original keeps as its
 attract screen, isn't kept, so the menu comes straight up. The menu's
 flash swaps two colours in the palette every few frames, where the
 original rewrites the attributes twice a frame and shows both colours at
-once in rolling bands. The Kempston options say KEMPSTON SELECTED and
-leave the keys as they were.
+once in rolling bands. Select Controls offers redefining either player's
+keys, without the original's Kempston options.
 
 ## How the port is checked
 

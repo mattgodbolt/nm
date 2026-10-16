@@ -288,8 +288,7 @@ MENU_INK   = 3                  ; BBC yellow
 }
 
 \ &D5C9 SelectControls: redefine a player's keys (decision 13). The
-\ original's Kempston choices (3 and 4) have no BBC equivalent yet: they
-\ say so and leave the keys (decision 21).
+\ original's Kempston choices (3 and 4) aren't offered (decision 21).
 .select_controls
 {
 .up
@@ -298,14 +297,10 @@ MENU_INK   = 3                  ; BBC yellow
     JSR print_lines
     EQUB 9, &0A : EQUS "1  REDEFINE PLAYER ONE", 0
     EQUB 9, &0C : EQUS "2  REDEFINE PLAYER TWO", 0
-    EQUB 9, &0E : EQUS "3  KEMPSTON PLAYER ONE", 0
-    EQUB 9, &10 : EQUS "4  KEMPSTON PLAYER TWO", 0
     EQUB PRINT_END
 .key
     LDX #K_1 : JSR key_down : BNE p1
     LDX #K_2 : JSR key_down : BNE p2
-    LDX #K_3 : JSR key_down : BNE kempston
-    LDX #K_4 : JSR key_down : BNE kempston
     JMP key
 .p1
     LDA #5 : LDX #0
@@ -325,11 +320,6 @@ MENU_INK   = 3                  ; BBC yellow
     LDA ask_control,X : CLC : ADC at : TAY
     JSR read_key_for
     LDX asked : INX : CPX #CONTROLS : BNE ask
-    JMP menu
-.kempston
-    LDA #5 : JSR title
-    LDX #&0B : LDY #&0A : JSR print_at
-    EQUS "KEMPSTON  SELECTED", 0
     JMP menu
     ZA_AUTO1 at
     ZA_AUTO1 asked
