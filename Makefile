@@ -8,6 +8,8 @@
 #   make passes   tests/scenarios.txt on both, compared pass by pass
 #   make fuzz     random scenarios on both (SEED=n COUNT=n)
 #   make disc     the release disc from a clean tree, as ninja-massacre.ssd
+#   make front    the front end on the release disc, driven with keys:
+#                 menu, passwords, controls, high score, the game's end
 #   make music    the music's 6502 driver against the original's, every
 #                 song frame by frame, and the sound chip's bytes
 #   make fetch    download the Spectrum original into original/
@@ -37,7 +39,7 @@ BUILD   := $(shell date -u '+%Y-%m-%d %H:%M UTC') $(shell git rev-parse --short 
 # warning after baron has written the disc).
 .DELETE_ON_ERROR:
 
-.PHONY: all run check views passes fuzz disc music fetch zx disasm venv music-disc clean
+.PHONY: all run check views passes front fuzz disc music fetch zx disasm venv music-disc clean
 
 all: $(TARGET) $(TEST)
 
@@ -94,10 +96,14 @@ build/musiccheck.ssd: $(SOURCES) | build
 music: $(TARGET) build/musiccheck.ssd build/nm128.z80 $(TEST)
 	node tools/musiccheck.mjs
 
+# The front end on the release disc (tools/frontcheck.mjs).
+front: $(TARGET)
+	node tools/frontcheck.mjs
+
 run: $(TARGET)
 	node tools/play.mjs '1,!run' shots/ --disc $(TARGET)
 
-check: $(TARGET) $(TEST) views disasm music passes
+check: $(TARGET) $(TEST) views disasm music passes front
 
 fetch:
 	tools/fetch_original.sh

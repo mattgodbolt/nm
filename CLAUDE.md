@@ -70,6 +70,15 @@ local one.
   by `tools/passcmp.py`: both variable blocks, the map, and every 50
   passes the screen. Add a scenario for anything that lands; a scenario
   `make fuzz` finds is copied in as it is.
+- `make front` (`tools/frontcheck.mjs`) drives the front end on the
+  release disc (`build/nm.ssd`, whose `!BOOT` goes to the menu; the test
+  disc skips it): the menu, 1 and 2 and the seed, every password, Select
+  Controls, game over with the high score's name, and the game's end. It
+  reads the screen's text back by matching cells against the font
+  (`rowText`). Hold a key until the label that takes it, and before the
+  next key run to where the routine has seen it let go (`new_key.down`,
+  `name_entry.wait`, `menu.release`): a key let go and the next pressed
+  at once are never seen apart.
 - The original takes its random numbers from the port's generator in the
   checks (`tools/zx.py`'s `share_random`, decision 7).
 

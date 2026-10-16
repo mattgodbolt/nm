@@ -433,3 +433,33 @@ Writing up the random numbers showed that every game from power-on was
 the same game: the generator was seeded once at start-up. The menu now
 seeds it from the VSync count as a player picks one or two players
 (decision 7).
+
+## The front end, checked (issue #12)
+
+No check drove the front end: the tools all start from the test disc,
+which goes straight into a game. `make front` (`tools/frontcheck.mjs`)
+boots the release disc and drives it with keys, running to a label for
+each step: the menu at power-on; 1 and 2 (`InPlay`, the level, the
+strengths); two waits at the menu giving two seeds, each the VSync
+count (decision 7); every password from `passwords.bin`, and a wrong
+one, each starting its level with its title showing it; Select
+Controls offering only 1 and 2, SHIFT refused, player 1's keys
+redefined with the five punctuation keys and SPACE, each shown by name,
+and the new right key moving the ninja where X no longer does;
+CTRL-SHIFT-Q back to the menu; game over with a treasure over the high
+score, the name typed with DELETE and a held key's repeat, then shown on
+the menu; and the end of the game, with one player and with two, from
+level 50's exit (`Level` and `InPlay` poked, as the next-level scenario
+does): WELL DONE YOUNG MAN! or MEN!, the strength counted into the
+treasure, then game over and the better player's name asked for.
+
+What's on the screen is read back as text: each cell of the playfield
+is matched against the font, taking whichever two colours it's drawn
+in, since the menu's rows flash in the palette. That shows the
+punctuation's names, the passwords on the level titles and the name on
+the menu, which memory alone doesn't.
+
+The first run found the harness's trap, not the game's: a key let go
+and the next pressed in the same instant are one long press to
+`new_key`, which waits for no key before taking one. Each key now runs
+to where the routine has seen it let go before the next goes down.
