@@ -323,10 +323,11 @@ byte left, and if a bit falls off the top, EOR it with `&1D`. That steps
 through all 255 non-zero bytes before it repeats. It draws one wherever
 the original reads R.
 
-The generator is seeded with 1 at start-up and never again. So the
-numbers depend only on how many have been drawn, which depends on how the
-game has gone, not on time: from power-on, the same keys on the same
-passes play the same game, which on the Spectrum they wouldn't.
+The menu seeds the generator from the VSync count as a player picks a
+game, so how long they spent at the menu varies the game's numbers, as
+R's timing does on the Spectrum. After that the numbers depend only on
+how many have been drawn. The test disc goes straight into a game with
+a fixed seed, so a check plays the same game every time.
 
 The two noises take their numbers from a second generator of the same
 kind (`noise_random`), with its own state, so playing a sound never moves

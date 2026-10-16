@@ -165,10 +165,18 @@ KEY_CODES = key_codes_end - key_codes
 .keys
     \ (&C2B9: each starts with 1,000 strength)
     LDX #K_1 : JSR key_down : BEQ not1
-    LDA #1 : JMP new_game
+    LDA #1 : BNE chosen                 ; (always)
 .not1
     LDX #K_2 : JSR key_down : BEQ not2
-    LDA #3 : JMP new_game
+    LDA #3
+.chosen
+    \ the random numbers seeded from the VSyncs counted while the menu
+    \ waited, so each game's differ, as R's did (decision 7)
+    LDX vsyncs : BNE seeded
+    INX                                 ; (a seed of 0 would stay 0)
+.seeded
+    STX seed
+    JMP new_game
 .not2
     LDX #K_3 : JSR key_down : BEQ not3
     JMP select_controls

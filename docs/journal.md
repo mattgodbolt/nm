@@ -428,3 +428,8 @@ only the gaps. No check listens to the effects. A probe that walks into
 the monsters on level 1 and captures the chip between `effect_start`
 and `effect_end` found it. The seed is now set with the game's at
 start-up, and the same probe hears the segments switching on and off.
+
+Writing up the random numbers showed that every game from power-on was
+the same game: the generator was seeded once at start-up. The menu now
+seeds it from the VSync count as a player picks one or two players
+(decision 7).
