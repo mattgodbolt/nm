@@ -20,10 +20,16 @@ FLOOR_TILES = {&00, &16, &1E}  ; the tiles whose ink is the level's floor colour
     \ (&C357: tiles &00, &16 and &1E take it as their attribute)
     STA tileattr + &00 : STA tileattr + &16 : STA tileattr + &1E
     \ the inks: black, yellow (the walls), the floor (never black or
-    \ yellow), and the rest in 3
+    \ yellow), and the rest in 3; but with player 2 in the level, their
+    \ green in 2 and the floor in 3 with the rest (InPlay's bit 1, or
+    \ bit 3 for a player who left by the exit, before next_level moves it)
     JSR panel_inks
-    LDX floor_ink : LDA #cbyte(2) : STA ink_mask,X
-    \ the palette: black and yellow (as pal_phys keeps them), the floor,
+    LDX #P2_COLOUR AND 7
+    LDA InPlay : AND #&0A : BNE two
+    LDX floor_ink
+.two
+    LDA #cbyte(2) : STA ink_mask,X
+    \ the palette: black and yellow (as pal_phys keeps them), that one,
     \ cyan
     LDA zx_to_bbc,X : LDX #LEVEL_PHYS3
     \ (fall into set_palette)

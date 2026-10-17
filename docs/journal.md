@@ -474,3 +474,22 @@ after `NDATA` has gone to the bank, and `draw_panel` unpacks it into the
 map's room as before. The screen's clear moved from start-up into
 `draw_panel`, after the unpack: start-up's run-once code has to fit in
 `panel_shown`'s bytes, and had no room for another call.
+
+## Player 2 in their own colour (issue #1)
+
+Four colours leave two to choose once black (the paper) and yellow (the
+walls) are fixed, and the players, the floor and the monsters' health
+colours all want them. With one player nothing changes: the floor keeps
+logical 2. With player 2 in the level, logical 2 is their green and the
+floor joins cyan; before, both players were cyan except on green floors.
+It also shows the weakest monsters green again. Screenshots with the
+floor in cyan and in green read the same, and Matt chose cyan.
+
+A study of MODE 2 compared: every colour shows, at the same memory and
+speed, but at half the width, which turns the walls' dither solid or
+striped; the art would need redrawing. Not taken.
+
+`tools/passcmp.py` knows the rule: a level's colours come from whether
+player 2 began it (`InPlay`'s bit 1 on its first pass), and stay if they
+leave. Run against a two-player log with the old rule it fails on every
+screen.

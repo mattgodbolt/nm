@@ -39,13 +39,17 @@ def floor_ink(level):
     return ((level + 1) & 3) + 1        # &C357: level from 0
 
 
-def logical(colour, floor):
-    """src/colour.6502's mapping of a Spectrum colour (decision 5)."""
+GREEN = 4                               # player 2's (src/player.6502's P2_COLOUR)
+
+
+def logical(colour, floor, two):
+    """src/colour.6502's mapping of a Spectrum colour (decision 5): the
+    floor in 2, or player 2's green in 2 when they began the level."""
     if colour == 0:
         return 0
     if colour == 6:
         return 1
-    if colour == floor:
+    if colour == (GREEN if two else floor):
         return 2
     return 3
 
@@ -63,7 +67,7 @@ def bbc_pixel(scr, x, y):
     return ((b >> (7 - i)) & 1) << 1 | ((b >> (3 - i)) & 1)
 
 
-def screen_diffs(z, b, level):
+def screen_diffs(z, b, level, two):
     """Pixels that differ: the playfield (columns 8-31) in the port's
     colours; the panel (0-7) by shape, lit or not (its pictures and the
     figures printed on it map colours differently: decision 5)."""
@@ -75,7 +79,7 @@ def screen_diffs(z, b, level):
             lit, colour = zx_pixel(zs, x, y)
             got = bbc_pixel(bs, x, y)
             if x >= 64:
-                want = logical(colour, floor)
+                want = logical(colour, floor, two)
                 if got != want:
                     out.append((x, y, want, got))
             else:
@@ -97,6 +101,7 @@ def main():
     zx, bbc = (__import__("json").load(open(p)) for p in args[:2])
     names = labels()
     bad = 0
+    started = None                      # the level, and whether player 2 began it
     for z, b in zip(zx, bbc):
         if "end" in z or "end" in b:
             if "end" not in z or "end" not in b:
@@ -117,9 +122,14 @@ def main():
         if cells and "map" not in ignore:
             diffs.append("map: " + ", ".join(f"({i // 32},{i % 32}) {zm[i]:02x} vs {bm[i]:02x}" for i in cells[:8])
                          + (f" and {len(cells) - 8} more" if len(cells) > 8 else ""))
+        ba = bytes.fromhex(z["ba"])
+        level = ba[0xBA74 - 0xBA29]
+        if started is None or started[0] != level:
+            # a level's colours are set as it starts, from who is in it
+            # (InPlay's bit 1: player 2), and kept if they leave
+            started = (level, bool(ba[0xBA73 - 0xBA29] & 2))
         if "scr" in z and "scr" in b:
-            level = bytes.fromhex(z["ba"])[0xBA74 - 0xBA29]
-            sd = screen_diffs(z, b, level)
+            sd = screen_diffs(z, b, level, started[1])
             if sd and "screen" not in ignore:
                 x, y, w, g = sd[0]
                 diffs.append(f"screen: {len(sd)} pixels differ, the first at ({x},{y}): {w} vs {g}")
