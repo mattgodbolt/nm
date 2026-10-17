@@ -103,15 +103,7 @@ NEXT
     LDA #LO(irq_handler) : STA irq1v
     LDA #HI(irq_handler) : STA irq1v + 1
     CLI
-
-    \ The screen cleared to logical colour 0, a page at a time (the
-    \ store's page is written into it: this code runs once)
-    LDA #0 : TAY
-.cls
-    STA screen,Y
-    INY : BNE cls
-    INC cls + 2 : BPL cls
-    \ (fall into started)
+    \ (fall into started, whose draw_panel clears the screen)
     ZA_AUTO1 tmp
 }
     ASSERT P% = panel_shown + PANEL_CELLS

@@ -23,9 +23,10 @@ SECTION Boot, filename = "!BOOT", exec = &FFFFFFFF
     EQUS "*RUN NLOAD", 13
 ENDSECTION
 
-\ The loader (loader.6502): NDATA into a sideways RAM bank, then NINJA. It
-\ runs from where MODE 7 leaves free, above anything it loads.
-SECTION Loader, org = &7000, load = &FFFF7000, exec = &FFFF0000 + loader, filename = "NLOAD", guard = &7C00
+\ The loader (loader.6502): NDATA into a sideways RAM bank, then NPANEL and
+\ NINJA. It runs from where MODE 7 leaves free, above anything it loads.
+LOADER_BASE = &7000
+SECTION Loader, org = LOADER_BASE, load = &FFFF0000 OR LOADER_BASE, exec = &FFFF0000 + loader, filename = "NLOAD", guard = &7C00
     INCLUDE "loader.6502"
 ENDSECTION
 
@@ -200,9 +201,6 @@ SECTION Data, org = &8000, load = &FFFF3000, filename = "NDATA", guard = &C000
     INCBIN "data/passwords.bin"
 .title_attr
     INCBIN "data/titleattr.bin"
-    \ The status panel, drawn once (panel.6502)
-.panel_packed
-    INCBIN "data/panel.zx02"
     \ The music's songs (music.6502, tools/mkmusic.py)
 .music_data
     INCLUDE "data/music.6502"
@@ -227,4 +225,14 @@ SECTION Data, org = &8000, load = &FFFF3000, filename = "NDATA", guard = &C000
     PRINT "code in the bank: ", banked_code_end - banked_code, " bytes"
 .data_end
     PRINT "sideways data &8000-&", ~data_end, " (", &C000 - data_end, " bytes free)"
+ENDSECTION
+
+\ The status panel, packed (panel.6502): a file of its own, not kept, as
+\ it's drawn once. The loader loads it into the screen's memory, above
+\ where NINJA's file can reach, and start-up unpacks it before clearing
+\ the screen.
+PANEL_LOAD = CODE_LOAD + (screen - CODE_BASE)
+SECTION Panel, org = PANEL_LOAD, load = &FFFF0000 OR PANEL_LOAD, filename = "NPANEL", guard = LOADER_BASE
+.panel_packed
+    INCBIN "data/panel.zx02"
 ENDSECTION

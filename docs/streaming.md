@@ -15,9 +15,10 @@ the disc would carry. Nothing here is built yet.
 - **OS workspace** below `CODE_BASE` (decision 11): the map, the
   attributes, the drawing's tables (made at start-up, decision 20).
 - **The sideways RAM bank** (`NDATA`): the 50 levels, packed (decision 4),
-  the songs, the panel (packed), the font, and the code that needn't be in
-  main RAM: the level's set-up, text, the colours, the front end, the
-  music's entries (decision 20).
+  the songs, the font, and the code that needn't be in main RAM: the
+  level's set-up, text, the colours, the front end, the music's entries
+  (decision 20). The panel's packed picture is a file of its own,
+  `NPANEL`, read once at start-up and not kept.
 
 The build's `PRINT`s say how much room each has left. Four rounds of
 optimisation (docs/journal.md) left some in both, more in main RAM than
@@ -43,9 +44,9 @@ ways to make room, roughly in the order they'd pay:
    (and at game over). Chuckie Egg 2 made its front end a separate program
    (`MENU`); here it could be read from the disc into the map's room, since
    no level is in play then, and the game's state kept where both see it.
-2. **The panel off the disc**, not kept in memory. The panel is drawn
-   once, at start-up, and never cleared, so its packed copy is never read
-   again. It can be a file of its own, which the loader loads into the
+2. **The panel off the disc**: done (2026-10-17). The panel is drawn
+   once, at start-up, and never cleared, so its packed copy was never read
+   again. It's the file `NPANEL` now, which the loader loads into the
    screen's memory (free until the game draws there) for start-up to
    unpack and draw from (Matt, 2026-10-16).
 3. **The music** only where it fits: Chuckie Egg 2's streaming edition

@@ -463,3 +463,14 @@ The first run found the harness's trap, not the game's: a key let go
 and the next pressed in the same instant are one long press to
 `new_key`, which waits for no key before taking one. Each key now runs
 to where the routine has seen it let go before the next goes down.
+
+## The panel off the disc (issue #9)
+
+The first step towards a stock-B edition, and it helps this one too. The
+panel's packed picture was in the bank for good, though it's read once,
+at start-up. It's the file `NPANEL` now: the loader loads it into the
+screen's memory, above where `NINJA`'s file can reach (`PANEL_LOAD`),
+after `NDATA` has gone to the bank, and `draw_panel` unpacks it into the
+map's room as before. The screen's clear moved from start-up into
+`draw_panel`, after the unpack: start-up's run-once code has to fit in
+`panel_shown`'s bytes, and had no room for another call.

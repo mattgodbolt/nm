@@ -1,10 +1,12 @@
 \ ***************************************************************************
 \ The status panel: the screen's left 8 columns. The original never draws
 \ it: it keeps the loading screen's (docs/research.md). The port draws it
-\ once, from panel.zx02 (tools/mkgfx.py), unpacked into the map's room
-\ before there's a level (decision 20), in colours that don't change with
-\ the level (decision 5): yellow as yellow, black as black, any other in
-\ logical 3.
+\ once, from panel.zx02 (tools/mkgfx.py), in colours that don't change
+\ with the level (decision 5): yellow as yellow, black as black, any
+\ other in logical 3. Its packed copy is the file NPANEL, which the
+\ loader leaves in the screen's memory (main.6502), unpacked into the
+\ map's room before there's a level (decision 20); then the screen is
+\ cleared.
 
 panel = map                         ; (unpacked here first)
 PANEL_COLS = 8
@@ -30,6 +32,13 @@ panel_pixels = panel + PANEL_CELLS  ; then each cell's 8 lines, in the same orde
     LDA #LO(panel_packed) : STA zsrc : LDA #HI(panel_packed) : STA zsrc + 1
     LDA #LO(panel) : STA zdst : LDA #HI(panel) : STA zdst + 1
     JSR unzx02
+    \ The screen cleared to logical colour 0, NPANEL with it, a page at a
+    \ time (the store's page is written into it: this code runs once)
+    LDA #0 : TAY
+.cls
+    STA screen,Y
+    INY : BNE cls
+    INC cls + 2 : BPL cls
     LDA #LO(panel_pixels + PANEL_CELLS * 8) : STA gl_src
     LDA #HI(panel_pixels + PANEL_CELLS * 8) : STA gl_src + 1
     LDA #PANEL_CELLS : STA left

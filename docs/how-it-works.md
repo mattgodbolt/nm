@@ -281,9 +281,12 @@ room each has left).
   tables and the music's state.
 - **A 16K sideways RAM bank** (decisions 6 and 20), filled from the file
   `NDATA` by the loader `NLOAD`, and paged in for good: the levels, the
-  songs, the panel, the font, and the code that needn't be in main RAM
-  (the level's set-up, text, the colours, the front end), which runs from
-  there as fast as from main RAM.
+  songs, the font, and the code that needn't be in main RAM (the level's
+  set-up, text, the colours, the front end), which runs from there as
+  fast as from main RAM.
+- **The panel's picture** isn't kept anywhere. It's drawn once, so the
+  loader leaves its packed copy (the file `NPANEL`) in the screen's
+  memory, and start-up unpacks it there before clearing the screen.
 
 So the game needs 16K of sideways RAM, or a Master.
 
