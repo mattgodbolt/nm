@@ -493,3 +493,10 @@ striped; the art would need redrawing. Not taken.
 player 2 began it (`InPlay`'s bit 1 on its first pass), and stay if they
 leave. Run against a two-player log with the old rule it fails on every
 screen.
+
+## Baron 0.6.0
+
+Baron moved to 0.6.0 (section transforms, loops in `FUNCTION`s, and the
+fixes for the issues Starglider's port raised), in CI too. Every disc
+(the release, the test disc, the music check's and the views') is byte
+for byte what 0.5.3 made, built with the same stamp.
