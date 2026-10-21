@@ -64,7 +64,7 @@ still here: [`music/README.md`](music/README.md) tells that story, and
 
 ## Building
 
-You need [baron](https://github.com/waitingforvsync/baron) 0.5.3 (at
+You need [baron](https://github.com/waitingforvsync/baron) 0.6.0 (at
 `../baron/build/src/baron`, or on the PATH), Node.js, Python 3 and
 [uv](https://github.com/astral-sh/uv).
 

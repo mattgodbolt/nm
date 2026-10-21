@@ -45,7 +45,7 @@ make music      # the music driver against the original's, frame by frame
 make music-disc # nm's music disc, ninja_music.ssd (tools/music/build.sh)
 ```
 
-Baron 0.5.3 is expected at `../baron/build/src/baron` or on the PATH. CI
+Baron 0.6.0 is expected at `../baron/build/src/baron` or on the PATH. CI
 (`.github/workflows/check.yml`) builds it at the tag in `BARON_VERSION`
 and runs `make check` on the B and the Master: move that pin with the
 local one.
